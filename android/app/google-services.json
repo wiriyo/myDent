@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1060356216356",
+    "project_id": "mydentv1",
+    "storage_bucket": "mydentv1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1060356216356:android:7856f0f30ff1e148786ab1",
+        "android_client_info": {
+          "package_name": "com.example.mydent_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmgwp7wegSEJUznyd2TzysgcGtXBgwTYc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

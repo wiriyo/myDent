@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
+import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
   @override
-  _SignUpScreenState createState() => _SignUpScreenState();
+  State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
@@ -17,20 +18,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void _signUp() async {
     String email = _emailController.text.trim();
     String password = _passwordController.text;
-
-    print("📩 Trying sign up with $email");
-
     var userCredential = await _authService.signUp(email, password);
-
     if (userCredential != null) {
-      // สมัครสมาชิกสำเร็จ
-      // หลังจาก Sign Up เสร็จ เราจะกลับหน้าล็อกอินก่อน (หรือเปลี่ยนตาม Flow ที่ต้องการ)
-      print("✅ SignUp Success");
-      Navigator.pop(context);
+      String? role = await _authService.getUserRole(userCredential.user!.uid);
+      Navigator.pushReplacementNamed(context, '/home', arguments: role);
     } else {
-      print("❌ Sign up failed in signup_screen.dart");
       setState(() {
-        errorMessage = 'Sign Up failed. Please try again.';
+        errorMessage = 'Sign up failed. Please try again.';
       });
     }
   }
@@ -38,39 +32,108 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Sign Up")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // ฟิลด์กรอกอีเมล์
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: "Email",
-                hintText: "you@example.com",
+      backgroundColor: const Color(0xFFEFE0FF),
+      body: Center(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Image.asset(
+                'assets/images/tooth_logo.png',
+                height: 160,
               ),
-            ),
-            const SizedBox(height: 16),
-            // ฟิลด์กรอกรหัสผ่าน
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(labelText: "Password"),
-              obscureText: true,
-            ),
-            const SizedBox(height: 20),
-            // ปุ่ม Sign Up
-            ElevatedButton(onPressed: _signUp, child: const Text("Sign Up")),
-            if (errorMessage.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(
-                  errorMessage,
-                  style: const TextStyle(color: Colors.red),
+              const SizedBox(height: 12),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFBEAFF),
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTextField('Email', _emailController),
+                    const SizedBox(height: 16),
+                    _buildTextField('Password', _passwordController, obscure: true),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: _signUp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFBFA3FF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text('Sign Up'),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          "Already have an account? ",
+                          style: TextStyle(fontFamily: 'Poppins'),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          ),
+                          child: const Text(
+                            "Log In",
+                            style: TextStyle(
+                              color: Color(0xFFF47FA1),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (errorMessage.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(errorMessage, style: const TextStyle(color: Colors.red)),
+                      ),
+                  ],
                 ),
               ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, {bool obscure = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      style: const TextStyle(fontFamily: 'Poppins'),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Color(0xFF6A4DBA), fontWeight: FontWeight.bold),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF6A4DBA)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFBFA3FF), width: 2),
         ),
       ),
     );

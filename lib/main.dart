@@ -13,11 +13,39 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MyDent',
-      theme: ThemeData(primarySwatch: Colors.teal),
+      theme: ThemeData(
+        fontFamily: 'Poppins', // ต้องแน่ใจว่ามีเพิ่มใน pubspec.yaml แล้ว
+        scaffoldBackgroundColor: const Color(0xFFF3E5F5), // พื้นหลังม่วงอ่อน
+        primarySwatch: Colors.deepPurple,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.pinkAccent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            textStyle: const TextStyle(fontSize: 16),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.deepPurple,
+            textStyle: const TextStyle(fontSize: 14),
+          ),
+        ),
+      ),
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginScreen(),
@@ -31,7 +59,6 @@ class RoleBasedHomeScreen extends StatelessWidget {
   const RoleBasedHomeScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    // รับ role จาก arguments ของ Navigator
     final String? role = ModalRoute.of(context)!.settings.arguments as String?;
     String welcomeText;
     if (role == 'admin') {
@@ -41,7 +68,6 @@ class RoleBasedHomeScreen extends StatelessWidget {
     } else if (role == 'officer') {
       welcomeText = 'Welcome Officer! Please proceed with registrations.';
     } else {
-      // ค่า default ให้กับ guest
       welcomeText = 'Welcome Guest! Your personal records are here.';
     }
     return Scaffold(

@@ -10,6 +10,12 @@ import 'home/home_officer.dart';
 import 'home/home_guest.dart';
 //import 'auth/auth_service.dart';
 
+import 'screens/appointments_screen.dart';
+import 'screens/patients_screen.dart';
+import 'screens/reports_screen.dart';
+import 'screens/setting_screen.dart';
+import 'screens/treatments_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -71,6 +77,13 @@ class MyApp extends StatelessWidget {
         '/home/dentist': (context) => const HomeDentistScreen(),
         '/home/officer': (context) => const HomeOfficerScreen(),
         '/home/guest': (context) => const HomeGuestScreen(),
+
+        '/appointments': (context) => const AppointmentsScreen(),
+        '/patients': (context) => const PatientsScreen(),
+        '/reports': (context) => const ReportsScreen(),
+        '/settings': (context) => const SettingsScreen(),
+        '/treatments': (context) => const TreatmentsScreen(),
+
       },
     );
   }

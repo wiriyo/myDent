@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'login_screen.dart';
+
+import 'auth/login_screen.dart';
+import 'auth/signup_screen.dart';
+import 'home/home_admin.dart';
+import 'home/home_dentist.dart';
+import 'home/home_officer.dart';
+import 'home/home_guest.dart';
+//import 'auth/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -18,24 +23,35 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MyDent',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'Poppins', // ต้องแน่ใจว่ามีเพิ่มใน pubspec.yaml แล้ว
-        scaffoldBackgroundColor: const Color(0xFFF3E5F5), // พื้นหลังม่วงอ่อน
+        fontFamily: 'Poppins',
+        scaffoldBackgroundColor: const Color(0xFFF3E5F5),
         primarySwatch: Colors.deepPurple,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFFBEAFF),
+          foregroundColor: Color(0xFF6A4DBA),
+          elevation: 0,
+          centerTitle: true,
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins',
+          ),
+        ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.pinkAccent,
+            backgroundColor: Colors.purpleAccent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             textStyle: const TextStyle(fontSize: 16),
           ),
         ),
@@ -49,7 +65,12 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginScreen(),
+        '/signup': (context) => const SignUpScreen(),
         '/home': (context) => const RoleBasedHomeScreen(),
+        '/home/admin': (context) => const HomeAdminScreen(),
+        '/home/dentist': (context) => const HomeDentistScreen(),
+        '/home/officer': (context) => const HomeOfficerScreen(),
+        '/home/guest': (context) => const HomeGuestScreen(),
       },
     );
   }
@@ -57,28 +78,27 @@ class MyApp extends StatelessWidget {
 
 class RoleBasedHomeScreen extends StatelessWidget {
   const RoleBasedHomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     final String? role = ModalRoute.of(context)!.settings.arguments as String?;
-    String welcomeText;
-    if (role == 'admin') {
-      welcomeText = 'Welcome Admin! You can manage everything.';
-    } else if (role == 'dentist') {
-      welcomeText = 'Welcome Dentist! Here is your dashboard.';
-    } else if (role == 'officer') {
-      welcomeText = 'Welcome Officer! Please proceed with registrations.';
-    } else {
-      welcomeText = 'Welcome Guest! Your personal records are here.';
+
+    // ถ้า role ยังไม่รู้จัก ให้ redirect ไปหน้า Login
+    if (role == null) {
+      Future.microtask(() {
+        Navigator.pushReplacementNamed(context, '/');
+      });
+      return const Scaffold();
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('MyDent Home')),
-      body: Center(
-        child: Text(
-          welcomeText,
-          style: const TextStyle(fontSize: 20),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
+
+    if (role == 'admin') {
+      return const HomeAdminScreen();
+    } else if (role == 'dentist') {
+      return const HomeDentistScreen();
+    } else if (role == 'officer') {
+      return const HomeOfficerScreen();
+    } else {
+      return const HomeGuestScreen();
+    }
   }
 }

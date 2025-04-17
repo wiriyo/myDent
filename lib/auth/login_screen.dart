@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+import '../auth/auth_service.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacementNamed(context, '/home', arguments: role);
     } else {
       setState(() {
-        errorMessage = 'Login failed. Please check your credentials.';
+        errorMessage = 'Login failed. Please try again.';
       });
     }
   }
@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 12),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFBEAFF),
                   borderRadius: BorderRadius.circular(32),

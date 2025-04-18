@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mydent_app/screens/calendar_screen.dart';
 
 class AppointmentsScreen extends StatelessWidget {
   const AppointmentsScreen({super.key});
@@ -7,7 +8,7 @@ class AppointmentsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Appoinments")),
-      body: const Center(child: Text("Appointments screen here!")),
+      body: CalendarScreen(),
     );
   }
 }

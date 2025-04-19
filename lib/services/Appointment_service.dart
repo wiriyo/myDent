@@ -1,44 +1,34 @@
+// lib/services/appointment_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../models/appointment.dart';
+import '../models/patient.dart';
 
 class AppointmentService {
-  static final _firestore = FirebaseFirestore.instance;
-  static final _auth = FirebaseAuth.instance;
+  final CollectionReference _appointments =
+      FirebaseFirestore.instance.collection('appointments');
+  final CollectionReference _patients =
+      FirebaseFirestore.instance.collection('patients');
 
-  static Future<void> addAppointment({
-    required String patientName,
-    required String type,
-    required DateTime startTime,
-    required Duration duration,
-  }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not authenticated');
+  // ดึงนัดหมายตามวันที่
+  Stream<List<Appointment>> getAppointmentsByDate(DateTime selectedDate) {
+    DateTime startOfDay = DateTime(
+        selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
+    DateTime endOfDay = DateTime(
+        selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59);
 
-    final endTime = startTime.add(duration);
-
-    await _firestore.collection('appointments').add({
-      'patientId': user.uid,
-      'patientName': patientName,
-      'type': type,
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime.toIso8601String(),
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    return _appointments
+        .where('date',
+            isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
+            isLessThanOrEqualTo: endOfDay.toIso8601String())
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Appointment.fromMap(doc.data() as Map<String, dynamic>))
+            .toList());
   }
 
-  static Stream<List<Map<String, dynamic>>> getAppointmentsForCurrentUser() {
-    final user = _auth.currentUser;
-    if (user == null) {
-      return const Stream.empty();
-    }
-
-    return _firestore
-        .collection('appointments')
-        .where('patientId', isEqualTo: user.uid)
-        .orderBy('startTime')
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => doc.data()).toList());
+  // ดึงข้อมูลคนไข้จาก patientId
+  Future<Patient> getPatientById(String patientId) async {
+    DocumentSnapshot doc = await _patients.doc(patientId).get();
+    return Patient.fromMap(doc.data() as Map<String, dynamic>);
   }
 }

@@ -13,6 +13,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final _typeController = TextEditingController();
   final _datetimeController = TextEditingController();
   final _durationController = TextEditingController();
+  DateTime currentDate = DateTime.now();
+  DateTime selectedDate = DateTime.now();
+
+  void _changeMonth(int offset) {
+    setState(() {
+      currentDate = DateTime(currentDate.year, currentDate.month + offset);
+    });
+  }
 
   void _openAppointmentForm() {
     showModalBottomSheet(
@@ -81,6 +89,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     _typeController.clear();
                     _datetimeController.clear();
                     _durationController.clear();
+                    setState(() {});
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}')),
@@ -101,33 +110,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FC),
-      appBar: AppBar(leading: Container(),elevation: 0,
+      appBar: AppBar(
+        elevation: 0,
         backgroundColor: Colors.white,
+        centerTitle: true,
         title: Row(
-           children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('<<<', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-              ),
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(Icons.chevron_left, color: Colors.grey.shade600),
+              onPressed: () => _changeMonth(-1),
             ),
-            Expanded(
-              child: Align(
-                alignment: Alignment.center,
-                child: Text('Apr', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
-              ),
+            const SizedBox(width: 8),
+            Text(
+              DateFormat('MMM').format(currentDate),
+              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
             ),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text('>>>', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-              ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(Icons.chevron_right, color: Colors.grey.shade600),
+              onPressed: () => _changeMonth(1),
             ),
           ],
         ),
-        ),
-      
-      
+      ),
       body: Column(
         children: [
           Padding(
@@ -153,7 +160,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ],
             ),
           ),
-          viewMode == 'Month' ? buildCalendarGrid() : buildWeekView(),
+          if (viewMode == 'Month')
+            buildCalendarGrid()
+          else
+            buildWeekView(),
           Expanded(child: buildAppointmentsList()),
         ],
       ),
@@ -174,74 +184,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget buildCalendarGrid() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7,
-          childAspectRatio: 1,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: 35,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              color: index == 9 ? Colors.pinkAccent : Colors.transparent,
-            ),
-            child: Center(
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  color: index == 9 ? Colors.white : Colors.black,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget buildWeekView() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final weekStart = selectedDate.subtract(Duration(days: selectedDate.weekday - 1));
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+      padding: const EdgeInsets.all(16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(7, (index) {
           final day = weekStart.add(Duration(days: index));
-          final isToday = day.day == now.day && day.month == now.month && day.year == now.year;
+          final isSelected = selectedDate.day == day.day && selectedDate.month == day.month && selectedDate.year == day.year;
           return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: isToday ? Colors.pinkAccent : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
+            child: GestureDetector(
+              onTap: () => setState(() => selectedDate = day),
               child: Column(
                 children: [
-                  Text(
-                    DateFormat('E').format(day),
-                    style: TextStyle(
-                      color: isToday ? Colors.white : Colors.black54,
-                    ),
-                  ),
+                  Text(DateFormat('E').format(day), style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text(
-                    '${day.day}',
-                    style: TextStyle(
-                      color: isToday ? Colors.white : Colors.black,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  CircleAvatar(
+                    backgroundColor: isSelected ? Colors.pinkAccent : Colors.grey.shade300,
+                    radius: 16,
+                    child: Text('${day.day}', style: const TextStyle(color: Colors.white)),
                   ),
                 ],
               ),
@@ -251,6 +216,78 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
     );
   }
+
+Widget buildCalendarGrid() {
+  final firstDayOfMonth = DateTime(currentDate.year, currentDate.month, 1);
+  final daysInMonth = DateTime(currentDate.year, currentDate.month + 1, 0).day; // ใช้ DateTime แทน DateUtils
+  final firstWeekday = firstDayOfMonth.weekday % 7; // วันแรกของเดือน (0 = วันอาทิตย์, 1 = วันจันทร์, ...)
+  
+  // คำนวณจำนวนวันทั้งหมดที่ต้องแสดงในกริด (รวมวันจากเดือนก่อนหน้าและถัดไป)
+  final totalGridCount = (daysInMonth + firstWeekday + 6) ~/ 7 * 7; // ปัดขึ้นให้ครบแถว
+
+  return Expanded(
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(7, (index) {
+              final weekday = DateFormat.E().format(DateTime(2023, 1, index + 2));
+              return Expanded(
+                child: Center(
+                  child: Text(
+                    weekday,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: totalGridCount,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: 1,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemBuilder: (context, index) {
+                final dayNum = index - firstWeekday + 1;
+                final isValidDay = dayNum >= 1 && dayNum <= daysInMonth;
+                final date = DateTime(currentDate.year, currentDate.month, isValidDay ? dayNum : 1);
+                final isSelected = isValidDay &&
+                    selectedDate.day == dayNum &&
+                    selectedDate.month == currentDate.month;
+
+                return GestureDetector(
+                  onTap: () => isValidDay ? setState(() => selectedDate = date) : null,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: isValidDay && isSelected ? Colors.pinkAccent : Colors.transparent,
+                    ),
+                    child: Center(
+                      child: Text(
+                        isValidDay ? '$dayNum' : '',
+                        style: TextStyle(
+                          color: isValidDay && isSelected ? Colors.white : Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget buildAppointmentsList() {
     return StreamBuilder<List<Map<String, dynamic>>>(
@@ -262,7 +299,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(child: Text('ไม่มีนัดหมาย'));
         }
-        final appointments = snapshot.data!;
+
+        final appointments = snapshot.data!
+            .where((appt) => DateFormat('yyyy-MM-dd').format(DateTime.parse(appt['startTime'])) == DateFormat('yyyy-MM-dd').format(selectedDate))
+            .toList();
+
+        if (appointments.isEmpty) {
+          return const Center(child: Text('ไม่มีนัดหมายในวันนี้'));
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.all(16.0),
           itemCount: appointments.length,

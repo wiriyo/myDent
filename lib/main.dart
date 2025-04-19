@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'auth/login_screen.dart';
 import 'auth/signup_screen.dart';
@@ -8,8 +8,6 @@ import 'home/home_admin.dart';
 import 'home/home_dentist.dart';
 import 'home/home_officer.dart';
 import 'home/home_guest.dart';
-//import 'auth/auth_service.dart';
-
 import 'screens/appointments_screen.dart';
 import 'screens/patients_screen.dart';
 import 'screens/reports_screen.dart';
@@ -68,26 +66,35 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: '/',
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          } else if (snapshot.hasData) {
+            return const AppointmentsScreen(); // หรือจะเปลี่ยนเป็นหน้า role ก็ได้
+          } else {
+            return const LoginScreen();
+          }
+        },
+      ),
       routes: {
-        '/': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),
         '/home': (context) => const RoleBasedHomeScreen(),
         '/home/admin': (context) => const HomeAdminScreen(),
         '/home/dentist': (context) => const HomeDentistScreen(),
         '/home/officer': (context) => const HomeOfficerScreen(),
         '/home/guest': (context) => const HomeGuestScreen(),
-
         '/appointments': (context) => const AppointmentsScreen(),
         '/patients': (context) => const PatientsScreen(),
         '/reports': (context) => const ReportsScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/treatments': (context) => const TreatmentsScreen(),
-
       },
     );
   }
 }
+
 
 class RoleBasedHomeScreen extends StatelessWidget {
   const RoleBasedHomeScreen({super.key});

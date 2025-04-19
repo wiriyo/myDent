@@ -164,7 +164,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             buildCalendarGrid()
           else
             buildWeekView(),
-          Expanded(child: buildAppointmentsList()),
+          buildAppointmentsList(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -217,77 +217,90 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-Widget buildCalendarGrid() {
-  final firstDayOfMonth = DateTime(currentDate.year, currentDate.month, 1);
-  final daysInMonth = DateTime(currentDate.year, currentDate.month + 1, 0).day; // ใช้ DateTime แทน DateUtils
-  final firstWeekday = firstDayOfMonth.weekday % 7; // วันแรกของเดือน (0 = วันอาทิตย์, 1 = วันจันทร์, ...)
-  
-  // คำนวณจำนวนวันทั้งหมดที่ต้องแสดงในกริด (รวมวันจากเดือนก่อนหน้าและถัดไป)
-  final totalGridCount = (daysInMonth + firstWeekday + 6) ~/ 7 * 7; // ปัดขึ้นให้ครบแถว
+  Widget buildCalendarGrid() {
+    final firstDayOfMonth = DateTime(currentDate.year, currentDate.month, 1);
+    final daysInMonth = DateTime(currentDate.year, currentDate.month + 1, 0).day; // จำนวนวันในเดือน
+    // Debug: ตรวจสอบจำนวนวันในเดือน
+    print('daysInMonth: $daysInMonth');
+    // ปรับ firstWeekday ให้เริ่มจากวันจันทร์ (0) ถึงวันอาทิตย์ (6)
+    final firstWeekday = (firstDayOfMonth.weekday + 6) % 7; // วันแรกของเดือน
 
-  return Expanded(
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(7, (index) {
-              final weekday = DateFormat.E().format(DateTime(2023, 1, index + 2));
-              return Expanded(
-                child: Center(
-                  child: Text(
-                    weekday,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: totalGridCount,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: 1,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemBuilder: (context, index) {
-                final dayNum = index - firstWeekday + 1;
-                final isValidDay = dayNum >= 1 && dayNum <= daysInMonth;
-                final date = DateTime(currentDate.year, currentDate.month, isValidDay ? dayNum : 1);
-                final isSelected = isValidDay &&
-                    selectedDate.day == dayNum &&
-                    selectedDate.month == currentDate.month;
+    // กำหนดให้มี 6 แถวเสมอ (6 สัปดาห์ x 7 วัน = 42 ช่อง)
+    const totalGridCount = 42;
 
-                return GestureDetector(
-                  onTap: () => isValidDay ? setState(() => selectedDate = date) : null,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: isValidDay && isSelected ? Colors.pinkAccent : Colors.transparent,
-                    ),
-                    child: Center(
-                      child: Text(
-                        isValidDay ? '$dayNum' : '',
-                        style: TextStyle(
-                          color: isValidDay && isSelected ? Colors.white : Colors.black,
-                        ),
-                      ),
+    return SizedBox(
+      height: 400, // เพิ่มความสูงให้เพียงพอสำหรับ 6 แถว
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(7, (index) {
+                final weekday = DateFormat.E().format(DateTime(2023, 1, index + 2));
+                return Expanded(
+                  child: Center(
+                    child: Text(
+                      weekday,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 );
-              },
+              }),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Expanded(
+              child: GridView.builder(
+                shrinkWrap: true, // เพิ่มเพื่อให้ GridView ปรับขนาดตามเนื้อหา
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: totalGridCount,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  childAspectRatio: 1,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  mainAxisExtent: 50, // ความสูงของแต่ละช่อง
+                ),
+                itemBuilder: (context, index) {
+                  // คำนวณวันที่สำหรับช่องปัจจุบัน
+                  final dayNum = index - firstWeekday + 1;
+                  // แสดงเฉพาะวันที่ที่อยู่ในเดือนนี้ (1 ถึง daysInMonth)
+                  final isValidDay = dayNum >= 1 && dayNum <= daysInMonth;
+                  final date = DateTime(currentDate.year, currentDate.month, isValidDay ? dayNum : 1);
+                  final isSelected = isValidDay &&
+                      selectedDate.day == dayNum &&
+                      selectedDate.month == currentDate.month;
+
+                  // Debug: ดูว่า dayNum คำนวณถูกต้องหรือไม่
+                  if (index >= firstWeekday && dayNum <= daysInMonth) {
+                    print('index: $index, dayNum: $dayNum, isValidDay: $isValidDay');
+                  }
+
+                  return GestureDetector(
+                    onTap: () => isValidDay ? setState(() => selectedDate = date) : null,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: isValidDay && isSelected ? Colors.pinkAccent : Colors.transparent,
+                      ),
+                      child: Center(
+                        child: Text(
+                          isValidDay ? '$dayNum' : '',
+                          style: TextStyle(
+                            color: isValidDay && isSelected ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget buildAppointmentsList() {
     return StreamBuilder<List<Map<String, dynamic>>>(

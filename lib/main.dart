@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth/login_screen.dart';
 import 'auth/signup_screen.dart';
@@ -17,11 +18,39 @@ import 'screens/treatments_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(const MyApp());
+  runApp(const MyDentAppInitializer());
+}
+
+class MyDentAppInitializer extends StatelessWidget {
+  const MyDentAppInitializer({super.key});
+
+  Future<bool> _checkSkipLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('skipLogin') ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _checkSkipLogin(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const MaterialApp(
+            home: Scaffold(body: Center(child: CircularProgressIndicator())),
+          );
+        }
+
+        final skipLogin = snapshot.data!;
+
+        return MyApp(skipLogin: skipLogin);
+      },
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool skipLogin;
+  const MyApp({super.key, required this.skipLogin});
 
   @override
   Widget build(BuildContext context) {
@@ -66,18 +95,22 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
-          } else if (snapshot.hasData) {
-            return const AppointmentsScreen(); // หรือจะเปลี่ยนเป็นหน้า role ก็ได้
-          } else {
-            return const LoginScreen();
-          }
-        },
-      ),
+      home: skipLogin
+          ? const AppointmentsScreen()
+          : StreamBuilder<User?>(
+              stream: FirebaseAuth.instance.authStateChanges(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                } else if (snapshot.hasData) {
+                  return const AppointmentsScreen();
+                } else {
+                  return const LoginScreen();
+                }
+              },
+            ),
       routes: {
         '/signup': (context) => const SignUpScreen(),
         '/home': (context) => const RoleBasedHomeScreen(),
@@ -103,7 +136,6 @@ class RoleBasedHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? role = ModalRoute.of(context)!.settings.arguments as String?;
 
-    // ถ้า role ยังไม่รู้จัก ให้ redirect ไปหน้า Login
     if (role == null) {
       Future.microtask(() {
         Navigator.pushReplacementNamed(context, '/');

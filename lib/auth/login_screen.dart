@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import 'signup_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,6 +28,13 @@ class _LoginScreenState extends State<LoginScreen> {
         errorMessage = 'Login failed. Please try again.';
       });
     }
+  }
+
+  void _devSkipLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('skipLogin', true);
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/appointments');
   }
 
   @override
@@ -76,6 +84,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       child: const Text('Login'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _devSkipLogin,
+                      child: const Text('Dev Login (Skip)'),
                     ),
                     const SizedBox(height: 16),
                     Row(

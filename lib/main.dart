@@ -1,11 +1,12 @@
-// 📁 lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'auth/login_screen.dart';
 import 'screens/calendar_screen.dart';
+import 'screens/patients_screen.dart';
+import 'screens/patient_detail.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,8 +61,10 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
-        '/calendar': (context) => const CalendarScreen(showReset: true),
+        '/calendar': (context) => const CalendarScreen(),
         '/login': (context) => const LoginScreen(),
+        '/patients': (context) => const PatientsScreen(),
+        '/patient_detail': (context) => const PatientDetailScreen(),
       },
     );
   }

@@ -68,16 +68,28 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   const SizedBox(width: 12),
                   DropdownButton<String>(
                     value: _selectedGender,
-                    icon: Icon(
-                      _selectedGender == 'หญิง' ? Icons.female : Icons.male,
-                      color: _selectedGender == 'หญิง' ? Colors.pinkAccent : Colors.blueAccent,
-                      size: 28,
-                    ),
+                    icon: const Icon(Icons.arrow_drop_down),
                     underline: Container(),
+                    selectedItemBuilder: (BuildContext context) {
+                      return ['หญิง', 'ชาย'].map((String value) {
+                        return Align(
+                          alignment: Alignment.center,
+                          child: Icon(
+                            value == 'หญิง' ? Icons.female : Icons.male,
+                            color: value == 'หญิง' ? Colors.pinkAccent : Colors.blueAccent,
+                            size: 28,
+                          ),
+                        );
+                      }).toList();
+                    },
                     items: ['หญิง', 'ชาย'].map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
-                        child: const SizedBox.shrink(),
+                        child: Icon(
+                          value == 'หญิง' ? Icons.female : Icons.male,
+                          color: value == 'หญิง' ? Colors.pinkAccent : Colors.blueAccent,
+                          size: 28,
+                        ),
                       );
                     }).toList(),
                     onChanged: (String? newValue) {

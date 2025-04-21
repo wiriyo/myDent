@@ -1,3 +1,5 @@
+// 📁 lib/auth/login_screen.dart
+
 import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import 'signup_screen.dart';
@@ -22,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
     var userCredential = await _authService.signIn(email, password);
     if (userCredential != null) {
       String? role = await _authService.getUserRole(userCredential.user!.uid);
-      Navigator.pushReplacementNamed(context, '/home', arguments: role);
+      Navigator.pushReplacementNamed(context, '/calendar');
     } else {
       setState(() {
         errorMessage = 'Login failed. Please try again.';
@@ -34,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('skipLogin', true);
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/appointments');
+    Navigator.pushReplacementNamed(context, '/calendar');
   }
 
   @override

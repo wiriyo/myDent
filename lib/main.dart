@@ -57,7 +57,12 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.black87),
         ),
       ),
-      home: skipLogin ? const CalendarScreen() : const LoginScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
+        '/calendar': (context) => const CalendarScreen(showReset: true),
+        '/login': (context) => const LoginScreen(),
+      },
     );
   }
 }

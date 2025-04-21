@@ -18,6 +18,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   List<Map<String, dynamic>> _selectedAppointmentsWithPatients = [];
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  CalendarFormat _calendarFormat = CalendarFormat.month;
 
   @override
   void initState() {
@@ -97,42 +98,76 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ],
               ),
               padding: const EdgeInsets.all(12),
-              child: TableCalendar(
-                locale: 'th_TH',
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedDay,
-                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                onDaySelected: (selectedDay, focusedDay) {
-                  setState(() {
-                    _selectedDay = selectedDay;
-                    _focusedDay = focusedDay;
-                  });
-                  _fetchAppointmentsForSelectedDay(selectedDay);
-                },
-                calendarStyle: CalendarStyle(
-                  todayDecoration: BoxDecoration(
-                    color: Colors.pink.shade100,
-                    shape: BoxShape.circle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+  onPressed: () {
+    setState(() {
+      _calendarFormat = _calendarFormat == CalendarFormat.month
+          ? CalendarFormat.week
+          : CalendarFormat.month;
+    });
+  },
+  icon: Icon(
+    _calendarFormat == CalendarFormat.month ? Icons.view_week : Icons.calendar_month,
+    color: Colors.purple,
+  ),
+  label: Text(
+    _calendarFormat == CalendarFormat.month ? 'ดูรายสัปดาห์' : 'ดูรายเดือน',
+    style: const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold),
+  ),
+  style: TextButton.styleFrom(
+    backgroundColor: Colors.purple.shade50,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+  ),
+                    ),
+                  
+                  TableCalendar(
+                    locale: 'th_TH',
+                    firstDay: DateTime.utc(2020, 1, 1),
+                    lastDay: DateTime.utc(2030, 12, 31),
+                    focusedDay: _focusedDay,
+                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                    onDaySelected: (selectedDay, focusedDay) {
+                      setState(() {
+                        _selectedDay = selectedDay;
+                        _focusedDay = focusedDay;
+                      });
+                      _fetchAppointmentsForSelectedDay(selectedDay);
+                    },
+                    calendarFormat: _calendarFormat,
+                    onFormatChanged: (format) {
+                      setState(() {
+                        _calendarFormat = format;
+                      });
+                    },
+                    calendarStyle: CalendarStyle(
+                      todayDecoration: BoxDecoration(
+                        color: Colors.pink.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      selectedDecoration: BoxDecoration(
+                        color: Colors.purple.shade300,
+                        shape: BoxShape.circle,
+                      ),
+                      weekendTextStyle: TextStyle(color: Colors.purple.shade200),
+                      outsideDaysVisible: false,
+                    ),
+                    headerStyle: const HeaderStyle(
+                      formatButtonVisible: false,
+                      titleCentered: true,
+                      titleTextStyle: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    daysOfWeekStyle: const DaysOfWeekStyle(
+                      weekendStyle: TextStyle(color: Colors.purple),
+                    ),
                   ),
-                  selectedDecoration: BoxDecoration(
-                    color: Colors.purple.shade300,
-                    shape: BoxShape.circle,
-                  ),
-                  weekendTextStyle: TextStyle(color: Colors.purple.shade200),
-                  outsideDaysVisible: false,
-                ),
-                headerStyle: const HeaderStyle(
-                  formatButtonVisible: false,
-                  titleCentered: true,
-                  titleTextStyle: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                daysOfWeekStyle: const DaysOfWeekStyle(
-                  weekendStyle: TextStyle(color: Colors.purple),
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

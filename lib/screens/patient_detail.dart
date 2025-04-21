@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
 
@@ -80,7 +79,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                     items: ['หญิง', 'ชาย'].map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
-                        child: const SizedBox(), // hide text
+                        child: const SizedBox(),
                       );
                     }).toList(),
                     onChanged: (String? newValue) {
@@ -136,7 +135,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                         final phone = _phoneController.text.replaceAll('-', '');
                         final uri = Uri.parse('tel:$phone');
                         if (await canLaunchUrl(uri)) {
-                          launchUrl(uri);
+                          await launchUrl(uri);
                         }
                       },
                     ),
@@ -200,8 +199,22 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
               ElevatedButton(
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
+                    final enteredName = _nameController.text.trim();
+
+                    final querySnapshot = await FirebaseFirestore.instance
+                        .collection('patients')
+                        .where('name', isEqualTo: enteredName)
+                        .get();
+
+                    if (querySnapshot.docs.isNotEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('ชื่อซ้ำ: มีคนไข้ชื่อนี้อยู่ในระบบแล้ว')),
+                      );
+                      return;
+                    }
+
                     final patientData = {
-                      'name': _nameController.text,
+                      'name': enteredName,
                       'phone': _phoneController.text,
                       'idCard': _idCardController.text,
                       'gender': _selectedGender,

@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'calendar_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
 
@@ -77,10 +76,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
           return ListView.builder(
             itemCount: patients.length,
             itemBuilder: (context, index) {
-              final data = patients[index].data() as Map<String, dynamic>;
-              final name = data['name'] ?? 'ไม่ระบุ';
-              final gender = data['gender'] ?? '-';
-              final phone = data['phone'] ?? '-';
+              final data = patients[index].data() as Map<String, dynamic>?;
+              if (data == null) return const SizedBox();
+              final name = data['name']?.toString() ?? 'ไม่ระบุ';
+              final gender = data['gender']?.toString() ?? '-';
+              final phone = data['phone']?.toString() ?? '-';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

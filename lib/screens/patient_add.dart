@@ -55,8 +55,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              Image.asset('assets/images/tooth_logo.png', height: 100),
-              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -79,7 +77,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                     items: ['หญิง', 'ชาย'].map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
-                        child: const SizedBox(),
+                        child: const SizedBox.shrink(),
                       );
                     }).toList(),
                     onChanged: (String? newValue) {

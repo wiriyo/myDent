@@ -1,34 +1,42 @@
-// lib/services/appointment_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/appointment.dart';
-import '../models/patient.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AppointmentService {
-  final CollectionReference _appointments =
-      FirebaseFirestore.instance.collection('appointments');
-  final CollectionReference _patients =
-      FirebaseFirestore.instance.collection('patients');
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ดึงนัดหมายตามวันที่
-  Stream<List<Appointment>> getAppointmentsByDate(DateTime selectedDate) {
-    DateTime startOfDay = DateTime(
-        selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
-    DateTime endOfDay = DateTime(
-        selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59);
+  /// ดึงข้อมูลนัดหมายจาก Firestore โดยใช้วันที่
+  Future<List<Map<String, dynamic>>> getAppointmentsByDate(
+    DateTime selectedDate,
+  ) async {
+    final formattedDate = selectedDate.toIso8601String().split('T').first;
 
-    return _appointments
-        .where('date',
-            isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
-            isLessThanOrEqualTo: endOfDay.toIso8601String())
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Appointment.fromMap(doc.data() as Map<String, dynamic>))
-            .toList());
+    final snapshot = await _firestore
+        .collection('appointments')
+        .where('date', isEqualTo: formattedDate)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.data()).toList();
   }
 
-  // ดึงข้อมูลคนไข้จาก patientId
-  Future<Patient> getPatientById(String patientId) async {
-    DocumentSnapshot doc = await _patients.doc(patientId).get();
-    return Patient.fromMap(doc.data() as Map<String, dynamic>);
+  /// ดึงข้อมูลผู้ป่วยจาก Firestore โดยใช้ patientId
+  Future<Map<String, dynamic>?> getPatientById(String patientId) async {
+    final snapshot =
+        await _firestore.collection('patients').doc(patientId).get();
+
+    return snapshot.exists ? snapshot.data() : null;
+  }
+
+  /// ดึงนัดหมายทั้งหมดของ user ที่ล็อกอิน
+  Stream<List<Map<String, dynamic>>> getAppointmentsForCurrentUser() {
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return Stream.value([]);
+    }
+
+    return _firestore
+        .collection('appointments')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
 }

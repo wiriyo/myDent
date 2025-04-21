@@ -97,7 +97,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.pushNamed(context, '/patient_detail');
+          Navigator.pushNamed(context, '/add_patient');
         },
         backgroundColor: Colors.purple,
         child: const Icon(Icons.add, color: Colors.white, size: 36),

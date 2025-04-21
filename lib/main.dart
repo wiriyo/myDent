@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth/login_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/patients_screen.dart';
-import 'screens/patient_detail.dart';
+import 'screens/patient_add.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,7 +64,7 @@ class MyApp extends StatelessWidget {
         '/calendar': (context) => const CalendarScreen(),
         '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),
-        '/patient_detail': (context) => const PatientDetailScreen(),
+         '/add_patient': (context) => const PatientAddScreen(),
       },
     );
   }

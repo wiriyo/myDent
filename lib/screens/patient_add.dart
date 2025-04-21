@@ -4,14 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class PatientDetailScreen extends StatefulWidget {
-  const PatientDetailScreen({super.key});
+class PatientAddScreen extends StatefulWidget {
+  const PatientAddScreen({super.key});
 
   @override
-  State<PatientDetailScreen> createState() => _PatientDetailScreenState();
+  State<PatientAddScreen> createState() => _PatientAddScreenState();
 }
 
-class _PatientDetailScreenState extends State<PatientDetailScreen> {
+class _PatientAddScreenState extends State<PatientAddScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();

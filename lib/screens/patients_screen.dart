@@ -24,26 +24,26 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   Future<void> _fetchAllPatients() async {
-    final result = await FirebaseFirestore.instance.collection('patients').get();
+    final result =
+        await FirebaseFirestore.instance.collection('patients').get();
     setState(() {
-      _allPatients = result.docs.map((doc) {
-        final data = doc.data();
-        return {
-          ...data,
-          'docId': doc.id,
-        };
-      }).toList();
+      _allPatients =
+          result.docs.map((doc) {
+            final data = doc.data();
+            return {...data, 'docId': doc.id};
+          }).toList();
       _searchResults = List.from(_allPatients);
     });
   }
 
   void _filterPatients(String query) {
-    final results = _allPatients.where((patient) {
-      final name = patient['name']?.toLowerCase() ?? '';
-      final phone = patient['phone']?.toLowerCase() ?? '';
-      return name.contains(query.toLowerCase()) ||
-          phone.contains(query.toLowerCase());
-    }).toList();
+    final results =
+        _allPatients.where((patient) {
+          final name = patient['name']?.toLowerCase() ?? '';
+          final phone = patient['phone']?.toLowerCase() ?? '';
+          return name.contains(query.toLowerCase()) ||
+              phone.contains(query.toLowerCase());
+        }).toList();
 
     setState(() {
       _searchResults = results;
@@ -59,7 +59,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
         actions: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            width: _isSearchExpanded ? MediaQuery.of(context).size.width * 0.7 : 50,
+            width:
+                _isSearchExpanded
+                    ? MediaQuery.of(context).size.width * 0.7
+                    : 50,
             child: Row(
               children: [
                 if (_isSearchExpanded)
@@ -70,7 +73,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
                         hintText: 'ค้นหา...',
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide.none,
@@ -115,9 +120,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
         },
         backgroundColor: Colors.purple,
         child: const Icon(Icons.add, color: Colors.white, size: 36),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
@@ -165,7 +168,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
     );
   }
 
-  Widget _buildCard(BuildContext context, Map<String, dynamic> data, {String? docId}) {
+  Widget _buildCard(
+    BuildContext context,
+    Map<String, dynamic> data, {
+    String? docId,
+  }) {
     final name = data['name'] ?? '-';
     final phone = data['phone'] ?? '-';
     final rating = data['rating'] ?? 5;
@@ -183,13 +190,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
       elevation: 4,
       color: cardColor,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ListTile(
         leading: Icon(
           data['gender'] == 'ชาย' ? Icons.male : Icons.female,
-          color: data['gender'] == 'ชาย' ? Colors.blueAccent : Colors.pinkAccent,
+          color:
+              data['gender'] == 'ชาย' ? Colors.blueAccent : Colors.pinkAccent,
           size: 36,
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -212,26 +218,28 @@ class _PatientsScreenState extends State<PatientsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PatientAddScreen(
-                      existingName: name,
-                    ),
+                    builder: (context) => PatientAddScreen(existingName: name),
                   ),
                 );
               },
             ),
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
-              onPressed: docId != null
-                  ? () async {
-                      await FirebaseFirestore.instance
-                          .collection('patients')
-                          .doc(docId)
-                          .delete();
-                    }
-                  : null,
+              onPressed:
+                  docId != null
+                      ? () async {
+                        await FirebaseFirestore.instance
+                            .collection('patients')
+                            .doc(docId)
+                            .delete();
+                      }
+                      : null,
             ),
           ],
         ),
+        onTap: () {
+          Navigator.pushNamed(context, '/patient_detail');
+        },
       ),
     );
   }

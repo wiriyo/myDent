@@ -238,7 +238,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
           ],
         ),
         onTap: () {
-          Navigator.pushNamed(context, '/patient_detail');
+          Navigator.pushNamed(
+            context,
+            '/patient_detail',
+            arguments: data,
+          );
         },
       ),
     );

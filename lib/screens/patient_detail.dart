@@ -5,9 +5,15 @@ class PatientDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    int rating = 5;
-    Color cardColor;
+    final patient = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
+    final String name = patient?['name'] ?? 'กานต์รวี หอมหวาน';
+    final String gender = patient?['gender'] ?? 'หญิง';
+    final int age = patient?['age'] ?? 25;
+    final String phone = patient?['phone'] ?? '091-234-5678';
+    final int rating = patient?['rating'] ?? 5;
+
+    Color cardColor;
     if (rating >= 5) {
       cardColor = const Color(0xFFE0F7E9);
     } else if (rating >= 4) {
@@ -49,9 +55,9 @@ class PatientDetailScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'กานต์รวี หอมหวาน',
-                          style: TextStyle(
+                        Text(
+                          name,
+                          style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
                             color: Colors.purple,
@@ -64,9 +70,9 @@ class PatientDetailScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: Colors.purple.shade200),
                           ),
-                          child: const Text(
-                            '🦷🦷🦷🦷🦷',
-                            style: TextStyle(fontSize: 20),
+                          child: Text(
+                            '🦷' * rating,
+                            style: const TextStyle(fontSize: 20),
                           ),
                         ),
                       ],
@@ -74,15 +80,19 @@ class PatientDetailScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.female, color: Colors.pink, size: 20),
+                        Icon(
+                          gender == 'ชาย' ? Icons.male : Icons.female,
+                          color: gender == 'ชาย' ? Colors.blue : Colors.pink,
+                          size: 20,
+                        ),
                         const SizedBox(width: 6),
-                        const Text('หญิง • อายุ 25 ปี'),
+                        Text('อายุ $age ปี'),
                       ],
                     ),
                     const SizedBox(height: 8),
                     const Text('เลขบัตร: 1234567890123'),
                     const SizedBox(height: 4),
-                    const Text('เบอร์โทร: 091-234-5678'),
+                    Text('เบอร์โทร: $phone'),
                     const SizedBox(height: 4),
                     const Text('ที่อยู่: 123/4 ถ.สุขใจ เขตบางน่ารัก กรุงเทพฯ'),
                     const SizedBox(height: 12),
@@ -141,7 +151,6 @@ class PatientDetailScreen extends StatelessWidget {
                                       child: const Text('ลบ'),
                                       onPressed: () {
                                         Navigator.of(context).pop();
-                                        // ดำเนินการลบจริงที่นี่
                                       },
                                     ),
                                   ],

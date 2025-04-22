@@ -57,10 +57,17 @@ class PatientDetailScreen extends StatelessWidget {
                             color: Colors.purple,
                           ),
                         ),
-                        Row(
-                          children: const [
-                            Text('🦷🦷🦷🦷🦷', style: TextStyle(fontSize: 20)),
-                          ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.purple.shade200),
+                          ),
+                          child: const Text(
+                            '🦷🦷🦷🦷🦷',
+                            style: TextStyle(fontSize: 20),
+                          ),
                         ),
                       ],
                     ),

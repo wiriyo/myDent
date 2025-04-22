@@ -5,13 +5,16 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PatientAddScreen extends StatefulWidget {
-  const PatientAddScreen({super.key});
+  final String? existingName;
+  const PatientAddScreen({super.key, this.existingName});
 
   @override
-  State<PatientAddScreen> createState() => _PatientAddScreenState();
+  State<PatientAddScreen> createState() => _PatientAddScreenState(existingName);
 }
 
 class _PatientAddScreenState extends State<PatientAddScreen> {
+  final String? existingName;
+  _PatientAddScreenState(this.existingName);
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -22,6 +25,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
 
   DateTime? _birthDate;
   int _calculatedAge = 0;
+  bool _isEditing = false;
   String _selectedGender = 'หญิง';
 
   void _selectDate() async {
@@ -36,12 +40,44 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       setState(() {
         _birthDate = picked;
         _calculatedAge =
-            now.year -
-            picked.year -
+            now.year - picked.year -
             (now.month < picked.month ||
                     (now.month == picked.month && now.day < picked.day)
                 ? 1
                 : 0);
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (existingName != null) {
+      _isEditing = true;
+      FirebaseFirestore.instance
+          .collection('patients')
+          .where('name', isEqualTo: existingName)
+          .get()
+          .then((snapshot) {
+        if (snapshot.docs.isNotEmpty) {
+          final data = snapshot.docs.first.data();
+          setState(() {
+            _nameController.text = data['name'] ?? '';
+            _phoneController.text = data['phone'] ?? '';
+            _idCardController.text = data['idCard'] ?? '';
+            _selectedGender = data['gender'] ?? 'หญิง';
+            _addressController.text = data['address'] ?? '';
+            _allergyController.text = data['allergy'] ?? '';
+            _diseaseController.text = data['disease'] ?? '';
+            if (data['birthDate'] != null) {
+              _birthDate = DateTime.tryParse(data['birthDate']);
+              if (_birthDate != null) {
+                final now = DateTime.now();
+                _calculatedAge = now.year - _birthDate!.year - (now.month < _birthDate!.month || (now.month == _birthDate!.month && now.day < _birthDate!.day) ? 1 : 0);
+              }
+            }
+          });
+        }
       });
     }
   }
@@ -239,55 +275,43 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   if (_formKey.currentState!.validate()) {
                     final enteredName = _nameController.text.trim();
 
-                    final querySnapshot =
-                        await FirebaseFirestore.instance
-                            .collection('patients')
-                            .where('name', isEqualTo: enteredName)
-                            .get();
-
-                    if (querySnapshot.docs.isNotEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'ชื่อซ้ำ: มีคนไข้ชื่อนี้อยู่ในระบบแล้ว',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
                     final patientData = {
                       'name': enteredName,
-                      'phone': _phoneController.text,
-                      'idCard': _idCardController.text,
+                      'phone': _phoneController.text.trim(),
+                      'idCard': _idCardController.text.trim(),
                       'gender': _selectedGender,
-                      'birthDate':
-                          _birthDate != null
-                              ? DateFormat('yyyy-MM-dd').format(_birthDate!)
-                              : null,
+                      'birthDate': _birthDate?.toIso8601String(),
                       'age': _calculatedAge,
-                      'address': _addressController.text,
-                      'allergy': _allergyController.text,
-                      'disease': _diseaseController.text,
-                      'createdAt': Timestamp.now(),
+                      'address': _addressController.text.trim(),
+                      'allergy': _allergyController.text.trim(),
+                      'disease': _diseaseController.text.trim(),
+                      'createdAt': FieldValue.serverTimestamp(),
                     };
 
-                    await FirebaseFirestore.instance
-                        .collection('patients')
-                        .add(patientData)
-                        .then((_) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('บันทึกข้อมูลเรียบร้อยแล้ว'),
-                            ),
-                          );
-                          Navigator.pop(context);
-                        })
-                        .catchError((error) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('เกิดข้อผิดพลาด: $error')),
-                          );
-                        });
+                    if (_isEditing) {
+                      final snapshot = await FirebaseFirestore.instance
+                          .collection('patients')
+                          .where('name', isEqualTo: existingName)
+                          .get();
+
+                      if (snapshot.docs.isNotEmpty) {
+                        await FirebaseFirestore.instance
+                            .collection('patients')
+                            .doc(snapshot.docs.first.id)
+                            .update(patientData);
+                      }
+                    } else {
+                      await FirebaseFirestore.instance
+                          .collection('patients')
+                          .add(patientData);
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('บันทึกข้อมูลเรียบร้อยแล้ว'),
+                      ),
+                    );
+                    Navigator.pop(context);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -317,49 +341,48 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-bottomNavigationBar: BottomAppBar(
-  shape: const CircularNotchedRectangle(),
-  notchMargin: 8,
-  color: const Color(0xFFFBEAFF),
-  child: Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.calendar_today, size: 30),
-          color: Colors.purple,
-          onPressed: () {
-            Navigator.pushNamed(context, '/patients');
-          },
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        color: const Color(0xFFFBEAFF),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.calendar_today, size: 30),
+                color: Colors.purple,
+                onPressed: () {
+                  Navigator.pushNamed(context, '/patients');
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.people_alt, size: 30),
+                color: Colors.purple,
+                onPressed: () {
+                  Navigator.pushNamed(context, '/patients');
+                },
+              ),
+              const SizedBox(width: 40),
+              IconButton(
+                icon: const Icon(Icons.bar_chart, size: 30),
+                color: Colors.purple.shade200,
+                onPressed: () {
+                  Navigator.pushNamed(context, '/reports');
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, size: 30),
+                color: Colors.purple.shade200,
+                onPressed: () {
+                  Navigator.pushNamed(context, '/settings');
+                },
+              ),
+            ],
+          ),
         ),
-        IconButton(
-          icon: const Icon(Icons.people_alt, size: 30),
-          color: Colors.purple,
-          onPressed: () {
-            Navigator.pushNamed(context, '/patients');
-          },
-        ),
-        const SizedBox(width: 40),
-        IconButton(
-          icon: const Icon(Icons.bar_chart, size: 30),
-          color: Colors.purple.shade200,
-          onPressed: () {
-            Navigator.pushNamed(context, '/reports');
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.settings, size: 30),
-          color: Colors.purple.shade200,
-          onPressed: () {
-            Navigator.pushNamed(context, '/settings');
-          },
-        ),
-      ],
-    ),
-  ),
-),
-
+      ),
     );
   }
 

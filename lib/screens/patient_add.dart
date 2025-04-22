@@ -92,7 +92,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       ),
       backgroundColor: const Color(0xFFEFE0FF),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.only(top: 80.0, left: 20.0, right: 20.0),
+        
         child: Form(
           key: _formKey,
           child: ListView(
@@ -275,9 +276,21 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   if (_formKey.currentState!.validate()) {
                     final enteredName = _nameController.text.trim();
 
+                    final name = _nameController.text.trim();
+                    final phone = _phoneController.text.trim().replaceAll('-', '');
+
+                    List<String> generateKeywords(String input) {
+                      input = input.toLowerCase();
+                      List<String> keywords = [];
+                      for (int i = 1; i <= input.length; i++) {
+                        keywords.add(input.substring(0, i));
+                      }
+                      return keywords;
+                    }
+
                     final patientData = {
                       'name': enteredName,
-                      'phone': _phoneController.text.trim(),
+                      'phone': phone,
                       'idCard': _idCardController.text.trim(),
                       'gender': _selectedGender,
                       'birthDate': _birthDate?.toIso8601String(),
@@ -286,6 +299,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                       'allergy': _allergyController.text.trim(),
                       'disease': _diseaseController.text.trim(),
                       'createdAt': FieldValue.serverTimestamp(),
+                      'keywords': [
+                        ...generateKeywords(name),
+                        ...generateKeywords(phone),
+                      ],
                     };
 
                     if (_isEditing) {
@@ -332,15 +349,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: Colors.purple,
-        child: const Icon(Icons.add, color: Colors.white, size: 36),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,

@@ -4,8 +4,35 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../screens/patient_add.dart';
 
-class PatientsScreen extends StatelessWidget {
+class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
+
+  @override
+  State<PatientsScreen> createState() => _PatientsScreenState();
+}
+
+class _PatientsScreenState extends State<PatientsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _showSuggestions = false;
+
+  Future<void> _performSearch(String query) async {
+    final result = await FirebaseFirestore.instance
+        .collection('patients')
+        .where('keywords', arrayContains: query.toLowerCase())
+        .get();
+
+    setState(() {
+      _searchResults = result.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'docId': doc.id,
+        };
+      }).toList();
+      _showSuggestions = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,51 +40,73 @@ class PatientsScreen extends StatelessWidget {
       backgroundColor: const Color(0xFFEFE0FF),
       appBar: AppBar(
         title: const Text('รายชื่อคนไข้'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'ค้นหาชื่อหรือเบอร์โทร...',
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (value.isNotEmpty) {
+                      _performSearch(value.trim());
+                    } else {
+                      setState(() {
+                        _searchResults = [];
+                        _showSuggestions = false;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         backgroundColor: const Color(0xFFE0BBFF),
         elevation: 0,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('patients')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final patients = snapshot.data?.docs ?? [];
-
-          if (patients.isEmpty) {
-            final mock = [
-              {'name': 'คุณมะลิ', 'phone': '0844444444', 'gender': 'หญิง', 'age': 29, 'rating': 5},
-              {'name': 'คุณสมชาย', 'phone': '0833333333', 'gender': 'ชาย', 'age': 42, 'rating': 4},
-              {'name': 'คุณขวัญใจ', 'phone': '0822222222', 'gender': 'หญิง', 'age': 31, 'rating': 3},
-              {'name': 'คุณต้นกล้า', 'phone': '0811111111', 'gender': 'ชาย', 'age': 27, 'rating': 2},
-              {'name': 'คุณฟ้าใส', 'phone': '0812345678', 'gender': 'หญิง', 'age': 25, 'rating': 5},
-              {'name': 'คุณเมฆา', 'phone': '0899999999', 'gender': 'ชาย', 'age': 30, 'rating': 4},
-              {'name': 'คุณสายรุ้ง', 'phone': '0888888888', 'gender': 'หญิง', 'age': 28, 'rating': 3},
-              {'name': 'คุณแสงดาว', 'phone': '0877777777', 'gender': 'หญิง', 'age': 26, 'rating': 2},
-              {'name': 'คุณประกายทอง', 'phone': '0866666666', 'gender': 'ชาย', 'age': 32, 'rating': 1},
-              {'name': 'คุณสายลม', 'phone': '0855555555', 'gender': 'ชาย', 'age': 35, 'rating': 4},
-            ];
-
-            return ListView(
+      body: _showSuggestions
+          ? ListView.builder(
               padding: const EdgeInsets.all(16),
-              children: mock.map((data) => _buildCard(context, data)).toList(),
-            );
-          }
+              itemCount: _searchResults.length,
+              itemBuilder: (context, index) {
+                final data = _searchResults[index];
+                return _buildCard(context, data, docId: data['docId']);
+              },
+            )
+          : StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('patients')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: patients.length,
-            itemBuilder: (context, index) {
-              final data = patients[index].data() as Map<String, dynamic>;
-              return _buildCard(context, data, docId: patients[index].id);
-            },
-          );
-        },
-      ),
+                final patients = snapshot.data?.docs ?? [];
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: patients.length,
+                  itemBuilder: (context, index) {
+                    final data = patients[index].data() as Map<String, dynamic>;
+                    return _buildCard(context, data, docId: patients[index].id);
+                  },
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -144,7 +193,7 @@ class PatientsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-                        Padding(
+            Padding(
               padding: const EdgeInsets.only(left: 0),
               child: Icon(
                 data['gender'] == 'ชาย' ? Icons.male : Icons.female,
@@ -186,7 +235,7 @@ class PatientsScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFC8E6C9),
                         boxShadow: [
-                          BoxShadow(color: Colors.green.shade100, blurRadius: 4, offset: Offset(2, 2))
+                          BoxShadow(color: Colors.green.shade100, blurRadius: 4, offset: const Offset(2, 2))
                         ],
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -204,7 +253,7 @@ class PatientsScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFE0B2),
                         boxShadow: [
-                          BoxShadow(color: Colors.orange.shade100, blurRadius: 4, offset: Offset(2, 2))
+                          BoxShadow(color: Colors.orange.shade100, blurRadius: 4, offset: const Offset(2, 2))
                         ],
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -227,7 +276,7 @@ class PatientsScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF9A9A),
                         boxShadow: [
-                          BoxShadow(color: Colors.red.shade100, blurRadius: 4, offset: Offset(2, 2))
+                          BoxShadow(color: Colors.red.shade100, blurRadius: 4, offset: const Offset(2, 2))
                         ],
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -252,7 +301,14 @@ class PatientsScreen extends StatelessWidget {
                     5,
                     (i) => Text(
                       i < rating ? '🦷' : '⬜',
-                      style: TextStyle(fontSize: 18, color: rating >= 5 ? Colors.purple : rating >= 4 ? Colors.orange : Colors.redAccent),
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: rating >= 5
+                            ? Colors.purple
+                            : rating >= 4
+                                ? Colors.orange
+                                : Colors.redAccent,
+                      ),
                     ),
                   ),
                 ),

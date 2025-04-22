@@ -317,40 +317,49 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        color: const Color(0xFFFBEAFF),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.calendar_today, size: 30),
-                color: Colors.purple,
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.people_alt, size: 30),
-                color: Colors.purple,
-                onPressed: () {},
-              ),
-              const SizedBox(width: 40),
-              IconButton(
-                icon: const Icon(Icons.bar_chart, size: 30),
-                color: Colors.purple.shade200,
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings, size: 30),
-                color: Colors.purple.shade200,
-                onPressed: () {},
-              ),
-            ],
-          ),
+bottomNavigationBar: BottomAppBar(
+  shape: const CircularNotchedRectangle(),
+  notchMargin: 8,
+  color: const Color(0xFFFBEAFF),
+  child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.calendar_today, size: 30),
+          color: Colors.purple,
+          onPressed: () {
+            Navigator.pushNamed(context, '/patients');
+          },
         ),
-      ),
+        IconButton(
+          icon: const Icon(Icons.people_alt, size: 30),
+          color: Colors.purple,
+          onPressed: () {
+            Navigator.pushNamed(context, '/patients');
+          },
+        ),
+        const SizedBox(width: 40),
+        IconButton(
+          icon: const Icon(Icons.bar_chart, size: 30),
+          color: Colors.purple.shade200,
+          onPressed: () {
+            Navigator.pushNamed(context, '/reports');
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.settings, size: 30),
+          color: Colors.purple.shade200,
+          onPressed: () {
+            Navigator.pushNamed(context, '/settings');
+          },
+        ),
+      ],
+    ),
+  ),
+),
+
     );
   }
 

@@ -7,6 +7,8 @@ import 'auth/login_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/patients_screen.dart';
 import 'screens/patient_add.dart';
+import 'screens/reports_screen.dart';
+import 'screens/setting_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +67,8 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),
          '/add_patient': (context) => const PatientAddScreen(),
+        '/reports': (context) => const ReportsScreen(),
+        '/settings': (context) => const SettingsScreen(),
       },
     );
   }

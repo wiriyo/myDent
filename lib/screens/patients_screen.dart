@@ -14,23 +14,39 @@ class PatientsScreen extends StatefulWidget {
 class _PatientsScreenState extends State<PatientsScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
-  bool _showSuggestions = false;
+  List<Map<String, dynamic>> _allPatients = [];
+  bool _isSearchExpanded = false;
 
-  Future<void> _performSearch(String query) async {
-    final result = await FirebaseFirestore.instance
-        .collection('patients')
-        .where('keywords', arrayContains: query.toLowerCase())
-        .get();
+  @override
+  void initState() {
+    super.initState();
+    _fetchAllPatients();
+  }
 
+  Future<void> _fetchAllPatients() async {
+    final result = await FirebaseFirestore.instance.collection('patients').get();
     setState(() {
-      _searchResults = result.docs.map((doc) {
+      _allPatients = result.docs.map((doc) {
         final data = doc.data();
         return {
           ...data,
           'docId': doc.id,
         };
       }).toList();
-      _showSuggestions = true;
+      _searchResults = List.from(_allPatients);
+    });
+  }
+
+  void _filterPatients(String query) {
+    final results = _allPatients.where((patient) {
+      final name = patient['name']?.toLowerCase() ?? '';
+      final phone = patient['phone']?.toLowerCase() ?? '';
+      return name.contains(query.toLowerCase()) ||
+          phone.contains(query.toLowerCase());
+    }).toList();
+
+    setState(() {
+      _searchResults = results;
     });
   }
 
@@ -39,74 +55,57 @@ class _PatientsScreenState extends State<PatientsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFEFE0FF),
       appBar: AppBar(
-        title: const Text('รายชื่อคนไข้'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
+        title: const Text('Patient'),
+        actions: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: _isSearchExpanded ? MediaQuery.of(context).size.width * 0.7 : 50,
+            child: Row(
               children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'ค้นหาชื่อหรือเบอร์โทร...',
-                    filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
+                if (_isSearchExpanded)
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'ค้นหา...',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onChanged: (value) => _filterPatients(value),
                     ),
                   ),
-                  onChanged: (value) {
-                    if (value.isNotEmpty) {
-                      _performSearch(value.trim());
-                    } else {
-                      setState(() {
-                        _searchResults = [];
-                        _showSuggestions = false;
-                      });
-                    }
+                IconButton(
+                  icon: const Icon(Icons.search, color: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      _isSearchExpanded = !_isSearchExpanded;
+                      if (!_isSearchExpanded) {
+                        _searchController.clear();
+                        _searchResults = List.from(_allPatients);
+                      }
+                    });
                   },
                 ),
               ],
             ),
           ),
-        ),
+        ],
         backgroundColor: const Color(0xFFE0BBFF),
         elevation: 0,
       ),
-      body: _showSuggestions
-          ? ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _searchResults.length,
-              itemBuilder: (context, index) {
-                final data = _searchResults[index];
-                return _buildCard(context, data, docId: data['docId']);
-              },
-            )
-          : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('patients')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final patients = snapshot.data?.docs ?? [];
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: patients.length,
-                  itemBuilder: (context, index) {
-                    final data = patients[index].data() as Map<String, dynamic>;
-                    return _buildCard(context, data, docId: patients[index].id);
-                  },
-                );
-              },
-            ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _searchResults.length,
+        itemBuilder: (context, index) {
+          final data = _searchResults[index];
+          return _buildCard(context, data, docId: data['docId']);
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -132,7 +131,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.calendar_today, size: 30),
-                color: Colors.purple,
+                color: Colors.purple.shade200,
                 onPressed: () {
                   Navigator.pushNamed(context, '/calendar');
                 },
@@ -187,132 +186,49 @@ class _PatientsScreenState extends State<PatientsScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.start,
+      child: ListTile(
+        leading: Icon(
+          data['gender'] == 'ชาย' ? Icons.male : Icons.female,
+          color: data['gender'] == 'ชาย' ? Colors.blueAccent : Colors.pinkAccent,
+          size: 36,
+        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('เบอร์: $phone'),
+        trailing: Wrap(
+          spacing: 6,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 0),
-              child: Icon(
-                data['gender'] == 'ชาย' ? Icons.male : Icons.female,
-                color: data['gender'] == 'ชาย' ? Colors.blueAccent : Colors.pinkAccent,
-                size: 36,
-              ),
+            IconButton(
+              icon: const Icon(Icons.phone, color: Colors.green),
+              onPressed: () async {
+                final uri = Uri.parse('tel:$phone');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.orange),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PatientAddScreen(
+                      existingName: name,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text('เบอร์: $phone'),
-                    ],
-                  ),
-                  if (data['age'] != null)
-                    Text('อายุ: ${data['age']} ปี'),
-                ],
-              ),
+                );
+              },
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFC8E6C9),
-                        boxShadow: [
-                          BoxShadow(color: Colors.green.shade100, blurRadius: 4, offset: const Offset(2, 2))
-                        ],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.phone, color: Colors.green),
-                        onPressed: () async {
-                          final uri = Uri.parse('tel:$phone');
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri);
-                          }
-                        },
-                      ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFE0B2),
-                        boxShadow: [
-                          BoxShadow(color: Colors.orange.shade100, blurRadius: 4, offset: const Offset(2, 2))
-                        ],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.deepOrange),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => PatientAddScreen(
-                                existingName: name,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.only(left: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF9A9A),
-                        boxShadow: [
-                          BoxShadow(color: Colors.red.shade100, blurRadius: 4, offset: const Offset(2, 2))
-                        ],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.redAccent),
-                        onPressed: docId != null
-                            ? () async {
-                                await FirebaseFirestore.instance
-                                    .collection('patients')
-                                    .doc(docId)
-                                    .delete();
-                              }
-                            : null,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(
-                    5,
-                    (i) => Text(
-                      i < rating ? '🦷' : '⬜',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: rating >= 5
-                            ? Colors.purple
-                            : rating >= 4
-                                ? Colors.orange
-                                : Colors.redAccent,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.redAccent),
+              onPressed: docId != null
+                  ? () async {
+                      await FirebaseFirestore.instance
+                          .collection('patients')
+                          .doc(docId)
+                          .delete();
+                    }
+                  : null,
             ),
           ],
         ),

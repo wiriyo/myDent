@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'treatment_add.dart';
 
 class PatientDetailScreen extends StatelessWidget {
   const PatientDetailScreen({super.key});
@@ -207,20 +208,16 @@ class PatientDetailScreen extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('🛠️ ขูดหินปูน'),
-                                Text('🦷 12'),
-                              ],
-                            ),
+                          Row(
+                            children: const [
+                              Text('🛠️ ขูดหินปูน  '),
+                              Text('🦷 12  '),
+                            ],
                           ),
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: const [
                                   Text('💰 800 บาท'),
                                   Text('📅 21 เม.ย. 2025'),
@@ -257,7 +254,6 @@ class PatientDetailScreen extends StatelessWidget {
                                               child: const Text('ลบ'),
                                               onPressed: () {
                                                 Navigator.of(context).pop();
-                                                // ดำเนินการลบจริงที่นี่
                                               },
                                             ),
                                           ],
@@ -280,7 +276,19 @@ class PatientDetailScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              backgroundColor: const Color(0xFFFFF5FF),
+              child: const Padding(
+                padding: EdgeInsets.all(20),
+                child: TreatmentForm(),
+              ),
+            ),
+          );
+        },
         backgroundColor: Colors.purple,
         child: const Icon(Icons.add, color: Colors.white, size: 36),
         shape: RoundedRectangleBorder(

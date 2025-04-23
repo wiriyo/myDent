@@ -119,8 +119,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
           );
         },
         backgroundColor: Colors.purple,
-        child: const Icon(Icons.add, color: Colors.white, size: 36),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        child: const Icon(Icons.add, color: Colors.white, size: 36),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(

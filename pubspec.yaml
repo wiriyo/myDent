@@ -71,6 +71,10 @@ flutter:
       - assets/icons/report.png
       - assets/icons/money.png
       - assets/icons/calendar.png
+      - assets/icons/tooth_good.png
+      - assets/icons/tooth_broke.png
+      - assets/icons/save.png
+      - assets/icons/delete.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

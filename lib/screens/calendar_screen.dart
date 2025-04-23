@@ -244,10 +244,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
           // TODO: handle new appointment action
         },
         backgroundColor: Colors.purple,
-        child: Icon(Icons.add, color: Colors.white, size: 36),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(30),
         ),
+        child: Icon(Icons.add, color: Colors.white, size: 36),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(

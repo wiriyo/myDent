@@ -145,16 +145,14 @@ class _TreatmentFormState extends State<TreatmentForm> {
                     height: 24,
                   ),
                 ),
-
-                label: const Text('เลือกวันที่'),
-                onPressed: () => _selectDate(context),
-              ),
-              const SizedBox(width: 12),
-              if (_selectedDate != null)
-                Text(
-                  '📅 ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                label: Text(
+                  _selectedDate != null
+                      ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                      : 'เลือกวันที่',
                   style: const TextStyle(fontSize: 16),
                 ),
+                onPressed: () => _selectDate(context),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -240,26 +238,50 @@ class _TreatmentFormState extends State<TreatmentForm> {
             ],
           ),
           const SizedBox(height: 24),
-          Center(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 40,
-                  vertical: 16,
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent.shade100,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: Image.asset(
+                    'assets/icons/save.png',
+                    width: 24,
+                    height: 24,
+                  ),
                 ),
               ),
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('บันทึกข้อมูล'),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent.shade100,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  onPressed: () {
+                    // TODO: เพิ่ม logic การลบตรงนี้นะคะ
+                  },
+                  child: Image.asset(
+                    'assets/icons/delete.png',
+                    width: 24,
+                    height: 24,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

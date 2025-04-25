@@ -1,21 +1,51 @@
 import 'package:flutter/material.dart';
+import '../services/treatment_service.dart';
+import '../models/treatment.dart';
 import 'treatment_add.dart';
 
-class PatientDetailScreen extends StatelessWidget {
+// class PatientDetailScreen extends StatelessWidget {
+//   const PatientDetailScreen({super.key});
+class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final patient =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic> ??
+  State<PatientDetailScreen> createState() => _PatientDetailScreenState();
+}
+
+class _PatientDetailScreenState extends State<PatientDetailScreen> {
+  late Map<String, dynamic> patient;
+  late String patientId;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    patient =
+        args ??
         {
-          'id': 'P-0001',
-          'name': 'กานต์รวี หอมหวาน',
+          'docId': 'P-0001',
+          'name': 'ไม่พบชื่อ',
           'gender': 'หญิง',
-          'age': 25,
-          'phone': '091-234-5678',
-          'rating': 5,
+          'age': 0,
+          'phone': '-',
+          'rating': 3,
         };
+    patientId = patient['docId'];
+    print('🧾 patientId ที่รับมา: $patientId');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    //final patient =
+        // ModalRoute.of(context)?.settings.arguments as Map<String, dynamic> ??
+        // {
+        //   'id': 'P-0001',
+        //   'name': 'กานต์รวี หอมหวาน',
+        //   'gender': 'หญิง',
+        //   'age': 25,
+        //   'phone': '091-234-5678',
+        //   'rating': 5,
+        // };
     //final String id = patient?['id'] ?? 'P-0001';
     final String name = patient?['name'] ?? 'กานต์รวี หอมหวาน';
     final String gender = patient?['gender'] ?? 'หญิง';
@@ -204,93 +234,57 @@ class PatientDetailScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: 3,
-                itemBuilder: (context, index) {
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 12.0,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: const [
-                              Text('🛠️ ขูดหินปูน  '),
-                              Text('🦷 12  '),
-                            ],
-                          ),
-                          Row(
+              StreamBuilder<List<Treatment>>(
+                stream: TreatmentService().getTreatments(patientId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('ยังไม่มีประวัติการรักษา'),
+                    );
+                  }
+
+                  final treatments = snapshot.data!;
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: treatments.length,
+                    itemBuilder: (context, index) {
+                      final treatment = treatments[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 2,
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: const [
-                                  Text('💰 800 บาท'),
-                                  Text('📅 21 เม.ย. 2025'),
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('🛠️ ${treatment.procedure}'),
+                                  Text('🦷 ${treatment.toothNumber}'),
                                 ],
                               ),
-                              PopupMenuButton<String>(
-                                icon: const Icon(
-                                  Icons.more_vert,
-                                  color: Colors.purple,
-                                ),
-                                itemBuilder:
-                                    (BuildContext context) =>
-                                        <PopupMenuEntry<String>>[
-                                          const PopupMenuItem<String>(
-                                            value: 'edit',
-                                            child: Text('📝 แก้ไข'),
-                                          ),
-                                          const PopupMenuItem<String>(
-                                            value: 'delete',
-                                            child: Text('🗑️ ลบ'),
-                                          ),
-                                        ],
-                                onSelected: (String value) {
-                                  if (value == 'delete') {
-                                    showDialog(
-                                      context: context,
-                                      builder: (BuildContext context) {
-                                        return AlertDialog(
-                                          title: const Text('ยืนยันการลบ'),
-                                          content: const Text(
-                                            'คุณแน่ใจหรือไม่ว่าต้องการลบประวัติการรักษานี้?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              child: const Text('ยกเลิก'),
-                                              onPressed: () {
-                                                Navigator.of(context).pop();
-                                              },
-                                            ),
-                                            TextButton(
-                                              child: const Text('ลบ'),
-                                              onPressed: () {
-                                                Navigator.of(context).pop();
-                                              },
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
-                                  }
-                                },
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text('💰 ${treatment.price.toStringAsFixed(0)} บาท'),
+                                  Text('📅 ${treatment.date.day}/${treatment.date.month}/${treatment.date.year}'),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -299,28 +293,6 @@ class PatientDetailScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        // onPressed: () {
-        //   //Navigator.pushNamed(
-        //     // context,
-        //     // '/treatment_add',
-        //     // arguments: {
-        //     //   'patientId': patient?['id'], // ✅ ใช้ id จาก patient map
-        //     //   'treatment': null, // ✅ สำหรับการเพิ่มใหม่ ไม่ส่ง treatment
-        //     // },
-        //     showTreatmentDialog(
-        //     context,
-        //       patientId: patient?['id']?? '', // ✅ ใช้ id จาก patient map
-        //       //'treatment': null, // ✅ สำหรับการเพิ่มใหม่ ไม่ส่ง treatment
-        //     );
-        // },
-        //onPressed: () //{
-        //   if (patient != null && patient['id'] != null) {
-        //     showTreatmentDialog(context, patientId: patient['id']);
-        //   } else {
-        //     // พี่ทะเลสามารถโชว์ Snackbar หรือ log แจ้งเตือนได้
-        //     print('ไม่พบ patient หรือ id ว่าง');
-        //   }
-        // },
         onPressed: () {
           final id = patient['id'] ?? 'P-0001'; // fallback ถ้า id หาย
           showTreatmentDialog(context, patientId: patient['docId']);

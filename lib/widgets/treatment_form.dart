@@ -57,22 +57,36 @@ class _TreatmentFormState extends State<TreatmentForm> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ElevatedButton.icon(
-            onPressed: () => _selectDate(context),
-            icon: Image.asset('assets/icons/calendar.png', width: 24),
-            label: Text(
-              _selectedDate != null
-                  ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
-                  : 'เลือกวันที่',
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple.shade100,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'การรักษา',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
+                ),
               ),
-            ),
+              ElevatedButton.icon(
+                onPressed: () => _selectDate(context),
+                icon: Image.asset('assets/icons/calendar.png', width: 24),
+                label: Text(
+                  _selectedDate != null
+                      ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                      : 'เลือกวันที่',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple.shade100,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ],
           ),
+
           const SizedBox(height: 12),
           TextFormField(
             controller: _procedureController,

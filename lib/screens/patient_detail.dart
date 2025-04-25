@@ -6,8 +6,17 @@ class PatientDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final patient = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
+    final patient =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic> ??
+        {
+          'id': 'P-0001',
+          'name': 'กานต์รวี หอมหวาน',
+          'gender': 'หญิง',
+          'age': 25,
+          'phone': '091-234-5678',
+          'rating': 5,
+        };
+    //final String id = patient?['id'] ?? 'P-0001';
     final String name = patient?['name'] ?? 'กานต์รวี หอมหวาน';
     final String gender = patient?['gender'] ?? 'หญิง';
     final int age = patient?['age'] ?? 25;
@@ -65,7 +74,10 @@ class PatientDetailScreen extends StatelessWidget {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.8),
                             borderRadius: BorderRadius.circular(12),
@@ -140,7 +152,9 @@ class PatientDetailScreen extends StatelessWidget {
                               builder: (BuildContext context) {
                                 return AlertDialog(
                                   title: const Text('ยืนยันการลบ'),
-                                  content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?'),
+                                  content: const Text(
+                                    'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
+                                  ),
                                   actions: [
                                     TextButton(
                                       child: const Text('ยกเลิก'),
@@ -204,7 +218,9 @@ class PatientDetailScreen extends StatelessWidget {
                     color: Colors.white,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 12.0),
+                        horizontal: 16.0,
+                        vertical: 12.0,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -224,17 +240,22 @@ class PatientDetailScreen extends StatelessWidget {
                                 ],
                               ),
                               PopupMenuButton<String>(
-                                icon: const Icon(Icons.more_vert, color: Colors.purple),
-                                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                                  const PopupMenuItem<String>(
-                                    value: 'edit',
-                                    child: Text('📝 แก้ไข'),
-                                  ),
-                                  const PopupMenuItem<String>(
-                                    value: 'delete',
-                                    child: Text('🗑️ ลบ'),
-                                  ),
-                                ],
+                                icon: const Icon(
+                                  Icons.more_vert,
+                                  color: Colors.purple,
+                                ),
+                                itemBuilder:
+                                    (BuildContext context) =>
+                                        <PopupMenuEntry<String>>[
+                                          const PopupMenuItem<String>(
+                                            value: 'edit',
+                                            child: Text('📝 แก้ไข'),
+                                          ),
+                                          const PopupMenuItem<String>(
+                                            value: 'delete',
+                                            child: Text('🗑️ ลบ'),
+                                          ),
+                                        ],
                                 onSelected: (String value) {
                                   if (value == 'delete') {
                                     showDialog(
@@ -242,7 +263,9 @@ class PatientDetailScreen extends StatelessWidget {
                                       builder: (BuildContext context) {
                                         return AlertDialog(
                                           title: const Text('ยืนยันการลบ'),
-                                          content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบประวัติการรักษานี้?'),
+                                          content: const Text(
+                                            'คุณแน่ใจหรือไม่ว่าต้องการลบประวัติการรักษานี้?',
+                                          ),
                                           actions: [
                                             TextButton(
                                               child: const Text('ยกเลิก'),
@@ -276,25 +299,38 @@ class PatientDetailScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        // onPressed: () {
+        //   //Navigator.pushNamed(
+        //     // context,
+        //     // '/treatment_add',
+        //     // arguments: {
+        //     //   'patientId': patient?['id'], // ✅ ใช้ id จาก patient map
+        //     //   'treatment': null, // ✅ สำหรับการเพิ่มใหม่ ไม่ส่ง treatment
+        //     // },
+        //     showTreatmentDialog(
+        //     context,
+        //       patientId: patient?['id']?? '', // ✅ ใช้ id จาก patient map
+        //       //'treatment': null, // ✅ สำหรับการเพิ่มใหม่ ไม่ส่ง treatment
+        //     );
+        // },
+        //onPressed: () //{
+        //   if (patient != null && patient['id'] != null) {
+        //     showTreatmentDialog(context, patientId: patient['id']);
+        //   } else {
+        //     // พี่ทะเลสามารถโชว์ Snackbar หรือ log แจ้งเตือนได้
+        //     print('ไม่พบ patient หรือ id ว่าง');
+        //   }
+        // },
         onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              backgroundColor: const Color(0xFFFFF5FF),
-              child: const Padding(
-                padding: EdgeInsets.all(20),
-                child: TreatmentForm(),
-              ),
-            ),
-          );
+          final id = patient['id'] ?? 'P-0001'; // fallback ถ้า id หาย
+          showTreatmentDialog(context, patientId: patient['docId']);
         },
+
         backgroundColor: Colors.purple,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         child: const Icon(Icons.add, color: Colors.white, size: 36),
       ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
@@ -307,9 +343,10 @@ class PatientDetailScreen extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.calendar_today, size: 30),
-                color: ModalRoute.of(context)?.settings.name == '/calendar'
-                    ? Colors.purple
-                    : Colors.purple.shade200,
+                color:
+                    ModalRoute.of(context)?.settings.name == '/calendar'
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () {
                   if (ModalRoute.of(context)?.settings.name != '/calendar') {
                     Navigator.pushNamed(context, '/calendar');
@@ -318,9 +355,10 @@ class PatientDetailScreen extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.people_alt, size: 30),
-                color: ModalRoute.of(context)?.settings.name == '/patients'
-                    ? Colors.purple
-                    : Colors.purple.shade200,
+                color:
+                    ModalRoute.of(context)?.settings.name == '/patients'
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () {
                   if (ModalRoute.of(context)?.settings.name != '/patients') {
                     Navigator.pushNamed(context, '/patients');
@@ -330,9 +368,10 @@ class PatientDetailScreen extends StatelessWidget {
               const SizedBox(width: 40),
               IconButton(
                 icon: const Icon(Icons.bar_chart, size: 30),
-                color: ModalRoute.of(context)?.settings.name == '/reports'
-                    ? Colors.purple
-                    : Colors.purple.shade200,
+                color:
+                    ModalRoute.of(context)?.settings.name == '/reports'
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () {
                   if (ModalRoute.of(context)?.settings.name != '/reports') {
                     Navigator.pushNamed(context, '/reports');
@@ -341,9 +380,10 @@ class PatientDetailScreen extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.settings, size: 30),
-                color: ModalRoute.of(context)?.settings.name == '/settings'
-                    ? Colors.purple
-                    : Colors.purple.shade200,
+                color:
+                    ModalRoute.of(context)?.settings.name == '/settings'
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () {
                   if (ModalRoute.of(context)?.settings.name != '/settings') {
                     Navigator.pushNamed(context, '/settings');

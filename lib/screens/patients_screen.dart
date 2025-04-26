@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../screens/patient_add.dart';
 
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
@@ -113,10 +111,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PatientAddScreen()),
-          );
+          Navigator.pushNamed(context, '/add_patient');
         },
         backgroundColor: Colors.purple,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -215,11 +210,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
             IconButton(
               icon: const Icon(Icons.edit, color: Colors.orange),
               onPressed: () {
-                Navigator.push(
+                Navigator.pushNamed(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => PatientAddScreen(existingName: name),
-                  ),
+                  '/add_patient',
+                  arguments: data,
                 );
               },
             ),
@@ -228,11 +222,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
               onPressed:
                   docId != null
                       ? () async {
-                        await FirebaseFirestore.instance
-                            .collection('patients')
-                            .doc(docId)
-                            .delete();
-                      }
+                          await FirebaseFirestore.instance
+                              .collection('patients')
+                              .doc(docId)
+                              .delete();
+                          await _fetchAllPatients();
+                        }
                       : null,
             ),
           ],

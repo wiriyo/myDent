@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/treatment_service.dart';
 import '../models/treatment.dart';
 import 'treatment_add.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-// class PatientDetailScreen extends StatelessWidget {
-//   const PatientDetailScreen({super.key});
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
 
@@ -13,45 +13,56 @@ class PatientDetailScreen extends StatefulWidget {
 }
 
 class _PatientDetailScreenState extends State<PatientDetailScreen> {
-  late Map<String, dynamic> patient;
-  late String patientId;
+  Map<String, dynamic> patient = {};
+  String patientId = '';
+
+  Future<void> _reloadPatientData(String docId) async {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('patients')
+            .doc(docId)
+            .get();
+    if (snapshot.exists) {
+      setState(() {
+        patient = snapshot.data()!;
+        patient['docId'] = docId;
+      });
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    patient =
-        args ??
-        {
-          'docId': 'P-0001',
-          'name': 'ไม่พบชื่อ',
-          'gender': 'หญิง',
-          'age': 0,
-          'phone': '-',
-          'rating': 3,
-        };
-    patientId = patient['docId'];
-    print('🧾 patientId ที่รับมา: $patientId');
+    if (args != null) {
+      patient = args;
+      patientId = patient['docId'] ?? '';
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PatientDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (patientId.isNotEmpty) {
+      _reloadPatientData(patientId);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && patientId.isNotEmpty) {
+      _reloadPatientData(patientId);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    //final patient =
-        // ModalRoute.of(context)?.settings.arguments as Map<String, dynamic> ??
-        // {
-        //   'id': 'P-0001',
-        //   'name': 'กานต์รวี หอมหวาน',
-        //   'gender': 'หญิง',
-        //   'age': 25,
-        //   'phone': '091-234-5678',
-        //   'rating': 5,
-        // };
-    //final String id = patient?['id'] ?? 'P-0001';
-    final String name = patient?['name'] ?? 'กานต์รวี หอมหวาน';
-    final String gender = patient?['gender'] ?? 'หญิง';
-    final int age = patient?['age'] ?? 25;
-    final String phone = patient?['phone'] ?? '091-234-5678';
-    final int rating = patient?['rating'] ?? 5;
+    final String name = patient['name'] ?? 'ไม่พบชื่อ';
+    final String gender = patient['gender'] ?? 'หญิง';
+    final int age = patient['age'] ?? 0;
+    final String phone = patient['phone'] ?? '-';
+    final int rating = patient['rating'] ?? 3;
 
     Color cardColor;
     if (rating >= 5) {
@@ -75,147 +86,114 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.purple.shade100,
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.purple,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.8),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.purple.shade200),
-                          ),
-                          child: Text(
-                            '🦷' * rating,
-                            style: const TextStyle(fontSize: 20),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          gender == 'ชาย' ? Icons.male : Icons.female,
-                          color: gender == 'ชาย' ? Colors.blue : Colors.pink,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                        Text('อายุ $age ปี'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('เลขบัตร: 1234567890123'),
-                    const SizedBox(height: 4),
-                    Text('เบอร์โทร: $phone'),
-                    const SizedBox(height: 4),
-                    const Text('ที่อยู่: 123/4 ถ.สุขใจ เขตบางน่ารัก กรุงเทพฯ'),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.greenAccent.shade100,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+              GestureDetector(
+                onTap: () async {
+                  final updated = await Navigator.pushNamed(
+                    context,
+                    '/add_patient',
+                    arguments: patient,
+                  );
+                  if (updated == true) {
+                    await _reloadPatientData(patientId);
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.shade100,
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple,
                             ),
                           ),
-                          onPressed: () {},
-                          icon: const Icon(Icons.call),
-                          label: const Text('โทร'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orangeAccent.shade100,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.purple.shade200),
+                            ),
+                            child: Text(
+                              '🦷' * rating,
+                              style: const TextStyle(fontSize: 20),
                             ),
                           ),
-                          onPressed: () {},
-                          icon: const Icon(Icons.edit),
-                          label: const Text('แก้ไข'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent.shade100,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            gender == 'ชาย' ? Icons.male : Icons.female,
+                            color: gender == 'ชาย' ? Colors.blue : Colors.pink,
+                            size: 20,
                           ),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: const Text('ยืนยันการลบ'),
-                                  content: const Text(
-                                    'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      child: const Text('ยกเลิก'),
-                                      onPressed: () {
-                                        Navigator.of(context).pop();
-                                      },
-                                    ),
-                                    TextButton(
-                                      child: const Text('ลบ'),
-                                      onPressed: () {
-                                        Navigator.of(context).pop();
-                                      },
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                          icon: const Icon(Icons.delete),
-                          label: const Text('ลบ'),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 6),
+                          Text('อายุ $age ปี'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('เบอร์โทร: $phone'),
+                      const SizedBox(height: 4),
+                      Text('ที่อยู่: ${patient['address'] ?? '-'}'),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.greenAccent.shade100,
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            onPressed: () async {
+                              final uri = Uri.parse('tel:$phone');
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri);
+                              }
+                            },
+                            icon: Image.asset(
+                              'assets/icons/phone.png',
+                              width: 20,
+                              height: 20,
+                            ),
+                            label: const Text('โทร'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     'ประวัติการรักษา',
                     style: TextStyle(
                       fontSize: 20,
@@ -223,13 +201,31 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                       color: Colors.purple,
                     ),
                   ),
-                  Text(
-                    '🧾 2,400 บาท',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.purple,
-                    ),
+                  StreamBuilder<List<Treatment>>(
+                    stream: TreatmentService().getTreatments(patientId),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Text(
+                          '🧾 0 บาท',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple,
+                          ),
+                        );
+                      }
+                      final total = snapshot.data!
+                          .map((e) => e.price)
+                          .fold(0.0, (a, b) => a + b);
+                      return Text(
+                        '🧾 ${total.toStringAsFixed(0)} บาท',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -254,33 +250,86 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                     itemCount: treatments.length,
                     itemBuilder: (context, index) {
                       final treatment = treatments[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 2,
-                        color: Colors.white,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('🛠️ ${treatment.procedure}'),
-                                  Text('🦷 ${treatment.toothNumber}'),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('💰 ${treatment.price.toStringAsFixed(0)} บาท'),
-                                  Text('📅 ${treatment.date.day}/${treatment.date.month}/${treatment.date.year}'),
-                                ],
-                              ),
-                            ],
+                      return GestureDetector(
+                        onTap: () {
+                          showTreatmentDialog(
+                            context,
+                            patientId: patientId,
+                            treatment: treatment.toMap(),
+                          );
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 2,
+                          color: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 12.0,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Image.asset(
+                                      'assets/icons/report.png',
+                                      width: 24,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(treatment.procedure),
+                                        Row(
+                                          children: [
+                                            Image.asset(
+                                              'assets/icons/tooth.png',
+                                              width: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(treatment.toothNumber),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Image.asset(
+                                          'assets/icons/money.png',
+                                          width: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${treatment.price.toStringAsFixed(0)} บาท',
+                                        ),
+                                      ],
+                                    ),
+                                    Row(
+                                      children: [
+                                        Image.asset(
+                                          'assets/icons/calendar.png',
+                                          width: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${treatment.date.day}/${treatment.date.month}/${treatment.date.year}',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -294,15 +343,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          final id = patient['id'] ?? 'P-0001'; // fallback ถ้า id หาย
+          final id = patient['id'] ?? 'P-0001';
           showTreatmentDialog(context, patientId: patient['docId']);
         },
-
         backgroundColor: Colors.purple,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         child: const Icon(Icons.add, color: Colors.white, size: 36),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),

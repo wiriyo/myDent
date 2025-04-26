@@ -199,8 +199,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 ),
               ),
               const SizedBox(width: 12),
-              //if (treatmentId != null)
-              if (true)
+              if (treatmentId != null)
+              //if (true)
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {

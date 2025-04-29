@@ -64,6 +64,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args != null && args is Map<String, dynamic> && !_isEditing) {
+      print('isEditing = $_isEditing, docId = $_docId');
       _isEditing = true;
       _docId = args['docId'] ?? args['id'];
       _nameController.text = args['name'] ?? '';
@@ -339,7 +340,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                       final patientData = patient.toMap();
                       patientData['updatedAt'] = FieldValue.serverTimestamp();
 
-                      if (_isEditing && _docId != null) {
+                      if (_isEditing && _docId != null && _docId!.isNotEmpty) {
                         await FirebaseFirestore.instance
                             .collection('patients')
                             .doc(_docId)
@@ -369,8 +370,9 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            if (_isEditing)
+            if (_isEditing && _docId != null && _docId!.isNotEmpty)
+              const SizedBox(width: 12),
+            if (_isEditing && _docId != null && _docId!.isNotEmpty)
               Expanded(
                 child: ElevatedButton(
                   onPressed: () async {

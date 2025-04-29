@@ -8,7 +8,9 @@ class PatientService {
   // เพิ่มคนไข้ใหม่
   Future<void> addPatient(Patient patient) async {
     try {
-      await patientsCollection.doc(patient.patientId).set(patient.toMap());
+      //await patientsCollection.doc(patient.patientId).set(patient.toMap());
+      final docRef = await patientsCollection.add(patient.toMap());
+      await docRef.update({'patientId': docRef.id});
     } catch (e) {
       print('Error adding patient: $e');
       rethrow;
@@ -52,6 +54,7 @@ class PatientService {
     return patientsCollection.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
+        data['patientId'] = doc.id; // เพิ่ม patientId ที่นี่
         return Patient.fromMap(data);
       }).toList();
     });
@@ -67,6 +70,7 @@ Future<List<Patient>> fetchPatientsOnce() async {
     }
     return snapshot.docs.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
+      data['patientId'] = doc.id; // เพิ่ม patientId ที่นี่
       return Patient.fromMap(data);
     }).toList();
   } catch (e) {
@@ -82,6 +86,7 @@ Future<List<Patient>> fetchPatientsOnce() async {
       DocumentSnapshot doc = await patientsCollection.doc(patientId).get();
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
+        data['patientId'] = doc.id; // เพิ่ม patientId ที่นี่
         return Patient.fromMap(data);
       } else {
         return null;

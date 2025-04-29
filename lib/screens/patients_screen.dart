@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/patient_service.dart';
+import '../models/patient.dart';
 
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
@@ -13,7 +15,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   List<Map<String, dynamic>> _allPatients = [];
-  bool _isSearchExpanded = false;
+  final bool _isSearchExpanded = false;
 
   @override
   void initState() {
@@ -22,11 +24,27 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   Future<void> _fetchAllPatients() async {
-    final result = await FirebaseFirestore.instance.collection('patients').get();
+    //final result = await FirebaseFirestore.instance.collection('patients').get();
+    //final result = await PatientService().getPatients().first;
+    final result = await PatientService().fetchPatientsOnce();
     setState(() {
-      _allPatients = result.docs.map((doc) {
-        final data = doc.data();
-        return {...data, 'docId': doc.id};
+      // _allPatients = result.docs.map((doc) {
+      //   final data = doc.data();
+      //   return {...data, 'docId': doc.id};
+      // }).toList();
+      //_allPatients = result.map((patient) => patient.toMap()..['docId'] = patient.patientId).toList();
+        _allPatients = result.map((patient) {
+        final map = patient.toMap();
+        map['docId'] = patient.patientId;
+        map['name'] = patient.name;
+        map['phone'] = patient.telephone;
+        // map['age'] = DateTime.now().year - patient.birthDate.year;
+        // map['gender'] = patient.medicalHistory.contains('ชาย') ? 'ชาย' : 'หญิง';
+        // map['age'] = patient.toMap()['age'] ?? '-';
+        // map['gender'] = patient.toMap()['gender'] ?? 'ไม่ระบุ';
+        map['age'] = map['age'] ?? '-';
+        map['gender'] = map['gender'] ?? 'ไม่ระบุ';
+        return map;
       }).toList();
       _searchResults = List.from(_allPatients);
     });
@@ -231,10 +249,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
                         );
 
                         if (confirm == true) {
-                          await FirebaseFirestore.instance
-                              .collection('patients')
-                              .doc(docId)
-                              .delete();
+                          // await FirebaseFirestore.instance
+                          //     .collection('patients')
+                          //     .doc(docId)
+                          //     .delete();
+                          await PatientService().deletePatient(docId!);
                           await _fetchAllPatients();
                         }
                       },

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/patient.dart';
 
 class PatientAddScreen extends StatefulWidget {
   const PatientAddScreen({super.key});
@@ -17,6 +18,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   final _addressController = TextEditingController();
   final _allergyController = TextEditingController(text: 'ปฏิเสธ');
   final _diseaseController = TextEditingController(text: 'ปฏิเสธ');
+  int _selectedRating = 5;
 
   DateTime? _birthDate;
   int _calculatedAge = 0;
@@ -35,7 +37,9 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
     if (picked != null) {
       setState(() {
         _birthDate = picked;
-        _calculatedAge = now.year - picked.year -
+        _calculatedAge =
+            now.year -
+            picked.year -
             (now.month < picked.month ||
                     (now.month == picked.month && now.day < picked.day)
                 ? 1
@@ -69,18 +73,70 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       _addressController.text = args['address'] ?? '';
       _allergyController.text = args['allergy'] ?? 'ปฏิเสธ';
       _diseaseController.text = args['disease'] ?? 'ปฏิเสธ';
+      _selectedRating = args['rating'] ?? 5;
       if (args['birthDate'] != null) {
         _birthDate = DateTime.tryParse(args['birthDate']);
         if (_birthDate != null) {
           final now = DateTime.now();
-          _calculatedAge = now.year - _birthDate!.year -
+          _calculatedAge =
+              now.year -
+              _birthDate!.year -
               (now.month < _birthDate!.month ||
-                      (now.month == _birthDate!.month && now.day < _birthDate!.day)
+                      (now.month == _birthDate!.month &&
+                          now.day < _birthDate!.day)
                   ? 1
                   : 0);
         }
       }
     }
+  }
+
+  Widget _buildRatingDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ระดับความพึงพอใจ',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int>(
+          value: _selectedRating,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          items:
+              List.generate(6, (index) => index).map((rating) {
+                return DropdownMenuItem(
+                  value: rating,
+                  child: Row(
+                    children: List.generate(5, (i) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                        child: Image.asset(
+                          i < rating
+                              ? 'assets/icons/tooth_good.png'
+                              : 'assets/icons/tooth_broke.png',
+                          width: 20,
+                          height: 20,
+                        ),
+                      );
+                    }),
+                  ),
+                );
+              }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _selectedRating = value;
+              });
+            }
+          },
+        ),
+      ],
+    );
   }
 
   @override
@@ -102,9 +158,12 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                 children: [
                   Expanded(
                     flex: 4,
-                    child: _buildTextField('ชื่อ - นามสกุล', _nameController,
-                        validator: (value) =>
-                            value!.isEmpty ? 'กรุณากรอกชื่อ' : null),
+                    child: _buildTextField(
+                      'ชื่อ - นามสกุล',
+                      _nameController,
+                      validator:
+                          (value) => value!.isEmpty ? 'กรุณากรอกชื่อ' : null,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   DropdownButton<String>(
@@ -117,26 +176,29 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                           alignment: Alignment.center,
                           child: Icon(
                             value == 'หญิง' ? Icons.female : Icons.male,
-                            color: value == 'หญิง'
-                                ? Colors.pinkAccent
-                                : Colors.blueAccent,
+                            color:
+                                value == 'หญิง'
+                                    ? Colors.pinkAccent
+                                    : Colors.blueAccent,
                             size: 28,
                           ),
                         );
                       }).toList();
                     },
-                    items: ['หญิง', 'ชาย'].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Icon(
-                          value == 'หญิง' ? Icons.female : Icons.male,
-                          color: value == 'หญิง'
-                              ? Colors.pinkAccent
-                              : Colors.blueAccent,
-                          size: 28,
-                        ),
-                      );
-                    }).toList(),
+                    items:
+                        ['หญิง', 'ชาย'].map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Icon(
+                              value == 'หญิง' ? Icons.female : Icons.male,
+                              color:
+                                  value == 'หญิง'
+                                      ? Colors.pinkAccent
+                                      : Colors.blueAccent,
+                              size: 28,
+                            ),
+                          );
+                        }).toList(),
                     onChanged: (String? newValue) {
                       setState(() {
                         _selectedGender = newValue!;
@@ -146,18 +208,28 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              _buildTextField('เบอร์โทรศัพท์', _phoneController,
-                  keyboardType: TextInputType.phone),
+              _buildTextField(
+                'เบอร์โทรศัพท์',
+                _phoneController,
+                keyboardType: TextInputType.phone,
+              ),
               const SizedBox(height: 12),
-              _buildTextField('เลขบัตรประจำตัวประชาชน', _idCardController,
-                  keyboardType: TextInputType.number),
+              _buildTextField(
+                'เลขบัตรประจำตัวประชาชน',
+                _idCardController,
+                keyboardType: TextInputType.number,
+              ),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton.icon(
                     onPressed: _selectDate,
-                    icon: Image.asset('assets/icons/cake.png', width: 24, height: 24),
+                    icon: Image.asset(
+                      'assets/icons/cake.png',
+                      width: 24,
+                      height: 24,
+                    ),
                     label: Text(
                       _birthDate != null
                           ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
@@ -167,7 +239,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                     style: TextButton.styleFrom(
                       backgroundColor: const Color(0xFFFBEAFF),
                       foregroundColor: Colors.purple,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: const BorderSide(color: Colors.purpleAccent),
@@ -176,7 +251,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   ),
                   if (_calculatedAge > 0)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.purple.shade50,
                         borderRadius: BorderRadius.circular(20),
@@ -184,7 +262,11 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                       ),
                       child: Row(
                         children: [
-                          Image.asset('assets/icons/age.png', width: 20, height: 20),
+                          Image.asset(
+                            'assets/icons/age.png',
+                            width: 20,
+                            height: 20,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             '$_calculatedAge ปี',
@@ -205,6 +287,9 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
               _buildTextField('ประวัติการแพ้ยา', _allergyController),
               const SizedBox(height: 12),
               _buildTextField('โรคประจำตัว', _diseaseController),
+              const SizedBox(height: 16),
+              _buildRatingDropdown(),
+              //const SizedBox(height: 16)
             ],
           ),
         ),
@@ -219,35 +304,40 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   if (_formKey.currentState!.validate()) {
                     final confirm = await showDialog<bool>(
                       context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('ยืนยันการบันทึก'),
-                        content: const Text('คุณต้องการบันทึกข้อมูลนี้หรือไม่?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('ยกเลิก'),
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text('ยืนยันการบันทึก'),
+                            content: const Text(
+                              'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('ยกเลิก'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('บันทึก'),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('บันทึก'),
-                          ),
-                        ],
-                      ),
                     );
 
                     if (confirm == true) {
-                      final patientData = {
-                        'name': _nameController.text.trim(),
-                        'phone': _phoneController.text.trim(),
-                        'idCard': _idCardController.text.trim(),
-                        'gender': _selectedGender,
-                        'birthDate': _birthDate?.toIso8601String(),
-                        'age': _calculatedAge,
-                        'address': _addressController.text.trim(),
-                        'allergy': _allergyController.text.trim(),
-                        'disease': _diseaseController.text.trim(),
-                        'updatedAt': FieldValue.serverTimestamp(),
-                      };
+                      final patient = Patient(
+                        patientId: _docId ?? '',
+                        name: _nameController.text.trim(),
+                        telephone: _phoneController.text.trim(),
+                        birthDate: _birthDate,
+                        medicalHistory: _diseaseController.text.trim(),
+                        allergy: _allergyController.text.trim(),
+                        gender: _selectedGender,
+                        age: _calculatedAge,
+                        rating: _selectedRating,
+                      );
+
+                      final patientData = patient.toMap();
+                      patientData['updatedAt'] = FieldValue.serverTimestamp();
 
                       if (_isEditing && _docId != null) {
                         await FirebaseFirestore.instance
@@ -286,20 +376,23 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   onPressed: () async {
                     final confirm = await showDialog<bool>(
                       context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('ยืนยันการลบ'),
-                        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('ยกเลิก'),
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text('ยืนยันการลบ'),
+                            content: const Text(
+                              'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('ยกเลิก'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('ลบ'),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('ลบ'),
-                          ),
-                        ],
-                      ),
                     );
 
                     if (confirm == true && _docId != null) {
@@ -351,18 +444,18 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
             label.contains('ชื่อ')
                 ? 'assets/icons/user.png'
                 : label.contains('โทร')
-                    ? 'assets/icons/phone.png'
-                    : label.contains('บัตร')
-                        ? 'assets/icons/id_card.png'
-                        : label.contains('เกิด')
-                            ? 'assets/icons/cake.png'
-                            : label.contains('แพ้')
-                                ? 'assets/icons/no_drugs.png'
-                                : label.contains('โรค')
-                                    ? 'assets/icons/medical_report.png'
-                                    : label.contains('ที่อยู่')
-                                        ? 'assets/icons/house.png'
-                                        : 'assets/icons/user.png',
+                ? 'assets/icons/phone.png'
+                : label.contains('บัตร')
+                ? 'assets/icons/id_card.png'
+                : label.contains('เกิด')
+                ? 'assets/icons/cake.png'
+                : label.contains('แพ้')
+                ? 'assets/icons/no_drugs.png'
+                : label.contains('โรค')
+                ? 'assets/icons/medical_report.png'
+                : label.contains('ที่อยู่')
+                ? 'assets/icons/house.png'
+                : 'assets/icons/user.png',
             width: 24,
             height: 24,
           ),

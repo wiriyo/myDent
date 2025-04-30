@@ -84,6 +84,7 @@ flutter:
       - assets/icons/no_drugs.png
       - assets/icons/user.png
       - assets/icons/age.png
+      - assets/icons/treatment.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

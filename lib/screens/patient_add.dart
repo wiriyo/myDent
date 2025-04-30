@@ -329,6 +329,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                         patientId: _docId ?? '',
                         name: _nameController.text.trim(),
                         telephone: _phoneController.text.trim(),
+                        address: _addressController.text.trim(),
+                        idCard: _idCardController.text.trim(),
                         birthDate: _birthDate,
                         medicalHistory: _diseaseController.text.trim(),
                         allergy: _allergyController.text.trim(),

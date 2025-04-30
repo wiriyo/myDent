@@ -1,8 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/patient_service.dart';
-import '../models/patient.dart';
 
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
@@ -70,6 +68,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFEFE0FF),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Patient'),
         backgroundColor: const Color(0xFFE0BBFF),
         elevation: 0,

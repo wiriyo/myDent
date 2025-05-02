@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/treatment.dart';
 import '../services/treatment_service.dart';
+import 'package:flutter/services.dart';
+import '../models/treatment_master.dart';
+import '../services/treatment_master_service.dart';
 
 class TreatmentForm extends StatefulWidget {
   final String patientId;
@@ -68,44 +71,161 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   color: Colors.purple,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _selectDate(context),
-                icon: Image.asset('assets/icons/calendar.png', width: 24),
-                label: Text(
-                  _selectedDate != null
-                      ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
-                      : 'เลือกวันที่',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple.shade100,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Image.asset(
+                  'assets/icons/back.png',
+                  width: 24,
+                  height: 24,
+                  color: Colors.purple,
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _procedureController,
-            decoration: InputDecoration(
-              prefixIcon: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Image.asset('assets/icons/report.png', width: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: () => _selectDate(context),
+              icon: Image.asset('assets/icons/calendar.png', width: 24),
+              label: Text(
+                _selectedDate != null
+                    ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                    : 'เลือกวันที่',
               ),
-              hintText: 'หัตถการ',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple.shade100,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
             ),
-            validator:
-                (value) =>
-                    value == null || value.isEmpty ? 'กรุณากรอกหัตถการ' : null,
           ),
+
+          const SizedBox(height: 12),
+          StreamBuilder<List<TreatmentMaster>>(
+            stream: TreatmentMasterService.getAllTreatments(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const CircularProgressIndicator(); // หรือ Container() ถ้าอยากซ่อน
+              }
+
+              final masterList = snapshot.data!;
+
+              return Autocomplete<TreatmentMaster>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text.isEmpty) {
+                    return const Iterable<TreatmentMaster>.empty();
+                  }
+                  return masterList.where((option) {
+                    return option.name.toLowerCase().contains(
+                      textEditingValue.text.toLowerCase(),
+                    );
+                  });
+                },
+                displayStringForOption: (option) => option.name,
+                fieldViewBuilder: (
+                  BuildContext context,
+                  TextEditingController controller,
+                  FocusNode focusNode,
+                  VoidCallback onFieldSubmitted,
+                ) {
+                  controller.text = _procedureController.text; // 🩷 สำคัญสุด!
+
+                  controller.addListener(() {
+                    _procedureController.text = controller.text;
+                  });
+
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: InputDecoration(
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Image.asset(
+                          'assets/icons/report.png',
+                          width: 24,
+                        ),
+                      ),
+                      hintText: 'หัตถการ',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator:
+                        (value) =>
+                            value == null || value.isEmpty
+                                ? 'กรุณากรอกหัตถการ'
+                                : null,
+                  );
+                },
+
+                // ✅ เพิ่มตัวนี้ให้น่ารัก~
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      borderRadius: BorderRadius.circular(12),
+                      elevation: 4,
+                      color: const Color(0xFFFFF5FC),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          // ✅ แสดงได้สูงสุดไม่เกิน 5 รายการพอดี
+                          maxHeight: options.length * 50.0,
+                        ),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(8),
+                          shrinkWrap: true, // ✅ ให้ความสูงพอดีรายการ
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final treatment = options.elementAt(index);
+                            return InkWell(
+                              onTap: () => onSelected(treatment),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Image.asset(
+                                      'assets/icons/treatment.png',
+                                      width: 20,
+                                      height: 20,
+                                      //color: Colors.purple,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      treatment.name,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+
+                onSelected: (TreatmentMaster selected) {
+                  setState(() {
+                    _procedureController.text = selected.name;
+                    _priceController.text = selected.price.toStringAsFixed(0);
+                  });
+                },
+              );
+            },
+          ),
+
           const SizedBox(height: 12),
           Row(
             children: [
@@ -155,12 +275,19 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 child: ElevatedButton(
                   onPressed: () async {
                     if (_formKey.currentState!.validate()) {
+                      final name = _procedureController.text.trim();
+                      final price =
+                          double.tryParse(_priceController.text) ?? 0.0;
+
+                      // 🟣 1. บันทึกชื่อใหม่เข้า treatment_master ถ้ายังไม่มี
+                      await TreatmentMasterService.addIfNotExist(name, price);
+
                       final treatment = Treatment(
                         id: treatmentId ?? '',
                         patientId: widget.patientId,
-                        procedure: _procedureController.text,
+                        procedure: name,
                         toothNumber: _toothNumberController.text,
-                        price: double.tryParse(_priceController.text) ?? 0.0,
+                        price: price,
                         date: _selectedDate ?? DateTime.now(),
                       );
 
@@ -173,10 +300,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
                       if (context.mounted) Navigator.pop(context);
                     }
-                    print('🚀 start save');
-                    print('patientId = ${widget.patientId}');
-                    print('procedure = ${_procedureController.text}');
                   },
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orangeAccent.shade100,
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -200,7 +325,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
               ),
               const SizedBox(width: 12),
               if (treatmentId != null)
-              //if (true)
+                //if (true)
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {

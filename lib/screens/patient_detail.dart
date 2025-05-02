@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/treatment_service.dart';
 import '../services/patient_service.dart';
-import '../models/patient.dart';
 import '../models/treatment.dart';
 import 'treatment_add.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PatientDetailScreen extends StatefulWidget {

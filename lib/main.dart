@@ -11,6 +11,7 @@ import 'screens/patient_add.dart';
 import 'screens/reports_screen.dart';
 import 'screens/setting_screen.dart';
 import 'screens/patient_detail.dart';
+import 'screens/treatment_list.dart';
 //import 'screens/treatment_add.dart';
 
 void main() async {
@@ -72,18 +73,7 @@ class MyApp extends StatelessWidget {
         '/reports': (context) => const ReportsScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/patient_detail': (context) => const PatientDetailScreen(),
-        // '/treatment_add': (context) {
-        //   final args =
-        //       ModalRoute.of(context)?.settings.arguments
-        //           as Map<String, dynamic>?;
-        //   final String patientId = args?['patientId'] ?? '';
-        //   final Map<String, dynamic>? treatmentMap = args?['treatment'];
-
-        //   return TreatmentAddScreen(
-        //     patientId: patientId,
-        //     treatment: treatmentMap,
-        //   );
-        // },
+        '/treatment_list': (context) => const TreatmentListScreen(),
       },
     );
   }

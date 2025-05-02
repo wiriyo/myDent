@@ -87,6 +87,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    final String prefix = patient['prefix'] ?? '';
     final String name = patient['name'] ?? 'ไม่พบชื่อ';
     final String gender = patient['gender'] ?? 'หญิง';
     final int age = patient['age'] ?? 0;
@@ -147,7 +148,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          name,
+                          '$prefix $name',
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,

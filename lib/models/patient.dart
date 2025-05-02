@@ -2,6 +2,7 @@
 class Patient {
   final String patientId;
   final String name;
+  final String prefix;
   final String telephone;
   final String address;
   final String idCard;
@@ -15,6 +16,7 @@ class Patient {
   Patient({
     required this.patientId,
     required this.name,
+    required this.prefix,
     required this.telephone,
     this.address = '',
     this.idCard = '',
@@ -30,6 +32,7 @@ class Patient {
     return {
       'patientId': patientId,
       'name': name,
+      'prefix': prefix,
       'telephone': telephone,
       'address': address,
       'idCard': idCard,
@@ -46,6 +49,7 @@ class Patient {
     return Patient(
       patientId: map['patientId'] ?? '',
       name: map['name'] ?? '',
+      prefix: map['prefix'] ?? '',
       telephone: map['telephone'] ?? '',
       address: map['address'] ?? '',
       idCard: map['idCard'] ?? '',

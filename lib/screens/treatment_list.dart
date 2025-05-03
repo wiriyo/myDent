@@ -103,8 +103,9 @@ class _TreatmentListScreenState extends State<TreatmentListScreen> {
                           await TreatmentMasterService.deleteTreatment(
                             treatment.treatmentId,
                           );
-                          if (context.mounted)
+                          if (context.mounted) {
                             Navigator.of(context).pop(); // ปิดฟอร์ม
+                          }
                         }
                       }
                       : null,
@@ -193,8 +194,8 @@ class _TreatmentListScreenState extends State<TreatmentListScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showTreatmentForm(),
         backgroundColor: Colors.purple,
-        child: const Icon(Icons.add, size: 30, color: Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        child: const Icon(Icons.add, size: 30, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(

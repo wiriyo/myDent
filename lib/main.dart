@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'auth/login_screen.dart';
 import 'screens/calendar_screen.dart';
@@ -12,13 +13,25 @@ import 'screens/reports_screen.dart';
 import 'screens/setting_screen.dart';
 import 'screens/patient_detail.dart';
 import 'screens/treatment_list.dart';
-//import 'screens/treatment_add.dart';
+
+// 🌟 เพิ่ม global key
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final prefs = await SharedPreferences.getInstance();
   final skipLogin = prefs.getBool('skipLogin') ?? false;
+
+  if (FirebaseAuth.instance.currentUser == null) {
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+      print('🎉 Anonymous sign-in success!');
+    } catch (e) {
+      print('❌ Failed to sign in anonymously: $e');
+    }
+  }
+
   runApp(MyApp(skipLogin: skipLogin));
 }
 
@@ -31,6 +44,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MyDent',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: scaffoldMessengerKey, // 🎯 ใส่ตรงนี้เลยจ้า
       locale: const Locale('th', 'TH'),
       supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
       localizationsDelegates: const [
@@ -61,11 +75,7 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
-        '/':
-            (context) =>
-                skipLogin
-                    ? CalendarScreen(showReset: true)
-                    : const LoginScreen(),
+        '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
         '/calendar': (context) => const CalendarScreen(),
         '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),

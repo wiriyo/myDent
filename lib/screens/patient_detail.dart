@@ -1,9 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/treatment_service.dart';
 import '../services/patient_service.dart';
 import '../models/treatment.dart';
 import 'treatment_add.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path/path.dart' as path;
+import '../services/medical_image_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../main.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
@@ -84,6 +92,161 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       }),
     );
   }
+
+  Future<void> requestPermissions() async {
+    if (await Permission.photos.request().isGranted ||
+        await Permission.storage.request().isGranted ||
+        await Permission.camera.request().isGranted) {
+      // ผ่านจ้า
+    } else {
+      // ไม่อนุญาต ก็แสดง dialog หรือเตือนนิดนึง
+    }
+  }
+
+  Future<File?> pickImage(ImageSource source) async {
+    print("เรียก pickImage แล้วจ้า source: $source");
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: source,
+      imageQuality: 75, // 💖 ลดขนาดเพื่อประหยัดพื้นที่
+      maxWidth: 1080, // ป้องกันภาพใหญ่เกิน
+    );
+
+    if (pickedFile != null) {
+      return File(pickedFile.path);
+    } else {
+      return null;
+    }
+  }
+
+  void _showImageSourcePicker(BuildContext context) {
+    final rootContext = scaffoldMessengerKey.currentContext;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Wrap(
+            runSpacing: 10,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo, color: Colors.teal),
+                title: const Text("เลือกจากคลังภาพ"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await pickImage(ImageSource.gallery);
+                  if (image != null) {
+                    try {
+                      await MedicalImageService().uploadMedicalImage(
+                        file: image,
+                        patientId: patientId,
+                      );
+
+                      if (!mounted || rootContext == null) return;
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          const SnackBar(content: Text('อัปโหลดสำเร็จแล้ว 💜')),
+                        );
+                      });
+                    } catch (e) {
+                      if (!mounted || rootContext == null) return;
+                      ScaffoldMessenger.of(rootContext).showSnackBar(
+                        SnackBar(content: Text("เกิดข้อผิดพลาด: $e")),
+                      );
+                    }
+                  }
+                },
+              ),
+              // กล้องก็แก้คล้ายกันนะคะ
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.deepOrange),
+                title: const Text("ถ่ายรูปด้วยกล้อง"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await pickImage(ImageSource.camera);
+                  if (image != null) {
+                    try {
+                      await MedicalImageService().uploadMedicalImage(
+                        file: image,
+                        patientId: patientId,
+                      );
+
+                      if (!mounted || rootContext == null) return;
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          const SnackBar(
+                            content: Text('อัปโหลดจากกล้องสำเร็จแล้ว 🎉'),
+                          ),
+                        );
+                      });
+                    } catch (e) {
+                      if (!mounted || rootContext == null) return;
+                      ScaffoldMessenger.of(rootContext).showSnackBar(
+                        SnackBar(content: Text("เกิดข้อผิดพลาด: $e")),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> uploadMedicalImage(File imageFile) async {
+    if (patientId.isEmpty) return;
+
+    try {
+      final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+      final ref = FirebaseStorage.instance.ref().child(
+        'medical_images/$patientId/$fileName.jpg',
+      );
+
+      final uploadTask = await ref.putFile(imageFile);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+
+      await FirebaseFirestore.instance
+          .collection('patients')
+          .doc(patientId)
+          .collection('medical_images')
+          .add({
+            'url': downloadUrl,
+            'uploadedAt': FieldValue.serverTimestamp(),
+          });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('อัปโหลดภาพสำเร็จแล้ว 💜')));
+    } catch (e) {
+      print('❌ Upload failed: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+    }
+  }
+
+  Future<String?> uploadImageToStorage(File image) async {
+    try {
+      final fileName = path.basename(image.path);
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'medical_images/$patientId/$fileName',
+      );
+
+      final uploadTask = await storageRef.putFile(image);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('❌ Upload failed: $e');
+      return null;
+    }
+  }
+  // function
 
   @override
   Widget build(BuildContext context) {
@@ -262,6 +425,197 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 ),
               ],
             ),
+
+            ElevatedButton.icon(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                  builder: (context) {
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            "เลือกรูปภาพทางการแพทย์",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.photo,
+                              color: Colors.teal,
+                            ),
+                            title: const Text("เลือกจากคลังภาพ"),
+                            onTap: () async {
+                              Navigator.pop(
+                                context,
+                              ); // 👉 ทำให้ context นี้หมดอายุแล้ว
+
+                              final image = await pickImage(
+                                ImageSource.gallery,
+                              );
+                              if (image != null) {
+                                try {
+                                  await MedicalImageService()
+                                      .uploadMedicalImage(
+                                        file: image,
+                                        patientId: patientId,
+                                      );
+
+                                  // ✅ เช็คว่าหน้านี้ยังอยู่ก่อนแสดง SnackBar
+                                  if (!mounted) return;
+                                  Future.delayed(
+                                    const Duration(milliseconds: 300),
+                                    () {
+                                      if (!mounted) return;
+                                      scaffoldMessengerKey.currentState
+                                          ?.showSnackBar(
+                                            SnackBar(
+                                              content: const Text(
+                                                'อัปโหลดจากอัลบั้มสำเร็จแล้ว 💜',
+                                                style: TextStyle(
+                                                  color: Colors.black87,
+                                                  fontFamily: 'Poppins',
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              backgroundColor: const Color(
+                                                0xFFF3E5F5,
+                                              ), // สีม่วงลาเวนเดอร์หวานๆ
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              elevation: 6,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 20,
+                                                    vertical: 10,
+                                                  ),
+                                              duration: const Duration(
+                                                seconds: 3,
+                                              ),
+                                            ),
+                                          );
+                                    },
+                                  );
+                                } catch (e) {
+                                  print("❌ อัปโหลดไม่สำเร็จ: $e");
+
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("เกิดข้อผิดพลาด: $e"),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.deepOrange,
+                            ),
+                            title: const Text("ถ่ายรูปด้วยกล้อง"),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              final image = await pickImage(ImageSource.camera);
+                              if (image != null) {
+                                try {
+                                  await MedicalImageService()
+                                      .uploadMedicalImage(
+                                        file: image,
+                                        patientId: patientId,
+                                      );
+
+                                  // ✅ เช็คว่าหน้านี้ยังอยู่ก่อนแสดง SnackBar
+                                  if (!mounted) return;
+                                  Future.delayed(
+                                    const Duration(milliseconds: 300),
+                                    () {
+                                      if (!mounted) return;
+                                      scaffoldMessengerKey.currentState
+                                          ?.showSnackBar(
+                                            SnackBar(
+                                              content: const Text(
+                                                'อัปโหลดจากกล้องสำเร็จแล้ว 💜',
+                                                style: TextStyle(
+                                                  color: Colors.black87,
+                                                  fontFamily: 'Poppins',
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              backgroundColor: const Color(
+                                                0xFFF3E5F5,
+                                              ), // สีม่วงลาเวนเดอร์หวานๆ
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              elevation: 6,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 20,
+                                                    vertical: 10,
+                                                  ),
+                                              duration: const Duration(
+                                                seconds: 3,
+                                              ),
+                                            ),
+                                          );
+                                    },
+                                  );
+                                } catch (e) {
+                                  print("❌ อัปโหลดไม่สำเร็จ: $e");
+
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("เกิดข้อผิดพลาด: $e"),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+
+              icon: const Icon(Icons.add_a_photo),
+              label: const Text("เพิ่มภาพ"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple.shade100,
+                foregroundColor: Colors.purple.shade800,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             const SizedBox(height: 12),
             StreamBuilder<List<Treatment>>(
               stream: TreatmentService().getTreatments(patientId),

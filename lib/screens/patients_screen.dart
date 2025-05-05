@@ -35,7 +35,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
           result.map((patient) {
             final map = patient.toMap();
             map['docId'] = patient.patientId;
-            map['name'] = patient.name;
+            map['prefix'] = patient.prefix;
+            map['name'] = '${patient.prefix} ${patient.name}';
             map['phone'] = patient.telephone;
             // map['age'] = DateTime.now().year - patient.birthDate.year;
             // map['gender'] = patient.medicalHistory.contains('ชาย') ? 'ชาย' : 'หญิง';
@@ -148,6 +149,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
     Map<String, dynamic> data, {
     String? docId,
   }) {
+    final prefix = data['prefix'] ?? '';
     final name = data['name'] ?? '-';
     final phone = data['phone'] ?? '-';
     final rating = data['rating'] ?? 5;

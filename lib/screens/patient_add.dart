@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/patient.dart';
+import '../models/prefix.dart';
+import '../services/prefix_service.dart';
 
 class PatientAddScreen extends StatefulWidget {
   const PatientAddScreen({super.key});
@@ -13,6 +15,10 @@ class PatientAddScreen extends StatefulWidget {
 class _PatientAddScreenState extends State<PatientAddScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _prefixController = TextEditingController(
+    text: 'น.ส.',
+  ); // 💜 เพิ่ม controller
+
   final _phoneController = TextEditingController();
   final _idCardController = TextEditingController();
   final _addressController = TextEditingController();
@@ -51,6 +57,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _prefixController.dispose();
+
     _phoneController.dispose();
     _idCardController.dispose();
     _addressController.dispose();
@@ -68,6 +76,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       _isEditing = true;
       _docId = args['docId'] ?? args['id'];
       _nameController.text = args['name'] ?? '';
+      _prefixController.text =
+          (args['prefix'] as String?)?.trim().isNotEmpty == true
+              ? args['prefix']
+              : 'น.ส.';
       _phoneController.text = args['phone'] ?? '';
       _idCardController.text = args['idCard'] ?? '';
       _selectedGender = args['gender'] ?? 'หญิง';
@@ -147,16 +159,132 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         title: const Text("เพิ่มข้อมูลคนไข้"),
         backgroundColor: const Color(0xFFE0BBFF),
         elevation: 0,
+        // actions: [
+        //   IconButton(
+        //     icon: Image.asset('assets/icons/back.png', width: 24),
+        //     onPressed: () {
+        //       Navigator.pop(context);
+        //     },
+        //   ),
+        // ],
       ),
       backgroundColor: const Color(0xFFEFE0FF),
       body: Padding(
-        padding: const EdgeInsets.only(top: 80.0, left: 20.0, right: 20.0),
+        padding: const EdgeInsets.only(top: 20.0, left: 20.0, right: 20.0),
         child: Form(
           key: _formKey,
           child: ListView(
             children: [
               Row(
                 children: [
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8.0, right: 4),
+                      child: Image.asset(
+                        'assets/icons/back.png',
+                        width: 32,
+                        color: Colors.purple,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 60,
+                    child: StreamBuilder<List<Prefix>>(
+                      stream: PrefixService.getAllPrefixes(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) return const SizedBox.shrink();
+                        final prefixList = snapshot.data!;
+                        return Autocomplete<String>(
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text == '') {
+                              return const Iterable<String>.empty();
+                            }
+                            return prefixList
+                                .map((e) => e.name)
+                                .where(
+                                  (name) => name.toLowerCase().contains(
+                                    textEditingValue.text.toLowerCase(),
+                                  ),
+                                );
+                          },
+                          onSelected: (String selected) {
+                            _prefixController.text = selected;
+                          },
+                          fieldViewBuilder: (
+                            BuildContext context,
+                            TextEditingController textEditingController,
+                            FocusNode focusNode,
+                            VoidCallback onFieldSubmitted,
+                          ) {
+                            return TextFormField(
+                              controller: _prefixController, // ใช้ตัวหลักตรง ๆ
+                              focusNode: focusNode,
+                              decoration: InputDecoration(
+                                //hintText: 'คำนำหน้า',
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFBFA3FF),
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          optionsViewBuilder: (context, onSelected, options) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.white,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 25, // 💜 ลดความกว้าง
+                                    maxHeight: 150, // แสดงได้พอประมาณ
+                                  ),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder: (context, index) {
+                                      final option = options.elementAt(index);
+                                      return ListTile(
+                                        title: Text(
+                                          option,
+                                          style: const TextStyle(
+                                            fontFamily: 'Poppins',
+                                          ),
+                                        ),
+                                        onTap: () => onSelected(option),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
                   Expanded(
                     flex: 4,
                     child: _buildTextField(
@@ -181,7 +309,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                 value == 'หญิง'
                                     ? Colors.pinkAccent
                                     : Colors.blueAccent,
-                            size: 28,
+                            size: 36,
                           ),
                         );
                       }).toList();
@@ -325,8 +453,13 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                     );
 
                     if (confirm == true) {
+                      await PrefixService.addIfNotExist(
+                        _prefixController.text.trim(),
+                      );
+
                       final patient = Patient(
                         patientId: _docId ?? '',
+                        prefix: _prefixController.text.trim(),
                         name: _nameController.text.trim(),
                         telephone: _phoneController.text.trim(),
                         address: _addressController.text.trim(),

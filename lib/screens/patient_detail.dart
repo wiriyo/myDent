@@ -1,17 +1,113 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/treatment_service.dart';
 import '../services/patient_service.dart';
-import '../models/patient.dart';
 import '../models/treatment.dart';
 import 'treatment_add.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path/path.dart' as path;
+import '../services/medical_image_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../main.dart';
+import 'medical_image_viewer.dart';
+import 'package:uuid/uuid.dart';
+import 'medical_image_gallery.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
 
   @override
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
+}
+
+// class MedicalImageService {
+//   // ... (uploadMedicalImage เดิมที่มีอยู่แล้ว) ...
+//   Future<void> uploadMedicalImage({
+//     required File file,
+//     required String patientId,
+//   }) async {
+//     try {
+//       final fileName =
+//           const Uuid().v4(); // ไลลาใช้ uuid เพื่อให้ชื่อไฟล์ไม่ชนกันนะคะ
+//       final ref = FirebaseStorage.instance.ref(
+//         'medical_images/$patientId/$fileName.jpg',
+//       );
+//       final uploadTask = await ref.putFile(file);
+//       final url = await uploadTask.ref.getDownloadURL();
+
+//       await FirebaseFirestore.instance
+//           .collection('patients')
+//           .doc(patientId)
+//           .collection('medical_images')
+//           .add({'url': url, 'uploadedAt': FieldValue.serverTimestamp()});
+//     } catch (e) {
+//       throw Exception('เกิดข้อผิดพลาดระหว่างอัปโหลด: $e');
+//     }
+//   }
+
+//   Stream<List<Map<String, dynamic>>> getMedicalImages(String patientId) {
+//     return FirebaseFirestore.instance
+//         .collection('patients')
+//         .doc(patientId)
+//         .collection('medical_images')
+//         .orderBy('uploadedAt', descending: true)
+//         .snapshots()
+//         .map(
+//           (snapshot) =>
+//               snapshot.docs.map((doc) {
+//                 final data = doc.data();
+//                 return {
+//                   'id': doc.id,
+//                   'url': data['url'] ?? '',
+//                   'uploadedAt': data['uploadedAt'],
+//                 };
+//               }).toList(),
+//         );
+//   }
+
+//   // ถ้าพี่ทะเลยังไม่มี deleteMedicalImage ก็ใส่เพิ่มได้นะคะ 💜
+//   Future<void> deleteMedicalImage({
+//     required String patientId,
+//     required String imageId,
+//     required String imageUrl,
+//   }) async {
+//     try {
+//       final ref = FirebaseFirestore.instance
+//           .collection('patients')
+//           .doc(patientId)
+//           .collection('medical_images')
+//           .doc(imageId);
+
+//       await ref.delete();
+
+//       final storageRef = FirebaseStorage.instance.refFromURL(imageUrl);
+//       await storageRef.delete();
+//     } catch (e) {
+//       throw Exception('ลบภาพไม่สำเร็จ: $e');
+//     }
+//   }
+// }
+
+void openImageViewer({
+  required BuildContext context,
+  required List<Map<String, dynamic>> images,
+  required int startIndex,
+  required String patientId,
+}) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder:
+          (_) => MedicalImageViewer(
+            images: images,
+            initialIndex: startIndex,
+            patientId: patientId,
+          ),
+    ),
+  );
 }
 
 class _PatientDetailScreenState extends State<PatientDetailScreen>
@@ -87,8 +183,164 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     );
   }
 
+  Future<void> requestPermissions() async {
+    if (await Permission.photos.request().isGranted ||
+        await Permission.storage.request().isGranted ||
+        await Permission.camera.request().isGranted) {
+      // ผ่านจ้า
+    } else {
+      // ไม่อนุญาต ก็แสดง dialog หรือเตือนนิดนึง
+    }
+  }
+
+  Future<File?> pickImage(ImageSource source) async {
+    print("เรียก pickImage แล้วจ้า source: $source");
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: source,
+      imageQuality: 75, // 💖 ลดขนาดเพื่อประหยัดพื้นที่
+      maxWidth: 1080, // ป้องกันภาพใหญ่เกิน
+    );
+
+    if (pickedFile != null) {
+      return File(pickedFile.path);
+    } else {
+      return null;
+    }
+  }
+
+  void _showImageSourcePicker(BuildContext context) {
+    final rootContext = scaffoldMessengerKey.currentContext;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Wrap(
+            runSpacing: 10,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo, color: Colors.teal),
+                title: const Text("เลือกจากคลังภาพ"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await pickImage(ImageSource.gallery);
+                  if (image != null) {
+                    try {
+                      await MedicalImageService().uploadMedicalImage(
+                        file: image,
+                        patientId: patientId,
+                      );
+
+                      if (!mounted || rootContext == null) return;
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          const SnackBar(content: Text('อัปโหลดสำเร็จแล้ว 💜')),
+                        );
+                      });
+                    } catch (e) {
+                      if (!mounted || rootContext == null) return;
+                      ScaffoldMessenger.of(rootContext).showSnackBar(
+                        SnackBar(content: Text("เกิดข้อผิดพลาด: $e")),
+                      );
+                    }
+                  }
+                },
+              ),
+              // กล้องก็แก้คล้ายกันนะคะ
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.deepOrange),
+                title: const Text("ถ่ายรูปด้วยกล้อง"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await pickImage(ImageSource.camera);
+                  if (image != null) {
+                    try {
+                      await MedicalImageService().uploadMedicalImage(
+                        file: image,
+                        patientId: patientId,
+                      );
+
+                      if (!mounted || rootContext == null) return;
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          const SnackBar(
+                            content: Text('อัปโหลดจากกล้องสำเร็จแล้ว 🎉'),
+                          ),
+                        );
+                      });
+                    } catch (e) {
+                      if (!mounted || rootContext == null) return;
+                      ScaffoldMessenger.of(rootContext).showSnackBar(
+                        SnackBar(content: Text("เกิดข้อผิดพลาด: $e")),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> uploadMedicalImage(File imageFile) async {
+    if (patientId.isEmpty) return;
+
+    try {
+      final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+      final ref = FirebaseStorage.instance.ref().child(
+        'medical_images/$patientId/$fileName.jpg',
+      );
+
+      final uploadTask = await ref.putFile(imageFile);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+
+      await FirebaseFirestore.instance
+          .collection('patients')
+          .doc(patientId)
+          .collection('medical_images')
+          .add({
+            'url': downloadUrl,
+            'uploadedAt': FieldValue.serverTimestamp(),
+          });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('อัปโหลดภาพสำเร็จแล้ว 💜')));
+    } catch (e) {
+      print('❌ Upload failed: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+    }
+  }
+
+  Future<String?> uploadImageToStorage(File image) async {
+    try {
+      final fileName = path.basename(image.path);
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'medical_images/$patientId/$fileName',
+      );
+
+      final uploadTask = await storageRef.putFile(image);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('❌ Upload failed: $e');
+      return null;
+    }
+  }
+  // function
+
   @override
   Widget build(BuildContext context) {
+    final String prefix = patient['prefix'] ?? '';
     final String name = patient['name'] ?? 'ไม่พบชื่อ';
     final String gender = patient['gender'] ?? 'หญิง';
     final int age = patient['age'] ?? 0;
@@ -149,7 +401,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          name,
+                          '$prefix $name',
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -223,6 +475,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 ),
               ),
             ),
+
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -235,34 +488,68 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                     color: Colors.purple,
                   ),
                 ),
-                StreamBuilder<List<Treatment>>(
-                  stream: TreatmentService().getTreatments(patientId),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Text(
-                        '🧾 0 บาท',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.purple,
-                        ),
-                      );
-                    }
-                    final total = snapshot.data!
-                        .map((e) => e.price)
-                        .fold(0.0, (a, b) => a + b);
-                    return Text(
-                      '🧾 ${total.toStringAsFixed(0)} บาท',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple,
+                
+
+                Row(
+                  children: [
+                    StreamBuilder<List<Treatment>>(
+                      stream: TreatmentService().getTreatments(patientId),
+                      builder: (context, snapshot) {
+                        final total =
+                            snapshot.data?.fold<double>(
+                              0,
+                              (prev, e) => prev + e.price,
+                            ) ??
+                            0.0;
+                        return Text(
+                          '🧾 ${total.toStringAsFixed(0)} บาท',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // 🩻 ปุ่มเพิ่มภาพแบบกลมเล็ก
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.purple.shade100.withOpacity(0.5),
+                            blurRadius: 4,
+                            offset: const Offset(2, 2),
+                          ),
+                        ],
                       ),
-                    );
-                  },
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Image.asset(
+                          'assets/icons/x_ray.png',
+                          width: 48,
+                          height: 48,
+                        ),
+                        onPressed: () {
+                          _showImageSourcePicker(context);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+
+            MedicalImageGallery(
+              imageStream: MedicalImageService().getMedicalImages(patientId),
+              patientId: patientId,
+              onImageTap: openImageViewer,
+            ),
+
             const SizedBox(height: 12),
             StreamBuilder<List<Treatment>>(
               stream: TreatmentService().getTreatments(patientId),
@@ -374,6 +661,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           ],
         ),
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           final id = patient['id'] ?? 'P-0001';

@@ -42,4 +42,22 @@ class MedicalImageService {
       rethrow;
     }
   }
+
+  Stream<List<Map<String, dynamic>>> getMedicalImages(String patientId) {
+  return _firestore
+      .collection('patients')
+      .doc(patientId)
+      .collection('medical_images')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'url': data['url'] ?? '',
+              'uploadedAt': data['createdAt'],
+            };
+          }).toList());
+}
+
 }

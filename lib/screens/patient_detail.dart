@@ -12,12 +12,102 @@ import 'package:path/path.dart' as path;
 import '../services/medical_image_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../main.dart';
+import 'medical_image_viewer.dart';
+import 'package:uuid/uuid.dart';
+import 'medical_image_gallery.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
 
   @override
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
+}
+
+// class MedicalImageService {
+//   // ... (uploadMedicalImage เดิมที่มีอยู่แล้ว) ...
+//   Future<void> uploadMedicalImage({
+//     required File file,
+//     required String patientId,
+//   }) async {
+//     try {
+//       final fileName =
+//           const Uuid().v4(); // ไลลาใช้ uuid เพื่อให้ชื่อไฟล์ไม่ชนกันนะคะ
+//       final ref = FirebaseStorage.instance.ref(
+//         'medical_images/$patientId/$fileName.jpg',
+//       );
+//       final uploadTask = await ref.putFile(file);
+//       final url = await uploadTask.ref.getDownloadURL();
+
+//       await FirebaseFirestore.instance
+//           .collection('patients')
+//           .doc(patientId)
+//           .collection('medical_images')
+//           .add({'url': url, 'uploadedAt': FieldValue.serverTimestamp()});
+//     } catch (e) {
+//       throw Exception('เกิดข้อผิดพลาดระหว่างอัปโหลด: $e');
+//     }
+//   }
+
+//   Stream<List<Map<String, dynamic>>> getMedicalImages(String patientId) {
+//     return FirebaseFirestore.instance
+//         .collection('patients')
+//         .doc(patientId)
+//         .collection('medical_images')
+//         .orderBy('uploadedAt', descending: true)
+//         .snapshots()
+//         .map(
+//           (snapshot) =>
+//               snapshot.docs.map((doc) {
+//                 final data = doc.data();
+//                 return {
+//                   'id': doc.id,
+//                   'url': data['url'] ?? '',
+//                   'uploadedAt': data['uploadedAt'],
+//                 };
+//               }).toList(),
+//         );
+//   }
+
+//   // ถ้าพี่ทะเลยังไม่มี deleteMedicalImage ก็ใส่เพิ่มได้นะคะ 💜
+//   Future<void> deleteMedicalImage({
+//     required String patientId,
+//     required String imageId,
+//     required String imageUrl,
+//   }) async {
+//     try {
+//       final ref = FirebaseFirestore.instance
+//           .collection('patients')
+//           .doc(patientId)
+//           .collection('medical_images')
+//           .doc(imageId);
+
+//       await ref.delete();
+
+//       final storageRef = FirebaseStorage.instance.refFromURL(imageUrl);
+//       await storageRef.delete();
+//     } catch (e) {
+//       throw Exception('ลบภาพไม่สำเร็จ: $e');
+//     }
+//   }
+// }
+
+void openImageViewer({
+  required BuildContext context,
+  required List<Map<String, dynamic>> images,
+  required int startIndex,
+  required String patientId,
+}) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder:
+          (_) => MedicalImageViewer(
+            images: images,
+            initialIndex: startIndex,
+            patientId: patientId,
+          ),
+    ),
+  );
 }
 
 class _PatientDetailScreenState extends State<PatientDetailScreen>
@@ -385,6 +475,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 ),
               ),
             ),
+
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -397,224 +488,67 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                     color: Colors.purple,
                   ),
                 ),
-                StreamBuilder<List<Treatment>>(
-                  stream: TreatmentService().getTreatments(patientId),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Text(
-                        '🧾 0 บาท',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.purple,
-                        ),
-                      );
-                    }
-                    final total = snapshot.data!
-                        .map((e) => e.price)
-                        .fold(0.0, (a, b) => a + b);
-                    return Text(
-                      '🧾 ${total.toStringAsFixed(0)} บาท',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple,
+                
+
+                Row(
+                  children: [
+                    StreamBuilder<List<Treatment>>(
+                      stream: TreatmentService().getTreatments(patientId),
+                      builder: (context, snapshot) {
+                        final total =
+                            snapshot.data?.fold<double>(
+                              0,
+                              (prev, e) => prev + e.price,
+                            ) ??
+                            0.0;
+                        return Text(
+                          '🧾 ${total.toStringAsFixed(0)} บาท',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // 🩻 ปุ่มเพิ่มภาพแบบกลมเล็ก
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.purple.shade100.withOpacity(0.5),
+                            blurRadius: 4,
+                            offset: const Offset(2, 2),
+                          ),
+                        ],
                       ),
-                    );
-                  },
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Image.asset(
+                          'assets/icons/x_ray.png',
+                          width: 48,
+                          height: 48,
+                        ),
+                        onPressed: () {
+                          _showImageSourcePicker(context);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
 
-            ElevatedButton.icon(
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                  ),
-                  builder: (context) {
-                    return Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            "เลือกรูปภาพทางการแพทย์",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.purple,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.photo,
-                              color: Colors.teal,
-                            ),
-                            title: const Text("เลือกจากคลังภาพ"),
-                            onTap: () async {
-                              Navigator.pop(
-                                context,
-                              ); // 👉 ทำให้ context นี้หมดอายุแล้ว
-
-                              final image = await pickImage(
-                                ImageSource.gallery,
-                              );
-                              if (image != null) {
-                                try {
-                                  await MedicalImageService()
-                                      .uploadMedicalImage(
-                                        file: image,
-                                        patientId: patientId,
-                                      );
-
-                                  // ✅ เช็คว่าหน้านี้ยังอยู่ก่อนแสดง SnackBar
-                                  if (!mounted) return;
-                                  Future.delayed(
-                                    const Duration(milliseconds: 300),
-                                    () {
-                                      if (!mounted) return;
-                                      scaffoldMessengerKey.currentState
-                                          ?.showSnackBar(
-                                            SnackBar(
-                                              content: const Text(
-                                                'อัปโหลดจากอัลบั้มสำเร็จแล้ว 💜',
-                                                style: TextStyle(
-                                                  color: Colors.black87,
-                                                  fontFamily: 'Poppins',
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              backgroundColor: const Color(
-                                                0xFFF3E5F5,
-                                              ), // สีม่วงลาเวนเดอร์หวานๆ
-                                              behavior:
-                                                  SnackBarBehavior.floating,
-                                              elevation: 6,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                    vertical: 10,
-                                                  ),
-                                              duration: const Duration(
-                                                seconds: 3,
-                                              ),
-                                            ),
-                                          );
-                                    },
-                                  );
-                                } catch (e) {
-                                  print("❌ อัปโหลดไม่สำเร็จ: $e");
-
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("เกิดข้อผิดพลาด: $e"),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.deepOrange,
-                            ),
-                            title: const Text("ถ่ายรูปด้วยกล้อง"),
-                            onTap: () async {
-                              Navigator.pop(context);
-                              final image = await pickImage(ImageSource.camera);
-                              if (image != null) {
-                                try {
-                                  await MedicalImageService()
-                                      .uploadMedicalImage(
-                                        file: image,
-                                        patientId: patientId,
-                                      );
-
-                                  // ✅ เช็คว่าหน้านี้ยังอยู่ก่อนแสดง SnackBar
-                                  if (!mounted) return;
-                                  Future.delayed(
-                                    const Duration(milliseconds: 300),
-                                    () {
-                                      if (!mounted) return;
-                                      scaffoldMessengerKey.currentState
-                                          ?.showSnackBar(
-                                            SnackBar(
-                                              content: const Text(
-                                                'อัปโหลดจากกล้องสำเร็จแล้ว 💜',
-                                                style: TextStyle(
-                                                  color: Colors.black87,
-                                                  fontFamily: 'Poppins',
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              backgroundColor: const Color(
-                                                0xFFF3E5F5,
-                                              ), // สีม่วงลาเวนเดอร์หวานๆ
-                                              behavior:
-                                                  SnackBarBehavior.floating,
-                                              elevation: 6,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                    vertical: 10,
-                                                  ),
-                                              duration: const Duration(
-                                                seconds: 3,
-                                              ),
-                                            ),
-                                          );
-                                    },
-                                  );
-                                } catch (e) {
-                                  print("❌ อัปโหลดไม่สำเร็จ: $e");
-
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("เกิดข้อผิดพลาด: $e"),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-
-              icon: const Icon(Icons.add_a_photo),
-              label: const Text("เพิ่มภาพ"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple.shade100,
-                foregroundColor: Colors.purple.shade800,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 16,
-                ),
-              ),
+            MedicalImageGallery(
+              imageStream: MedicalImageService().getMedicalImages(patientId),
+              patientId: patientId,
+              onImageTap: openImageViewer,
             ),
-            const SizedBox(height: 12),
 
             const SizedBox(height: 12),
             StreamBuilder<List<Treatment>>(
@@ -727,6 +661,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           ],
         ),
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           final id = patient['id'] ?? 'P-0001';

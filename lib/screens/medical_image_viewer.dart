@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
 
 class MedicalImageViewer extends StatefulWidget {
   final List<Map<String, dynamic>> images;
@@ -147,13 +148,41 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
         },
         itemBuilder: (context, index) {
           final image = widget.images[index];
-          return InteractiveViewer(
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: 3 / 4,
-                child: Image.network(image['url'], fit: BoxFit.contain),
+          final createdAt = image['createdDate']?.toDate();
+          final formattedDate =
+              createdAt != null
+                  ? DateFormat('d MMMM yyyy เวลา HH:mm', 'th').format(createdAt)
+                  : 'ไม่ทราบวันที่';
+
+          return Stack(
+            children: [
+              InteractiveViewer(
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 3 / 4,
+                    child: Image.network(image['url'], fit: BoxFit.contain),
+                  ),
+                ),
               ),
-            ),
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    formattedDate,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),

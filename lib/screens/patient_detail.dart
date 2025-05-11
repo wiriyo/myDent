@@ -13,7 +13,6 @@ import '../services/medical_image_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../main.dart';
 import 'medical_image_viewer.dart';
-import 'package:uuid/uuid.dart';
 import 'medical_image_gallery.dart';
 
 class PatientDetailScreen extends StatefulWidget {

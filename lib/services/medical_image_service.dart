@@ -55,7 +55,7 @@ class MedicalImageService {
             return {
               'id': doc.id,
               'url': data['url'] ?? '',
-              'uploadedAt': data['createdAt'],
+              'createdDate': data['createdAt'],
             };
           }).toList());
 }

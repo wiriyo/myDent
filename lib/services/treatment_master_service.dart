@@ -2,15 +2,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/treatment_master.dart';
 
 class TreatmentMasterService {
-  static final _collection = FirebaseFirestore.instance.collection('treatment_master'); // ✅ แก้ตรงนี้
+  static final _collection = FirebaseFirestore.instance.collection(
+    'treatment_master',
+  ); // ✅ แก้ตรงนี้
 
   static Stream<List<TreatmentMaster>> getAllTreatments() {
     return _collection
         .orderBy('name')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TreatmentMaster.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs
+                  .map((doc) => TreatmentMaster.fromMap(doc.data(), doc.id))
+                  .toList(),
+        );
   }
 
   static Future<void> addTreatment(TreatmentMaster treatment) async {
@@ -26,16 +31,16 @@ class TreatmentMasterService {
   }
 
   static Future<void> addIfNotExist(String name, double price) async {
-    final snapshot = await _collection
-        .where('name', isEqualTo: name)
-        .limit(1)
-        .get();
+    final snapshot =
+        await _collection.where('name', isEqualTo: name).limit(1).get();
 
     if (snapshot.docs.isEmpty) {
       await _collection.add({
         'name': name,
         'price': price,
         'duration': 30,
+        // 'duration': duration.toInt(),
+        // 'price': price.toInt(),
       });
       print('🆕 เพิ่มเข้า treatment_master: $name');
     } else {

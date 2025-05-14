@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/appointment_service.dart';
 import 'patients_screen.dart';
 import 'appointment_add.dart';
+import 'setting_screen.dart';
+import 'reports_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -67,9 +69,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
         MaterialPageRoute(builder: (context) => const PatientsScreen()),
       );
     } else if (index == 3) {
-      // Report screen - to be implemented
+      Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ReportsScreen()), // ✅
+    );
     } else if (index == 4) {
-      // Settings screen - to be implemented
+      Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsScreen()), // ✅
+    );
     }
   }
 

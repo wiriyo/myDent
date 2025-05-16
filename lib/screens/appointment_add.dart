@@ -25,13 +25,33 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   DateTime? _selectedDate = DateTime.now();
 
   String getFormattedDate(DateTime date) {
-  final months = [
-    '', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
-  ];
-  return '${date.day} ${months[date.month]} ${date.year + 543}';
-}
+    final months = [
+      '',
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.',
+    ];
+    return '${date.day} ${months[date.month]} ${date.year + 543}';
+  }
 
+  final List<String> statusOptions = [
+    'รอยืนยัน',
+    'ยืนยันแล้ว',
+    'ติดต่อไม่ได้',
+    'ไม่มาตามนัด',
+    'ปฏิเสธนัด',
+  ];
+
+  String _status = 'รอยืนยัน'; // ค่าสถานะเริ่มต้น
 
   Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
@@ -108,7 +128,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                               (min) => DropdownMenuItem(
                                 value: min,
                                 child: Text(
-                                  min.toString().padLeft(2, '0') + ' นาที',
+                                  '${min.toString().padLeft(2, '0')} นาที',
                                 ),
                               ),
                             )
@@ -218,14 +238,20 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
   Future<void> _saveAppointment() async {
     final name = _patientController.text.trim();
-    await _checkOrAddTreatmentMaster();
+    final treatment = _treatmentController.text.trim();
+    final duration = int.tryParse(_durationController.text.trim()) ?? 30;
 
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('กรุณาใส่ชื่อคนไข้')));
+    if (name.isEmpty ||
+        treatment.isEmpty ||
+        _selectedDate == null ||
+        _startTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')),
+      );
       return;
     }
+
+    await _checkOrAddTreatmentMaster();
 
     if (_selectedPatientId == null) {
       final newDoc = await _firestore.collection('patients').add({
@@ -235,9 +261,43 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       _selectedPatientId = newDoc.id;
     }
 
-    if (_selectedPatientId != null) {
-      print('✅ บันทึกนัดให้ $_selectedPatientId ($name)');
-      if (context.mounted) Navigator.pop(context);
+    final appointmentData = {
+      'patientId': _selectedPatientId,
+      'patientName': name,
+      'treatment': treatment,
+      'duration': duration,
+      'status': _status,
+      'date': Timestamp.fromDate(_selectedDate!),
+      'startTime': Timestamp.fromDate(
+        DateTime(
+          _selectedDate!.year,
+          _selectedDate!.month,
+          _selectedDate!.day,
+          _startTime!.hour,
+          _startTime!.minute,
+        ),
+      ),
+      'endTime':
+          _endTime != null && _selectedDate != null
+              ? DateTime(
+                _selectedDate!.year,
+                _selectedDate!.month,
+                _selectedDate!.day,
+                _endTime!.hour,
+                _endTime!.minute,
+              )
+              : null,
+
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await _firestore.collection('appointments').add(appointmentData);
+
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('บันทึกนัดหมายเรียบร้อยแล้ว')),
+      );
     }
   }
 
@@ -468,40 +528,99 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
                 const SizedBox(height: 16),
 
-                /// 📆 ช่องเลือกวันที่
+                // /// 📆 ช่องเลือกวันที่
+                // Row(
+                //   children: [
+                //     const Text(
+                //       'วันที่:',
+                //       style: TextStyle(fontWeight: FontWeight.bold),
+                //     ),
+                //     const SizedBox(width: 12),
+                //     ElevatedButton(
+                //       style: ElevatedButton.styleFrom(
+                //         backgroundColor: Colors.purple.shade100,
+                //         shape: RoundedRectangleBorder(
+                //           borderRadius: BorderRadius.circular(12),
+                //         ),
+                //       ),
+                //       onPressed: () async {
+                //         final picked = await showDatePicker(
+                //           context: context,
+                //           initialDate: _selectedDate ?? DateTime.now(),
+                //           firstDate: DateTime(2020),
+                //           lastDate: DateTime(2035),
+                //           locale: const Locale('th', 'TH'),
+                //         );
+                //         if (picked != null) {
+                //           setState(() {
+                //             _selectedDate = picked;
+                //           });
+                //         }
+                //       },
+                //       child: Text(
+                //         _selectedDate != null
+                //             ? getFormattedDate(_selectedDate!)
+                //             : 'เลือกวันที่',
+                //         style: const TextStyle(color: Colors.black87),
+                //       ),
+                //     ),
+                //   ],
+                // ),
                 Row(
                   children: [
-                    const Text(
-                      'วันที่:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple.shade100,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _status,
+                        items:
+                            statusOptions.map((status) {
+                              return DropdownMenuItem(
+                                value: status,
+                                child: Text(
+                                  status,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              );
+                            }).toList(),
+                        onChanged:
+                            (value) =>
+                                setState(() => _status = value ?? _status),
+                        decoration: InputDecoration(
+                          labelText: 'สถานะ',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _selectedDate ?? DateTime.now(),
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2035),
-                          locale: const Locale('th', 'TH'),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            _selectedDate = picked;
-                          });
-                        }
-                      },
-                      child: Text(
-                        _selectedDate != null
-                            ? getFormattedDate(_selectedDate!)
-                            : 'เลือกวันที่',
-                        style: const TextStyle(color: Colors.black87),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade100,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _selectedDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2035),
+                            locale: const Locale('th', 'TH'),
+                          );
+                          if (picked != null) {
+                            setState(() => _selectedDate = picked);
+                          }
+                        },
+                        child: Text(
+                          _selectedDate != null
+                              ? getFormattedDate(_selectedDate!)
+                              : 'เลือกวันที่',
+                          style: const TextStyle(color: Colors.black87),
+                        ),
                       ),
                     ),
                   ],

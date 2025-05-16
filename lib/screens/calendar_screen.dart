@@ -8,6 +8,8 @@ import 'patients_screen.dart';
 import 'appointment_add.dart';
 import 'setting_screen.dart';
 import 'reports_screen.dart';
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -70,14 +72,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
       );
     } else if (index == 3) {
       Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ReportsScreen()), // ✅
-    );
+        context,
+        MaterialPageRoute(builder: (context) => const ReportsScreen()), // ✅
+      );
     } else if (index == 4) {
       Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SettingsScreen()), // ✅
-    );
+        context,
+        MaterialPageRoute(builder: (context) => const SettingsScreen()), // ✅
+      );
     }
   }
 
@@ -221,11 +223,43 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ? const Center(child: Text('ไม่มีนัดหมาย'))
                       : ListView.builder(
                         itemCount: _selectedAppointmentsWithPatients.length,
+
                         itemBuilder: (context, index) {
                           final appointment =
                               _selectedAppointmentsWithPatients[index]['appointment'];
                           final patient =
                               _selectedAppointmentsWithPatients[index]['patient'];
+                          final dynamic startRaw = appointment['startTime'];
+                          final dynamic endRaw = appointment['endTime'];
+
+                          DateTime? startTime;
+                          DateTime? endTime;
+
+                          if (startRaw is Timestamp) {
+                            startTime = startRaw.toDate();
+                          } else if (startRaw is String) {
+                            startTime = DateTime.tryParse(startRaw);
+                          }
+
+                          if (endRaw is Timestamp) {
+                            endTime = endRaw.toDate();
+                          } else if (endRaw is String) {
+                            endTime = DateTime.tryParse(endRaw);
+                          }
+
+                          final timeFormat = DateFormat.Hm();
+                          final startFormatted =
+                              startTime != null
+                                  ? timeFormat.format(startTime)
+                                  : '-';
+                          final endFormatted =
+                              endTime != null
+                                  ? timeFormat.format(endTime)
+                                  : '-';
+                          final showTime =
+                              endFormatted != '-'
+                                  ? 'เวลา: $startFormatted - $endFormatted'
+                                  : 'เวลา: $startFormatted';
 
                           return Card(
                             color: Colors.pink.shade50,
@@ -241,7 +275,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 'ชื่อคนไข้: ${patient['name'] ?? 'ไม่ระบุ'}',
                               ),
                               subtitle: Text(
-                                'เวลา: ${appointment['time'] ?? '-'}\nประเภท: ${appointment['type'] ?? '-'}',
+                                '$showTime\n'
+                                'หัตถการ: ${appointment['treatment'] ?? '-'}\n'
+                                'สถานะ: ${appointment['status'] ?? '-'}',
                               ),
                             ),
                           );
@@ -257,7 +293,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
           showDialog(
             context: context,
             builder: (context) => const AppointmentAddDialog(),
-          );
+          ).then((_) {
+            if (_selectedDay != null) {
+              _fetchAppointmentsForSelectedDay(
+                _selectedDay!,
+              ); // ✅ โหลดใหม่หลังปิด dialog
+            }
+          });
         },
         backgroundColor: Colors.purple,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

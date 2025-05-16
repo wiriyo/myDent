@@ -29,12 +29,21 @@ class AppointmentService {
   Future<List<Map<String, dynamic>>> getAppointmentsByDate(
     DateTime selectedDate,
   ) async {
-    final formattedDate = selectedDate.toIso8601String().split('T').first;
+    final startOfDay = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
     final snapshot =
         await _firestore
             .collection('appointments')
-            .where('date', isEqualTo: formattedDate)
+            .where(
+              'startTime',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+            )
+            .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
             .get();
 
     return snapshot.docs.map((doc) => doc.data()).toList();

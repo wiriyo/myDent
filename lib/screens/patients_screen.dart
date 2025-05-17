@@ -22,15 +22,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   Future<void> _fetchAllPatients() async {
-    //final result = await FirebaseFirestore.instance.collection('patients').get();
-    //final result = await PatientService().getPatients().first;
+
     final result = await PatientService().fetchPatientsOnce();
     setState(() {
-      // _allPatients = result.docs.map((doc) {
-      //   final data = doc.data();
-      //   return {...data, 'docId': doc.id};
-      // }).toList();
-      //_allPatients = result.map((patient) => patient.toMap()..['docId'] = patient.patientId).toList();
       _allPatients =
           result.map((patient) {
             final map = patient.toMap();
@@ -38,10 +32,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
             map['prefix'] = patient.prefix;
             map['name'] = '${patient.prefix} ${patient.name}';
             map['phone'] = patient.telephone;
-            // map['age'] = DateTime.now().year - patient.birthDate.year;
-            // map['gender'] = patient.medicalHistory.contains('ชาย') ? 'ชาย' : 'หญิง';
-            // map['age'] = patient.toMap()['age'] ?? '-';
-            // map['gender'] = patient.toMap()['gender'] ?? 'ไม่ระบุ';
             map['age'] = map['age'] ?? '-';
             map['gender'] = map['gender'] ?? 'ไม่ระบุ';
             return map;

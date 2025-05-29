@@ -2,7 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AppointmentAddDialog extends StatefulWidget {
-  const AppointmentAddDialog({super.key});
+  final Map<String, dynamic>? appointmentData; // ✅ เพิ่มตรงนี้
+  final DateTime? initialDate;
+
+  const AppointmentAddDialog({
+    super.key,
+    this.appointmentData,
+    this.initialDate,
+  }); // ✅ อัปเดต constructor
 
   @override
   State<AppointmentAddDialog> createState() => _AppointmentAddDialogState();
@@ -52,6 +59,104 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   ];
 
   String _status = 'รอยืนยัน'; // ค่าสถานะเริ่มต้น
+
+  @override
+  void initState() {
+    super.initState();
+
+    final data = widget.appointmentData;
+    _selectedDate = widget.initialDate ?? DateTime.now();
+
+    if (data != null) {
+      _selectedPatientId = data['patientId'];
+      _patientController.text = data['patientName'] ?? '';
+      _treatmentController.text = data['treatment'] ?? '';
+      _durationController.text = (data['duration'] ?? '').toString();
+      _status = data['status'] ?? 'รอยืนยัน';
+
+      final Timestamp? startTimestamp = data['startTime'];
+      final Timestamp? endTimestamp = data['endTime'];
+      final Timestamp? dateTimestamp = data['date'];
+
+      if (startTimestamp != null) {
+        final dt = startTimestamp.toDate();
+        _startTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
+      }
+
+      if (endTimestamp != null) {
+        final dt = endTimestamp.toDate();
+        _endTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
+      }
+
+      if (dateTimestamp != null) {
+        _selectedDate = dateTimestamp.toDate();
+      }
+
+      // 🔁 ทำงานทุกครั้ง ไม่ต้องรอ text ว่าง
+      _fetchPatientNameIfNeeded();
+      _fetchTreatmentDetailsIfNeeded();
+    }
+  }
+
+  Future<void> _fetchPatientName(String patientId) async {
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('patients')
+            .doc(patientId)
+            .get();
+
+    if (doc.exists) {
+      final patientData = doc.data();
+      if (patientData != null) {
+        setState(() {
+          _patientController.text = patientData['name'] ?? '';
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchPatientNameIfNeeded() async {
+    if (_selectedPatientId != null) {
+      final doc =
+          await _firestore.collection('patients').doc(_selectedPatientId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data['name'] != null) {
+          setState(() {
+            _patientController.text = data['name'];
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _fetchTreatmentDetailsIfNeeded() async {
+    final treatmentName = _treatmentController.text.trim();
+    if (treatmentName.isEmpty) return;
+
+    final snapshot =
+        await _firestore
+            .collection('treatment_master')
+            .where('name', isEqualTo: treatmentName)
+            .limit(1)
+            .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      final data = snapshot.docs.first.data();
+      final duration = (data['duration'] as num?)?.toInt();
+      final price = (data['price'] as num?)?.toInt();
+
+      setState(() {
+        if (duration != null) {
+          _durationController.text = duration.toString();
+          _defaultDuration = duration;
+        }
+        if (price != null) {
+          _defaultPrice = price;
+        }
+      });
+    }
+  }
 
   Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
@@ -341,9 +446,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                     focusNode,
                     onEditingComplete,
                   ) {
-                    controller.addListener(() {
-                      _patientController.text = controller.text;
-                    });
+                    controller.text =
+                        _patientController.text; // 💜 sync ค่าให้ controller
+
                     return TextField(
                       controller: controller,
                       focusNode: focusNode,
@@ -362,6 +467,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       ),
                     );
                   },
+
                   optionsViewBuilder: (context, onSelected, options) {
                     final maxVisibleItems = 4;
                     final itemHeight = 50.0;
@@ -451,9 +557,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                           focusNode,
                           onEditingComplete,
                         ) {
-                          controller.addListener(() {
-                            _treatmentController.text = controller.text;
-                          });
+                          controller.text =
+                              _treatmentController
+                                  .text; // 💜 sync ค่าให้ controller
+
                           return TextField(
                             controller: controller,
                             focusNode: focusNode,
@@ -468,6 +575,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                             ),
                           );
                         },
+
                         optionsViewBuilder: (context, onSelected, options) {
                           final maxVisibleItems = 4;
                           final itemHeight = 48.0;
@@ -665,46 +773,126 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 ),
 
                 const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    FocusScope.of(context).unfocus();
-                    _saveAppointment();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orangeAccent.shade100,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 24,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  icon: Image.asset(
-                    'assets/icons/save.png',
-                    width: 24,
-                    height: 24,
-                  ),
-                  label: const Text(
-                    'บันทึก',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (widget.appointmentData != null)
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder:
+                                (context) => AlertDialog(
+                                  title: const Text('ยืนยันการลบ'),
+                                  content: const Text(
+                                    'คุณต้องการลบนัดหมายนี้ใช่หรือไม่?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(context, false),
+                                      child: const Text('ยกเลิก'),
+                                    ),
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(context, true),
+                                      child: const Text(
+                                        'ลบ',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                          );
 
-          Positioned(
-            top: 4,
-            right: 4,
-            child: IconButton(
-              icon: Image.asset('assets/icons/back.png', width: 28, height: 28),
-              onPressed: () => Navigator.pop(context),
-              tooltip: 'ยกเลิก',
+                          if (confirm == true &&
+                              widget.appointmentData!['id'] != null) {
+                            await FirebaseFirestore.instance
+                                .collection('appointments')
+                                .doc(widget.appointmentData!['id'])
+                                .delete();
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('ลบนัดหมายเรียบร้อยแล้ว'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent.shade100,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: Image.asset(
+                          'assets/icons/delete.png',
+                          width: 24,
+                          height: 24,
+                        ),
+                        label: const Text(
+                          'ลบ',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        FocusScope.of(context).unfocus();
+                        _saveAppointment();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orangeAccent.shade100,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: Image.asset(
+                        'assets/icons/save.png',
+                        width: 24,
+                        height: 24,
+                      ),
+                      label: const Text(
+                        'บันทึก',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Positioned(
+                //   top: 4,
+                //   right: 4,
+                //   child: IconButton(
+                //     icon: Image.asset(
+                //       'assets/icons/back.png',
+                //       width: 28,
+                //       height: 28,
+                //     ),
+                //     onPressed: () => Navigator.pop(context),
+                //     tooltip: 'ยกเลิก',
+                //   ),
+                // ),
+              ],
             ),
           ),
         ],

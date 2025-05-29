@@ -279,7 +279,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
                         final int rating = patient['rating'] is int ? patient['rating'] : 0;
 
-                        return Card(
+                        return InkWell(
+  onTap: () {
+    showDialog(
+      context: context,
+      builder: (_) => AppointmentAddDialog(
+        appointmentData: appointment, // หรือชื่ออื่นถ้าใน dialog ไม่ใช้ชื่อนี้
+      ),
+    ).then((_) {
+      if (_selectedDay != null) {
+        _fetchAppointmentsForSelectedDay(_selectedDay!);
+      }
+    });
+  },
+  child: Card(
+                          
                           color: () {
                             final status = appointment['status'] ?? '';
                             if (status == 'ยืนยันแล้ว') {
@@ -369,6 +383,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 ),
                             ],
                           ),
+                        ),
                         );
                       },
                     ),
@@ -380,7 +395,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         onPressed: () {
           showDialog(
             context: context,
-            builder: (context) => const AppointmentAddDialog(),
+            builder: (context) =>  AppointmentAddDialog(
+            initialDate: _selectedDay, // ✅ ส่งวันที่ที่เลือกในปฏิทินไปจ้า
+            ),
           ).then((_) {
             if (_selectedDay != null) {
               _fetchAppointmentsForSelectedDay(_selectedDay!);

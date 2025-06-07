@@ -46,7 +46,11 @@ class AppointmentService {
             .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
             .get();
 
-    return snapshot.docs.map((doc) => doc.data()).toList();
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['appointmentId'] = doc.id; // 🟣 ใส่ id เข้าไปในข้อมูล
+      return data;
+    }).toList();
   }
 
   /// ดึงข้อมูลผู้ป่วยจาก Firestore โดยใช้ patientId
@@ -54,7 +58,11 @@ class AppointmentService {
     final snapshot =
         await _firestore.collection('patients').doc(patientId).get();
 
-    return snapshot.exists ? snapshot.data() : null;
+    if (!snapshot.exists) return null;
+
+    final data = snapshot.data()!;
+    data['patientId'] = snapshot.id; // เพิ่มบรรทัดนี้จ้า
+    return data;
   }
 
   Stream<List<Map<String, dynamic>>> getAppointmentsForCurrentUser() async* {

@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 class AppointmentAddDialog extends StatefulWidget {
   final Map<String, dynamic>? appointmentData; // ✅ เพิ่มตรงนี้
   final DateTime? initialDate;
+  final DateTime? initialStartTime; // ✅ เพิ่มตัวแปรนี้
 
   const AppointmentAddDialog({
     super.key,
     this.appointmentData,
     this.initialDate,
+    this.initialStartTime, // ✅ เพิ่มตัวแปรนี้
   }); // ✅ อัปเดต constructor
 
   @override
@@ -30,6 +32,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   final _firestore = FirebaseFirestore.instance;
 
   DateTime? _selectedDate = DateTime.now();
+
+  DateTime? _selectedStartTime;
+  final TextEditingController _startTimeController = TextEditingController();
 
   String getFormattedDate(DateTime date) {
     final months = [
@@ -67,11 +72,16 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final data = widget.appointmentData;
     _selectedDate = widget.initialDate ?? DateTime.now();
 
+    _durationController.addListener(() {
+      _updateEndTimeIfPossible();
+    });
+
     if (data != null) {
       _selectedPatientId = data['patientId'];
       _patientController.text = data['patientName'] ?? '';
       _treatmentController.text = data['treatment'] ?? '';
       _durationController.text = (data['duration'] ?? '').toString();
+      //_updateEndTime();
       _status = data['status'] ?? 'รอยืนยัน';
 
       final Timestamp? startTimestamp = data['startTime'];
@@ -95,6 +105,33 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       // 🔁 ทำงานทุกครั้ง ไม่ต้องรอ text ว่าง
       _fetchPatientNameIfNeeded();
       _fetchTreatmentDetailsIfNeeded();
+    } else {
+      // ✅ เพิ่มตรงนี้: ถ้าไม่มี data แต่อาจมี initialStartTime ส่งมา
+      final initialTime = widget.initialStartTime;
+
+      if (initialTime != null) {
+        _startTime = TimeOfDay(
+          hour: initialTime.hour,
+          minute: initialTime.minute,
+        );
+
+        // 🪄 เพิ่มความน่ารัก: set _selectedDate จาก initialStartTime ด้วย
+        _selectedDate = initialTime;
+        _calculateEndTime();
+      }
+    }
+  }
+
+  void _calculateEndTime() {
+    if (_startTime != null && _durationController.text.isNotEmpty) {
+      final durationMinutes = int.tryParse(_durationController.text);
+      if (durationMinutes != null) {
+        final start = DateTime(0, 0, 0, _startTime!.hour, _startTime!.minute);
+        final end = start.add(Duration(minutes: durationMinutes));
+        setState(() {
+          _endTime = TimeOfDay(hour: end.hour, minute: end.minute);
+        });
+      }
     }
   }
 
@@ -273,6 +310,29 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     );
   }
 
+  void _updateEndTimeIfPossible() {
+    if (_startTime != null && _durationController.text.isNotEmpty) {
+      final durationMinutes = int.tryParse(_durationController.text);
+      if (durationMinutes != null) {
+        final startDateTime = DateTime(
+          _selectedDate!.year,
+          _selectedDate!.month,
+          _selectedDate!.day,
+          _startTime!.hour,
+          _startTime!.minute,
+        );
+        final endDateTime = startDateTime.add(
+          Duration(minutes: durationMinutes),
+        );
+        _endTime = TimeOfDay(
+          hour: endDateTime.hour,
+          minute: endDateTime.minute,
+        );
+        setState(() {}); // อัปเดต UI
+      }
+    }
+  }
+
   void _updateEndTime() {
     if (_startTime != null && _durationController.text.isNotEmpty) {
       final duration = int.tryParse(_durationController.text);
@@ -366,37 +426,40 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       _selectedPatientId = newDoc.id;
     }
 
-    final appointmentData = {
+    final startDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _startTime!.hour,
+      _startTime!.minute,
+    );
+
+    final endDateTime =
+        _endTime != null
+            ? DateTime(
+              _selectedDate!.year,
+              _selectedDate!.month,
+              _selectedDate!.day,
+              _endTime!.hour,
+              _endTime!.minute,
+            )
+            : null;
+
+    // ✅ เพิ่มตรงนี้: เก็บ doc reference ก่อน
+    final docRef = await _firestore.collection('appointments').add({
       'patientId': _selectedPatientId,
       'patientName': name,
       'treatment': treatment,
       'duration': duration,
       'status': _status,
       'date': Timestamp.fromDate(_selectedDate!),
-      'startTime': Timestamp.fromDate(
-        DateTime(
-          _selectedDate!.year,
-          _selectedDate!.month,
-          _selectedDate!.day,
-          _startTime!.hour,
-          _startTime!.minute,
-        ),
-      ),
-      'endTime':
-          _endTime != null && _selectedDate != null
-              ? DateTime(
-                _selectedDate!.year,
-                _selectedDate!.month,
-                _selectedDate!.day,
-                _endTime!.hour,
-                _endTime!.minute,
-              )
-              : null,
-
+      'startTime': Timestamp.fromDate(startDateTime),
+      'endTime': endDateTime,
       'createdAt': FieldValue.serverTimestamp(),
-    };
+    });
 
-    await _firestore.collection('appointments').add(appointmentData);
+    // ✅ อัปเดตเพิ่ม id หลังจากสร้างเสร็จ
+    await docRef.update({'id': docRef.id});
 
     if (context.mounted) {
       Navigator.pop(context);

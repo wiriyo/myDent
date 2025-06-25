@@ -63,6 +63,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     'ปฏิเสธนัด',
   ];
 
+  bool _durationManuallyEdited = false;
+
   String _status = 'รอยืนยัน'; // ค่าสถานะเริ่มต้น
 
   @override
@@ -74,6 +76,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
     _durationController.addListener(() {
       _updateEndTimeIfPossible();
+      _durationManuallyEdited = true;
     });
 
     if (data != null) {
@@ -184,7 +187,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       final price = (data['price'] as num?)?.toInt();
 
       setState(() {
-        if (duration != null) {
+        if (duration != null && !_durationManuallyEdited) {
           _durationController.text = duration.toString();
           _defaultDuration = duration;
         }
@@ -372,7 +375,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       final data = snapshot.docs.first.data();
       _defaultDuration = (data['duration'] as num).toInt();
       _defaultPrice = (data['price'] as num).toInt();
-      _durationController.text = _defaultDuration.toString();
+      //_durationController.text = _defaultDuration.toString();
+      if (!_durationManuallyEdited) {
+        _durationController.text = _defaultDuration.toString();
+      }
     }
   }
 
@@ -445,8 +451,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             )
             : null;
 
-    // ✅ เพิ่มตรงนี้: เก็บ doc reference ก่อน
-    final docRef = await _firestore.collection('appointments').add({
+    final appointmentData = {
       'patientId': _selectedPatientId,
       'patientName': name,
       'treatment': treatment,
@@ -454,12 +459,26 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       'status': _status,
       'date': Timestamp.fromDate(_selectedDate!),
       'startTime': Timestamp.fromDate(startDateTime),
-      'endTime': endDateTime,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+      'endTime': endDateTime != null ? Timestamp.fromDate(endDateTime) : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
-    // ✅ อัปเดตเพิ่ม id หลังจากสร้างเสร็จ
-    await docRef.update({'id': docRef.id});
+    final existingId = widget.appointmentData?['appointmentId'];
+
+    if (existingId != null && existingId.toString().isNotEmpty) {
+      // 🎯 อัปเดตนัดเดิม
+      await _firestore
+          .collection('appointments')
+          .doc(existingId)
+          .update(appointmentData);
+    } else {
+      // 🆕 สร้างนัดใหม่
+      final docRef = await _firestore.collection('appointments').add({
+        ...appointmentData,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await docRef.update({'appointmentId': docRef.id});
+    }
 
     if (context.mounted) {
       Navigator.pop(context);
@@ -608,12 +627,17 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                           setState(() {
                             _treatmentController.text = option['name'];
                             _defaultDuration =
-                                (option['duration'] as num).toInt();
-                            _defaultPrice = (option['price'] as num).toInt();
-                            _durationController.text =
-                                _defaultDuration.toString();
+                                (option['duration'] as num?)?.toInt();
+                            _defaultPrice = (option['price'] as num?)?.toInt();
+
+                            if (!_durationManuallyEdited &&
+                                _defaultDuration != null) {
+                              _durationController.text =
+                                  _defaultDuration.toString();
+                            }
                           });
                         },
+
                         fieldViewBuilder: (
                           context,
                           controller,
@@ -683,7 +707,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       child: TextField(
                         controller: _durationController,
                         keyboardType: TextInputType.number,
-                        onChanged: (value) => _updateEndTime(),
+                        onChanged: (value) {
+                          _updateEndTime();
+                          _durationManuallyEdited = true;
+                        },
                         decoration: InputDecoration(
                           labelText: 'นาที',
                           filled: true,
@@ -698,45 +725,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 ),
 
                 const SizedBox(height: 16),
-
-                // /// 📆 ช่องเลือกวันที่
-                // Row(
-                //   children: [
-                //     const Text(
-                //       'วันที่:',
-                //       style: TextStyle(fontWeight: FontWeight.bold),
-                //     ),
-                //     const SizedBox(width: 12),
-                //     ElevatedButton(
-                //       style: ElevatedButton.styleFrom(
-                //         backgroundColor: Colors.purple.shade100,
-                //         shape: RoundedRectangleBorder(
-                //           borderRadius: BorderRadius.circular(12),
-                //         ),
-                //       ),
-                //       onPressed: () async {
-                //         final picked = await showDatePicker(
-                //           context: context,
-                //           initialDate: _selectedDate ?? DateTime.now(),
-                //           firstDate: DateTime(2020),
-                //           lastDate: DateTime(2035),
-                //           locale: const Locale('th', 'TH'),
-                //         );
-                //         if (picked != null) {
-                //           setState(() {
-                //             _selectedDate = picked;
-                //           });
-                //         }
-                //       },
-                //       child: Text(
-                //         _selectedDate != null
-                //             ? getFormattedDate(_selectedDate!)
-                //             : 'เลือกวันที่',
-                //         style: const TextStyle(color: Colors.black87),
-                //       ),
-                //     ),
-                //   ],
-                // ),
                 Row(
                   children: [
                     Expanded(
@@ -941,20 +929,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                     ),
                   ],
                 ),
-
-                // Positioned(
-                //   top: 4,
-                //   right: 4,
-                //   child: IconButton(
-                //     icon: Image.asset(
-                //       'assets/icons/back.png',
-                //       width: 28,
-                //       height: 28,
-                //     ),
-                //     onPressed: () => Navigator.pop(context),
-                //     tooltip: 'ยกเลิก',
-                //   ),
-                // ),
               ],
             ),
           ),

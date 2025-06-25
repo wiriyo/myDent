@@ -48,6 +48,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.pushNamed(context, '/treatment_list');
               },
             ),
+            _buildSettingCard(
+              context,
+              icon: Icons.access_time, // ไอคอนสำหรับเวลาทำการ
+              title: "เวลาทำการ",
+              subtitle: "ตั้งค่าเวลาเปิด-ปิดคลินิกแต่ละวัน",
+              onTap: () {
+                Navigator.pushNamed(context, '/working_hours');
+              },
+            ),
             // เพิ่มเมนูอื่น ๆ ได้อีกในอนาคต
           ],
         ),

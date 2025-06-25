@@ -11,7 +11,15 @@ import 'reports_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'daily_calendar_screen.dart';
+import 'daily_calendar_screen.dart'
+    hide // ✨ ซ่อนชื่อ Widget ที่อาจจะซ้ำซ้อนจาก daily_calendar_screen.dart
+        InkWell,
+        FloatingActionButton,
+        FloatingActionButtonLocation,
+        BottomAppBar;
+
+// ✨ เพิ่ม enum สำหรับจัดการสถานะของปุ่มเปลี่ยนมุมมองปฏิทินค่ะ
+enum _CalendarButtonMode { displayWeekly, displayDaily, displayMonthly }
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -27,12 +35,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
-  int _selectedIndex = 0;
+  int _selectedIndex = 0; // สำหรับ BottomNavigationBar
+
+  // ✨ สถานะปัจจุบันของปุ่มเปลี่ยนมุมมอง เริ่มต้นให้ปุ่มแสดง "ดูรายสัปดาห์" (เพราะปฏิทินเริ่มที่รายเดือน)
+  _CalendarButtonMode _buttonMode = _CalendarButtonMode.displayWeekly;
 
   @override
   void initState() {
     super.initState();
-    _selectedDay = _focusedDay;
+    _selectedDay = _focusedDay; // กำหนดวันเริ่มต้นที่เลือก
+    _calendarFormat = CalendarFormat.month; // ปฏิทินเริ่มแสดงผลแบบรายเดือน
+    _buttonMode = _CalendarButtonMode.displayWeekly; // ปุ่มจะแสดงตัวเลือกให้เปลี่ยนเป็น "รายสัปดาห์"
     _fetchAppointmentsForSelectedDay(_selectedDay!);
   }
 
@@ -146,6 +159,79 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  // ✨ ฟังก์ชันสำหรับสร้างปุ่มเปลี่ยนมุมมองปฏิทินแบบใหม่ค่ะ
+  Widget _buildCalendarToggleButton() {
+    IconData icon;
+    String label;
+    VoidCallback onPressedAction;
+
+    if (_buttonMode == _CalendarButtonMode.displayWeekly) {
+      icon = Icons.view_week; // ไอคอนสำหรับ "ดูรายสัปดาห์"
+      label = 'ดูรายสัปดาห์';
+      onPressedAction = () {
+        setState(() {
+          _calendarFormat = CalendarFormat.week; // เปลี่ยนปฏิทินเป็นรายสัปดาห์
+          _buttonMode = _CalendarButtonMode.displayDaily; // ปุ่มต่อไปจะแสดง "ดูรายวัน"
+        });
+      };
+    } else if (_buttonMode == _CalendarButtonMode.displayDaily) {
+      icon = Icons.calendar_view_day; // ไอคอนสำหรับ "ดูรายวัน"
+      label = 'ดูรายวัน';
+      onPressedAction = () {
+        // เมื่อกด "ดูรายวัน" ให้ไปที่หน้า DailyCalendarScreen และรอรับค่าที่อาจจะส่งกลับมา
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DailyCalendarScreen(
+              selectedDate: _selectedDay ?? DateTime.now(),
+            ),
+          ),
+        ).then((returnedFormat) {
+          // ✨ เมื่อ DailyCalendarScreen ถูก pop กลับมา
+          if (mounted) { // ตรวจสอบว่า widget ยังอยู่ใน tree ไหม
+            setState(() {
+              if (returnedFormat is CalendarFormat) {
+                // ถ้า DailyCalendarScreen ส่ง CalendarFormat กลับมา (เช่น จากปุ่มสลับมุมมองของมัน)
+                _calendarFormat = returnedFormat; // อัปเดต format ของปฏิทินหลัก
+                if (returnedFormat == CalendarFormat.month) {
+                  _buttonMode = _CalendarButtonMode.displayWeekly; // ปุ่มต่อไปของปฏิทินหลักคือ "ดูรายสัปดาห์"
+                } else { // returnedFormat == CalendarFormat.week
+                  // ถ้ากลับมาเป็น week แสดงว่าก่อนหน้านี้ปฏิทินหลักเป็น week อยู่แล้ว
+                  // และปุ่มควรจะแสดง "ดูรายวัน" เพื่อให้กดไป DailyScreen ได้อีก
+                  // หรือถ้าผู้ใช้กด "ดูรายสัปดาห์" จาก DailyScreen กลับมา
+                  // ปฏิทินหลักก็จะเป็น week และปุ่มก็ควรจะแสดง "ดูรายวัน"
+                  _buttonMode = _CalendarButtonMode.displayDaily;
+                }
+              } else {
+                // ถ้า DailyCalendarScreen pop กลับมาโดยไม่มีค่า (เช่น กด back ของเครื่อง)
+                // ปฏิทินหลักจะยังคงเป็นรายเดือน (เพราะเรากด "ดูรายวัน" จากมุมมองรายเดือน)
+                // ปุ่มที่เคยแสดง "ดูรายวัน" ควรจะเปลี่ยนเป็น "ดูรายเดือน" เพื่อให้กดแล้วกลับไปรายเดือนได้
+                _buttonMode = _CalendarButtonMode.displayWeekly;
+              }
+            });
+          }
+        });
+      };
+    } else { // _buttonMode == _CalendarButtonMode.displayMonthly
+      icon = Icons.calendar_month; // ไอคอนสำหรับ "ดูรายเดือน"
+      label = 'ดูรายเดือน';
+      onPressedAction = () {
+        setState(() {
+          _calendarFormat = CalendarFormat.month; // เปลี่ยนปฏิทินเป็นรายเดือน
+          _buttonMode = _CalendarButtonMode.displayWeekly; // ปุ่มต่อไปจะแสดง "ดูรายสัปดาห์"
+        });
+      };
+    }
+
+    return TextButton.icon(
+      onPressed: onPressedAction,
+      icon: Icon(icon, color: Colors.purple),
+      label: Text(label, style: const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
+      style: TextButton.styleFrom(
+          backgroundColor: Colors.purple.shade50,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -197,65 +283,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end, // ✨ ให้ปุ่มใหม่อยู่ทางขวาค่ะ
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => DailyCalendarScreen(
-                                    selectedDate: _selectedDay!,
-                                  ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.calendar_view_day),
-                        label: const Text('ดูรายวัน'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple.shade100,
-                          foregroundColor: Colors.black87,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _calendarFormat =
-                                _calendarFormat == CalendarFormat.month
-                                    ? CalendarFormat.week
-                                    : CalendarFormat.month;
-                          });
-                        },
-                        icon: Icon(
-                          _calendarFormat == CalendarFormat.month
-                              ? Icons.view_week
-                              : Icons.calendar_month,
-                          color: Colors.purple,
-                        ),
-                        label: Text(
-                          _calendarFormat == CalendarFormat.month
-                              ? 'ดูรายสัปดาห์'
-                              : 'ดูรายเดือน',
-                          style: const TextStyle(
-                            color: Colors.purple,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.purple.shade50,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
+                      // ✨ ลบปุ่ม "ดูรายวัน" และ "ดูรายสัปดาห์/เดือน" เดิมออก
+                      // ✨ แล้วใส่ปุ่มใหม่ที่เราสร้างขึ้นมาแทนค่ะ
+                      _buildCalendarToggleButton(),
                     ],
                   ),
 

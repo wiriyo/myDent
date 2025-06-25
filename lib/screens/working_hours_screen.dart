@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import '../services/working_hours_service.dart';
 // Removed shared_preferences and dart:convert as they are no longer used for persistence
 
 // Data model for a single time slot (e.g., 9:00 - 12:00)
@@ -67,57 +68,12 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
   late Future<List<DayWorkingHours>> _workingHoursFuture;
   // Keep a state variable to hold the mutable list of working hours after loading.
   List<DayWorkingHours>? _workingHours;
+  final WorkingHoursService _workingHoursService = WorkingHoursService();
 
   @override
   void initState() {
     super.initState();
     _workingHoursFuture = _loadWorkingHours();
-  }
-
-  // Modified to return a Future with the data.
-  Future<List<DayWorkingHours>> _loadWorkingHours() async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      final docSnapshot = await firestore.collection('settings').doc('clinicWorkingHours').get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        return (docSnapshot.data()!['days'] as List<dynamic>).map((json) => DayWorkingHours.fromJson(json)).toList();
-      } else {
-        return _buildDefaultWorkingHours();
-      }
-    } catch (e) {
-      print('Error loading working hours from Firestore: $e');
-      // Re-throw the error to be caught by the FutureBuilder.
-      throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
-    }
-  }
-
-  // Helper method to provide default working hours
-  List<DayWorkingHours> _buildDefaultWorkingHours() {
-    return [
-      DayWorkingHours(dayName: 'จันทร์', timeSlots: [
-        TimeSlot(openTime: const TimeOfDay(hour: 9, minute: 0), closeTime: const TimeOfDay(hour: 12, minute: 0)),
-        TimeSlot(openTime: const TimeOfDay(hour: 13, minute: 0), closeTime: const TimeOfDay(hour: 17, minute: 0)),
-      ]),
-      DayWorkingHours(dayName: 'อังคาร', timeSlots: [
-        TimeSlot(openTime: const TimeOfDay(hour: 9, minute: 0), closeTime: const TimeOfDay(hour: 12, minute: 0)),
-        TimeSlot(openTime: const TimeOfDay(hour: 13, minute: 0), closeTime: const TimeOfDay(hour: 17, minute: 0)),
-      ]),
-      DayWorkingHours(dayName: 'พุธ', timeSlots: [
-        TimeSlot(openTime: const TimeOfDay(hour: 9, minute: 0), closeTime: const TimeOfDay(hour: 12, minute: 0)),
-        TimeSlot(openTime: const TimeOfDay(hour: 13, minute: 0), closeTime: const TimeOfDay(hour: 17, minute: 0)),
-      ]),
-      DayWorkingHours(dayName: 'พฤหัสบดี', timeSlots: [
-        TimeSlot(openTime: const TimeOfDay(hour: 9, minute: 0), closeTime: const TimeOfDay(hour: 12, minute: 0)),
-        TimeSlot(openTime: const TimeOfDay(hour: 13, minute: 0), closeTime: const TimeOfDay(hour: 17, minute: 0)),
-      ]),
-      DayWorkingHours(dayName: 'ศุกร์', timeSlots: [
-        TimeSlot(openTime: const TimeOfDay(hour: 9, minute: 0), closeTime: const TimeOfDay(hour: 12, minute: 0)),
-        TimeSlot(openTime: const TimeOfDay(hour: 13, minute: 0), closeTime: const TimeOfDay(hour: 17, minute: 0)),
-      ]),
-      DayWorkingHours(dayName: 'เสาร์', timeSlots: [TimeSlot(openTime: const TimeOfDay(hour: 9, minute: 0), closeTime: const TimeOfDay(hour: 17, minute: 0))]),
-      DayWorkingHours(dayName: 'อาทิตย์', isClosed: true, timeSlots: []), // Closed by default, no slots
-    ];
   }
 
   // Save working hours to SharedPreferences
@@ -131,15 +87,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
     }
 
     try {
-      final firestore = FirebaseFirestore.instance;
-      // Convert List<DayWorkingHours> to List<Map<String, dynamic>>
-      final List<Map<String, dynamic>> dataToSave = workingHoursToSave.map((day) => day.toJson()).toList();
-
-      // Save to a specific document, e.g., 'clinicHours' in a collection 'settings'
-      await firestore.collection('settings').doc('clinicWorkingHours').set({
-        'days': dataToSave,
-        'lastUpdated': FieldValue.serverTimestamp(), // Optional: track last update time
-      });
+      await _workingHoursService.saveWorkingHours(workingHoursToSave);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,6 +102,11 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
         );
       }
     }
+  }
+  
+  Future<List<DayWorkingHours>> _loadWorkingHours() {
+    // Delegate the call to the service
+    return _workingHoursService.loadWorkingHours();
   }
 
   // Helper to convert TimeOfDay to minutes for easier comparison

@@ -1,11 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../screens/working_hours_screen.dart'; // For the DayWorkingHours model
+import '../models/working_hours_model.dart';
 
 class WorkingHoursService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final CollectionReference _settingsCollection =
-      FirebaseFirestore.instance.collection('settings');
+  final CollectionReference _settingsCollection = FirebaseFirestore.instance.collection('settings');
 
   Future<List<DayWorkingHours>> loadWorkingHours() async {
     try {
@@ -20,7 +19,7 @@ class WorkingHoursService {
         return _buildDefaultWorkingHours();
       }
     } catch (e) {
-      print('Error loading working hours from Firestore: $e');
+      debugPrint('Error loading working hours from Firestore: $e');
       // Re-throw to be handled by the UI/FutureBuilder
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
     }

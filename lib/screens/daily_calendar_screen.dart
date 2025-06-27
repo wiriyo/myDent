@@ -1,21 +1,21 @@
-// 📁 lib/screens/daily_calendar_screen.dart
+// 📁 daily_calendar_screen.dart
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart'; // ✨ เพิ่ม import สำหรับ CalendarFormat
+import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/appointment_service.dart';
 import '../widgets/appointment_card.dart';
 import '../widgets/gap_card.dart';
-import '../services/working_hours_service.dart'; // เพิ่ม import
-import '../models/working_hours_model.dart'; // เพิ่ม import
+import '../services/working_hours_service.dart';
+import '../models/working_hours_model.dart';
 import 'appointment_add.dart';
-import 'patients_screen.dart'; // ✨ เพิ่ม import สำหรับหน้าคนไข้
-import 'reports_screen.dart'; // ✨ เพิ่ม import สำหรับหน้ารายงาน
-import 'setting_screen.dart'; // ✨ เพิ่ม import สำหรับหน้าตั้งค่า
-import 'package:url_launcher/url_launcher.dart';
+import 'patients_screen.dart';
+import 'reports_screen.dart';
+import 'setting_screen.dart';
 
-// ✨ เพิ่ม enum สำหรับจัดการสถานะของปุ่มเปลี่ยนมุมมอง (เหมือนใน CalendarScreen)
+// Enum สำหรับจัดการสถานะของปุ่มเปลี่ยนมุมมอง
 enum _CalendarButtonMode { displayWeekly, displayDaily, displayMonthly }
 
 class DailyCalendarScreen extends StatefulWidget {
@@ -28,289 +28,65 @@ class DailyCalendarScreen extends StatefulWidget {
 
 class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   final AppointmentService _appointmentService = AppointmentService();
-  List<Map<String, dynamic>> _appointmentsWithPatients = [];
-  DayWorkingHours? _selectedDayWorkingHours; // เพิ่มตัวแปร
-  final WorkingHoursService _workingHoursService = WorkingHoursService(); // เพิ่มตัวแปร
-  int _selectedIndex = 0; // ✨ เพิ่มตัวแปรสำหรับเก็บ index ที่เลือกใน Bottom Bar
+  final WorkingHoursService _workingHoursService = WorkingHoursService();
 
-  // ✨ สถานะปัจจุบันของปุ่มเปลี่ยนมุมมองบนหน้ารายวัน
+  List<Map<String, dynamic>> _appointmentsWithPatients = [];
+  DayWorkingHours? _selectedDayWorkingHours;
+  bool _isLoading = true;
+
+  int _selectedIndex = 0;
   _CalendarButtonMode _buttonModeForDailyView = _CalendarButtonMode.displayMonthly;
+  final double _hourHeight = 120.0; // ความสูงของ 1 ชั่วโมงใน Timeline
 
   @override
-  void initState() { // แก้ไข initState
+  void initState() {
     super.initState();
     _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate);
   }
 
-  // Helper function to combine DateTime and TimeOfDay
-  DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
-  }
+  // --- Data Fetching ---
+  Future<void> _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
+    setState(() { _isLoading = true; });
 
-  // Helper to get Thai day name
-  String _getThaiDayName(int weekday) {
-    switch (weekday) {
-      case DateTime.monday: return 'จันทร์';
-      case DateTime.tuesday: return 'อังคาร';
-      case DateTime.wednesday: return 'พุธ';
-      case DateTime.thursday: return 'พฤหัสบดี';
-      case DateTime.friday: return 'ศุกร์';
-      case DateTime.saturday: return 'เสาร์';
-      case DateTime.sunday: return 'อาทิตย์';
-      default: return '';
-    }
-  }
-
-  // New combined fetch method for appointments and working hours
-  void _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
-    // Fetch appointments
-    List<Map<String, dynamic>> appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
-
-    List<Map<String, dynamic>> result = [];
-    for (var appointment in appointments) {
-      final patientId = appointment['patientId'];
-      Map<String, dynamic>? patient = await _appointmentService.getPatientById(
-        patientId,
-      );
-      if (patient != null) {
-        result.add({'appointment': appointment, 'patient': patient});
-      }
-    }
-
-    // Fetch working hours for the selected day
-    DayWorkingHours? dayWorkingHours;
     try {
+      // Fetch appointments
+      List<Map<String, dynamic>> appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
+      List<Map<String, dynamic>> result = [];
+      for (var appointment in appointments) {
+        final patientId = appointment['patientId'];
+        Map<String, dynamic>? patient = await _appointmentService.getPatientById(patientId);
+        if (patient != null) {
+          result.add({'appointment': appointment, 'patient': patient});
+        }
+      }
+
+      // Fetch working hours
       final allWorkingHours = await _workingHoursService.loadWorkingHours();
       final dayName = _getThaiDayName(selectedDay.weekday);
-      dayWorkingHours = allWorkingHours.firstWhere(
+      final dayWorkingHours = allWorkingHours.firstWhere(
         (day) => day.dayName == dayName,
         orElse: () => DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []),
       );
-    } catch (e) {
-      debugPrint('Error loading working hours for selected day: $e');
-      dayWorkingHours = DayWorkingHours(dayName: _getThaiDayName(selectedDay.weekday), isClosed: true, timeSlots: []);
-    }
 
-    if (mounted) {
-      setState(() {
-        _appointmentsWithPatients = result;
-        _selectedDayWorkingHours = dayWorkingHours; // อัปเดตเวลาทำการ
-      });
-    }
-  }
-
-  // ✨ เพิ่มฟังก์ชัน _onItemTapped สำหรับจัดการการกดปุ่มใน Bottom Navigation Bar
-  void _onItemTapped(int index) {
-    // 🧭 ปรับการนำทาง
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 0) {
-      // ถ้ากดปุ่ม Calendar (index 0) ในหน้า Daily Calendar ให้ย้อนกลับไปหน้า Calendar หลัก พร้อมบอกให้แสดงผลแบบรายเดือน
-      // ไลลาส่ง CalendarFormat.month กลับไป เพื่อให้หน้า CalendarScreen รู้ว่าต้องแสดงผลแบบรายเดือน
-      Navigator.pop(context, CalendarFormat.month);
-    } else if (index == 1) {
-      // ไปหน้า PatientsScreen
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PatientsScreen()));
-    } else if (index == 3) {
-      // ไปหน้า ReportsScreen
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ReportsScreen()));
-    } else if (index == 4) {
-      // ไปหน้า SettingsScreen
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
-    }
-  }
-
-  // Modified buildAppointmentListWithGaps to consider clinic working hours
-  List<Map<String, dynamic>> buildAppointmentListWithGaps(
-    List<Map<String, dynamic>> rawAppointments,
-    DayWorkingHours? dayWorkingHours,
-    DateTime selectedDate,
-  ) {
-    List<Map<String, dynamic>> finalCombinedList = [];
-
-    // If the clinic is closed or no working hours are defined for the day,
-    // only show existing appointments, no new gaps.
-    if (dayWorkingHours == null || dayWorkingHours.isClosed || dayWorkingHours.timeSlots.isEmpty) {
-      rawAppointments.sort((a, b) {
-        final aStart = a['appointment']['startTime'] as Timestamp;
-        final bStart = b['appointment']['startTime'] as Timestamp;
-        return aStart.toDate().compareTo(bStart.toDate());
-      });
-      return rawAppointments;
-    }
-
-    // Create a list of all "events" (start/end of clinic slots and appointments)
-    List<Map<String, dynamic>> events = [];
-
-    // Add clinic working hours as events
-    for (var slot in dayWorkingHours.timeSlots) {
-      events.add({
-        'time': _combineDateAndTime(selectedDate, slot.openTime),
-        'type': 'clinic_open',
-      });
-      events.add({
-        'time': _combineDateAndTime(selectedDate, slot.closeTime),
-        'type': 'clinic_close',
-      });
-    }
-
-    // Add appointments as events
-    for (var appt in rawAppointments) {
-      events.add({
-        'time': (appt['appointment']['startTime'] as Timestamp).toDate(),
-        'type': 'appointment_start',
-        'data': appt, // Store the full appointment data
-      });
-      events.add({
-        'time': (appt['appointment']['endTime'] as Timestamp).toDate(),
-        'type': 'appointment_end',
-      });
-    }
-
-    // Sort all events by time. If times are equal, clinic_open/appointment_start comes before clinic_close/appointment_end.
-    events.sort((a, b) {
-      final timeA = a['time'] as DateTime;
-      final timeB = b['time'] as DateTime;
-      int compare = timeA.compareTo(timeB);
-      if (compare == 0) {
-        // Prioritize 'open' or 'start' events over 'close' or 'end' events at the same time
-        if (a['type'] == 'clinic_open' || a['type'] == 'appointment_start') return -1;
-        if (b['type'] == 'clinic_open' || b['type'] == 'appointment_start') return 1;
-      }
-      return compare;
-    });
-
-    // Process events to build the final combined list
-    DateTime? lastProcessedTime;
-    int openClinicCount = 0; // Tracks if we are currently within a clinic's open slot
-    int activeAppointmentCount = 0; // Tracks if we are currently within an appointment
-
-    for (var event in events) {
-      final currentTime = event['time'] as DateTime;
-
-      // If there's a time gap between lastProcessedTime and currentTime
-      if (lastProcessedTime != null && currentTime.isAfter(lastProcessedTime)) {
-        // If clinic is open and no appointments are active, it's a free slot (gap)
-        if (openClinicCount > 0 && activeAppointmentCount == 0) {
-          finalCombinedList.add({
-            'isGap': true,
-            'start': lastProcessedTime,
-            'end': currentTime,
-          });
-        }
-      }
-
-      // Update counts based on the current event
-      if (event['type'] == 'clinic_open') {
-        openClinicCount++;
-      } else if (event['type'] == 'clinic_close') {
-        openClinicCount--;
-      } else if (event['type'] == 'appointment_start') {
-        activeAppointmentCount++;
-        // Add the actual appointment to the list
-        finalCombinedList.add(event['data']);
-      } else if (event['type'] == 'appointment_end') {
-        activeAppointmentCount--;
-      }
-
-      lastProcessedTime = currentTime;
-    }
-
-    // Add any remaining open slot from the last processed time to the end of the day's working hours
-    if (openClinicCount > 0 && activeAppointmentCount == 0) {
-      DateTime? latestCloseTime;
-      for (var slot in dayWorkingHours.timeSlots) {
-        final closeTime = _combineDateAndTime(selectedDate, slot.closeTime);
-        if (latestCloseTime == null || closeTime.isAfter(latestCloseTime)) {
-          latestCloseTime = closeTime;
-        }
-      }
-      if (lastProcessedTime != null && latestCloseTime != null && latestCloseTime.isAfter(lastProcessedTime)) {
-          finalCombinedList.add({
-            'isGap': true,
-            'start': lastProcessedTime,
-            'end': latestCloseTime,
-          });
-      }
-    }
-
-    // Final sort to ensure correct order (appointments and gaps might be added out of order slightly)
-    finalCombinedList.sort((a, b) {
-      DateTime aSortTime;
-      DateTime bSortTime;
-
-      if (a['isGap'] == true) {
-        aSortTime = a['start'] as DateTime;
-      } else {
-        aSortTime = (a['appointment']['startTime'] as Timestamp).toDate();
-      }
-
-      if (b['isGap'] == true) {
-        bSortTime = b['start'] as DateTime;
-      } else {
-        bSortTime = (b['appointment']['startTime'] as Timestamp).toDate();
-      }
-      return aSortTime.compareTo(bSortTime);
-    });
-
-    return finalCombinedList;
-  }
-
-  // ✨ ฟังก์ชันสำหรับสร้างปุ่มเปลี่ยนมุมมองบนหน้ารายวันค่ะ
-  Widget _buildDailyScreenToggleButton() {
-    IconData icon;
-    String label;
-    VoidCallback actionToPerform;
-
-    // กำหนดไอคอน, ข้อความ, และการทำงานของปุ่มตามสถานะปัจจุบัน
-    if (_buttonModeForDailyView == _CalendarButtonMode.displayMonthly) {
-      icon = Icons.calendar_month;
-      label = 'ดูรายเดือน';
-      actionToPerform = () {
-        // กลับไปหน้า CalendarScreen พร้อมบอกให้แสดงผลแบบรายเดือน
-        Navigator.pop(context, CalendarFormat.month);
-      };
-    } else if (_buttonModeForDailyView == _CalendarButtonMode.displayWeekly) {
-      icon = Icons.view_week;
-      label = 'ดูรายสัปดาห์';
-      actionToPerform = () {
-        // กลับไปหน้า CalendarScreen พร้อมบอกให้แสดงผลแบบรายสัปดาห์
-        Navigator.pop(context, CalendarFormat.week);
-      };
-    } else { // _buttonModeForDailyView == _CalendarButtonMode.displayDaily (หมายถึง "รีเฟรช" ในหน้านี้)
-      icon = Icons.refresh; // ใช้ไอคอนรีเฟรช
-      label = 'รีเฟรช';
-      actionToPerform = () {
-        _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate); // โหลดข้อมูลนัดหมายใหม่
-      };
-    }
-
-    return TextButton.icon(
-      onPressed: () {
-        // ทำงานตาม action ที่กำหนดไว้
-        actionToPerform();
-
-        // เปลี่ยนสถานะของปุ่มนี้เพื่อให้ครั้งต่อไปแสดงตัวเลือกถัดไป
+      if (mounted) {
         setState(() {
-          if (_buttonModeForDailyView == _CalendarButtonMode.displayMonthly) {
-            _buttonModeForDailyView = _CalendarButtonMode.displayWeekly;
-          } else if (_buttonModeForDailyView == _CalendarButtonMode.displayWeekly) {
-            _buttonModeForDailyView = _CalendarButtonMode.displayDaily; // ต่อไปคือรีเฟรช
-          } else { // เพิ่งกดรีเฟรช (displayDaily)
-            _buttonModeForDailyView = _CalendarButtonMode.displayMonthly; // วนกลับไปที่ดูรายเดือน
-          }
+          _appointmentsWithPatients = result;
+          _selectedDayWorkingHours = dayWorkingHours;
         });
-      },
-      icon: Icon(icon, color: Colors.purple),
-      label: Text(label, style: const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
-      style: TextButton.styleFrom(
-          backgroundColor: Colors.purple.shade50,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-    );
+      }
+    } catch (e) {
+      debugPrint('Error fetching data for daily view: $e');
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: ')));
+      }
+    } finally {
+      if(mounted) {
+        setState(() { _isLoading = false; });
+      }
+    }
   }
 
+  // --- UI Building ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -319,126 +95,419 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         backgroundColor: const Color(0xFFD9B8FF),
         elevation: 0,
         title: Text(
-          'นัดหมายประจำวันที่ ${DateFormat('d MMM yyyy', 'th_TH').format(widget.selectedDate)}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          'นัดหมายวันที่ ${DateFormat('d MMM yyyy', 'th_TH').format(widget.selectedDate)}',
+          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column( // ✨ เพิ่ม Column เพื่อให้ใส่ปุ่มด้านบนได้
-          crossAxisAlignment: CrossAxisAlignment.end, // ✨ จัดให้ปุ่มอยู่ทางขวา
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            _buildDailyScreenToggleButton(), // ✨ เพิ่มปุ่มสลับมุมมองตรงนี้ค่ะ
-            const SizedBox(height: 8), // เพิ่มระยะห่างเล็กน้อย
-            Expanded( // ✨ ให้ ListView ใช้พื้นที่ที่เหลือ
-              child: _appointmentsWithPatients.isEmpty && (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed || _selectedDayWorkingHours!.timeSlots.isEmpty) // ปรับเงื่อนไข
-                  ? const Center(child: Text('ไม่มีนัดหมายและคลินิกปิดทำการ')) // ปรับข้อความ
-                  : ListView.builder(
-                      itemCount: buildAppointmentListWithGaps(_appointmentsWithPatients, _selectedDayWorkingHours, widget.selectedDate).length, // ส่ง working hours และ selectedDate
-                      itemBuilder: (context, index) {
-                        final item = buildAppointmentListWithGaps(
-                          _appointmentsWithPatients,
-                          _selectedDayWorkingHours,
-                          widget.selectedDate,
-                        )[index];
-
-                        if (item['isGap'] == true) {
-                          final gapStart = item['start'] as DateTime;
-                          final gapEnd = item['end'] as DateTime;
-                          return GapCard(
-                            gapStart: gapStart, // Pass the gap's start time
-                            gapEnd: gapEnd, // Pass the gap's end time
-                            onTap: () {
-                              showDialog(
-                                context: context,
-                                builder: (_) => AppointmentAddDialog(
-                                  initialDate: widget.selectedDate,
-                                  initialStartTime: gapStart,
-                                ), // Pass the gap's start time
-                              ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate));
-                            },
-                          );
-                        }
- 
-                        final appointment = item['appointment'];
-                        final patient = item['patient'];
-                        return AppointmentCard(
-                          appointment: appointment,
-                          patient: patient,
-                          onTap: () { // แก้ไข: ปิดวงเล็บของ onTap callback ให้ถูกต้อง
-                            showDialog(
-                              context: context,
-                              builder: (_) => AppointmentAddDialog(
-                                appointmentData: appointment,
-                              ), // ส่งข้อมูลนัดหมายเดิม
-                            ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)); // อัปเดตข้อมูล
-                          }, // แก้ไข: ปิดวงเล็บของ onTap callback ให้ถูกต้อง
-                        ); // แก้ไข: ปิดวงเล็บของ AppointmentCard constructor ให้ถูกต้อง
-                      },
-                    ),
-            ), 
-            // ✨ ปีกกาของ Expanded ควรจะปิดตรงนี้
+            _buildDailyScreenToggleButton(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+                  : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed || _selectedDayWorkingHours!.timeSlots.isEmpty)
+                      ? const Center(child: Text('คลินิกปิดทำการในวันนี้'))
+                      : SingleChildScrollView(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTimeline(_selectedDayWorkingHours!),
+                              _buildAppointmentsArea(_appointmentsWithPatients, _selectedDayWorkingHours!),
+                            ],
+                          ),
+                        ),
+            ),
           ],
         ),
       ),
-      // ✨ FloatingActionButton และ BottomNavigationBar ควรจะอยู่ใน Scaffold นะคะ
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => AppointmentAddDialog(
-              initialDate: widget.selectedDate,
-            ),
-          ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)); // อัปเดตข้อมูล
-        },
-        backgroundColor: Colors.purple,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        tooltip: 'เพิ่มนัดหมายใหม่',
-        child: const Icon(Icons.add, color: Colors.white, size: 36),
-      ),
+      floatingActionButton: _buildFloatingActionButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8.0,
-        color: const Color(0xFFFBEAFF),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              IconButton(
-                icon: const Icon(Icons.calendar_today, size: 30),
-                color: _selectedIndex == 0 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(0),
-                tooltip: 'ปฏิทิน',
+      bottomNavigationBar: _buildBottomAppBar(),
+    );
+  }
+
+  // --- Timeline and Appointments Area ---
+  Widget _buildTimeline(DayWorkingHours workingHours) {
+    final timeFormat = DateFormat('HH:mm');
+    final earliestOpen = workingHours.timeSlots.first.openTime;
+    final latestClose = workingHours.timeSlots.last.closeTime;
+
+    List<Widget> timeLabels = [];
+    final totalDurationMinutes = (latestClose.hour * 60 + latestClose.minute) - (earliestOpen.hour * 60 + earliestOpen.minute);
+    final intervals = (totalDurationMinutes / 30).ceil();
+
+    for (int i = 0; i <= intervals; i++) {
+      final currentMinutes = (earliestOpen.hour * 60 + earliestOpen.minute) + (i * 30);
+      final currentTime = TimeOfDay(hour: currentMinutes ~/ 60, minute: currentMinutes % 60);
+      if (currentMinutes > (latestClose.hour * 60 + latestClose.minute)) break;
+
+      timeLabels.add(
+        SizedBox(
+          height: 30 * (_hourHeight / 60),
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Transform.translate(
+              offset: const Offset(0, -8),
+              child: Text(
+                timeFormat.format(DateTime(2022, 1, 1, currentTime.hour, currentTime.minute)),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),
-              IconButton(
-                icon: const Icon(Icons.people_alt, size: 30),
-                color: _selectedIndex == 1 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(1),
-                tooltip: 'คนไข้',
-              ),
-              const SizedBox(width: 40),
-              IconButton(
-                icon: const Icon(Icons.bar_chart, size: 30),
-                color: _selectedIndex == 3 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(3),
-                tooltip: 'รายงาน',
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings, size: 30),
-                color: _selectedIndex == 4 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(4),
-                tooltip: 'ตั้งค่า',
-              ),
-            ],
+            ),
           ),
+        ),
+      );
+    }
+    return Container(
+      width: 50,
+      padding: const EdgeInsets.only(right: 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: timeLabels),
+    );
+  }
+
+  Widget _buildAppointmentsArea(List<Map<String, dynamic>> appointments, DayWorkingHours workingHours) {
+    final pixelsPerMinute = _hourHeight / 60.0;
+    final dayStartTime = workingHours.timeSlots.first.openTime;
+    final dayEndTime = workingHours.timeSlots.last.closeTime;
+    final totalMinutes = (dayEndTime.hour * 60 + dayEndTime.minute) - (dayStartTime.hour * 60 + dayStartTime.minute);
+    final totalHeight = max(0.0, totalMinutes * pixelsPerMinute);
+
+    final combinedList = buildAppointmentListWithGaps(appointments, workingHours, widget.selectedDate);
+    
+    return Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalWidth = constraints.maxWidth;
+          List<Widget> positionedItems = [];
+
+          // Add background lines
+          for (int i = 1; i <= (totalMinutes / 60).floor(); i++) {
+            positionedItems.add(Positioned(
+              top: i * 60 * pixelsPerMinute,
+              left: 0,
+              right: 0,
+              child: Container(height: 1, color: Colors.purple.withOpacity(0.1)),
+            ));
+          }
+
+          // Group overlapping events and layout them
+          var i = 0;
+          while (i < combinedList.length) {
+            var currentEvent = combinedList[i];
+            if (currentEvent['isGap'] == true) {
+              // Handle gap
+              final itemStart = currentEvent['start'] as DateTime;
+              final itemEnd = currentEvent['end'] as DateTime;
+              final startMinutesFromDayStart = (itemStart.hour * 60 + itemStart.minute) - (dayStartTime.hour * 60 + dayStartTime.minute);
+              final durationMinutes = max(0, itemEnd.difference(itemStart).inMinutes);
+
+              if (durationMinutes > 0) {
+                positionedItems.add(Positioned(
+                  key: ValueKey('gap_${itemStart.toIso8601String()}'),
+                  top: startMinutesFromDayStart * pixelsPerMinute,
+                  height: durationMinutes * pixelsPerMinute,
+                  left: 0,
+                  width: totalWidth,
+                  child: GapCard(
+                    gapStart: itemStart,
+                    gapEnd: itemEnd,
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => AppointmentAddDialog(
+                        initialDate: widget.selectedDate,
+                        initialStartTime: itemStart,
+                      ),
+                    ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)),
+                  ),
+                ));
+              }
+              i++;
+              continue;
+            }
+
+            // Find a group of overlapping appointments
+            var group = [currentEvent];
+            var groupEndTime = (currentEvent['appointment']['endTime'] as Timestamp).toDate();
+
+            var j = i + 1;
+            while (j < combinedList.length) {
+              var nextEvent = combinedList[j];
+              if (nextEvent['isGap'] == true) break;
+
+              var nextStartTime = (nextEvent['appointment']['startTime'] as Timestamp).toDate();
+              if (nextStartTime.isBefore(groupEndTime)) {
+                group.add(nextEvent);
+                var nextEndTime = (nextEvent['appointment']['endTime'] as Timestamp).toDate();
+                if (nextEndTime.isAfter(groupEndTime)) {
+                  groupEndTime = nextEndTime;
+                }
+                j++;
+              } else {
+                break;
+              }
+            }
+
+            // Layout the found group
+            _layoutAppointmentGroup(group, dayStartTime, pixelsPerMinute, totalWidth, positionedItems);
+
+            // Move index to the next event after the group
+            i = j;
+          }
+
+          return SizedBox(height: totalHeight, child: Stack(children: positionedItems));
+        },
+      ),
+    );  
+  }
+
+  void _layoutAppointmentGroup(
+    List<Map<String, dynamic>> group,
+    TimeOfDay dayStartTime,
+    double pixelsPerMinute,
+    double totalWidth,
+    List<Widget> positionedItems,
+  ) {
+    if (group.isEmpty) return;
+
+    group.sort((a, b) =>
+        (a['appointment']['startTime'] as Timestamp)
+            .toDate()
+            .compareTo((b['appointment']['startTime'] as Timestamp).toDate()));
+
+    List<List<Map<String, dynamic>>> columns = [];
+
+    for (var event in group) {
+      bool placed = false;
+      for (var column in columns) {
+        final lastEventInColumn = column.last;
+        final lastEventEndTime = (lastEventInColumn['appointment']['endTime'] as Timestamp).toDate();
+        final currentEventStartTime = (event['appointment']['startTime'] as Timestamp).toDate();
+
+        if (!currentEventStartTime.isBefore(lastEventEndTime)) {
+          column.add(event);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.add([event]);
+      }
+    }
+
+    final numColumns = columns.length;
+    final colWidth = totalWidth / numColumns;
+
+    for (int colIndex = 0; colIndex < numColumns; colIndex++) {
+      final column = columns[colIndex];
+      final left = colIndex * colWidth;
+
+      for (var item in column) {
+        final appointment = item['appointment'];
+        final patient = item['patient'];
+        final itemStart = (appointment['startTime'] as Timestamp).toDate();
+        final itemEnd = (appointment['endTime'] as Timestamp).toDate();
+        final card = AppointmentCard(
+          appointment: appointment,
+          patient: patient,
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => AppointmentAddDialog(appointmentData: appointment),
+          ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)),
+        );
+
+        final top = (itemStart.hour * 60 + itemStart.minute - (dayStartTime.hour * 60 + dayStartTime.minute)) * pixelsPerMinute;
+        final height = itemEnd.difference(itemStart).inMinutes * pixelsPerMinute;
+
+        if (height <= 0) continue;
+
+        positionedItems.add(
+          Positioned(
+            key: ValueKey(appointment['appointmentId']),
+            top: top,
+            left: left,
+            width: colWidth,
+            height: height,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4.0),
+              child: card,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // --- Helper Widgets and Functions ---
+  Widget _buildDailyScreenToggleButton() {
+    IconData icon;
+    String label;
+    VoidCallback actionToPerform;
+
+    if (_buttonModeForDailyView == _CalendarButtonMode.displayMonthly) {
+      icon = Icons.calendar_month;
+      label = 'ดูรายเดือน';
+      actionToPerform = () => Navigator.pop(context, CalendarFormat.month);
+    } else if (_buttonModeForDailyView == _CalendarButtonMode.displayWeekly) {
+      icon = Icons.view_week;
+      label = 'ดูรายสัปดาห์';
+      actionToPerform = () => Navigator.pop(context, CalendarFormat.week);
+    } else {
+      icon = Icons.refresh;
+      label = 'รีเฟรช';
+      actionToPerform = () => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate);
+    }
+
+    return TextButton.icon(
+      onPressed: () {
+        actionToPerform();
+        setState(() {
+          if (_buttonModeForDailyView == _CalendarButtonMode.displayMonthly) {
+            _buttonModeForDailyView = _CalendarButtonMode.displayWeekly;
+          } else if (_buttonModeForDailyView == _CalendarButtonMode.displayWeekly) {
+            _buttonModeForDailyView = _CalendarButtonMode.displayDaily;
+          } else {
+            _buttonModeForDailyView = _CalendarButtonMode.displayMonthly;
+          }
+        });
+      },
+      icon: Icon(icon, color: Colors.purple),
+      label: Text(label, style: const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
+      style: TextButton.styleFrom(
+        backgroundColor: Colors.purple.shade50,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return FloatingActionButton(
+      onPressed: () {
+        showDialog(
+          context: context,
+          builder: (context) => AppointmentAddDialog(initialDate: widget.selectedDate),
+        ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate));
+      },
+      backgroundColor: Colors.purple,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      tooltip: 'เพิ่มนัดหมายใหม่',
+      child: const Icon(Icons.add, color: Colors.white, size: 36),
+    );
+  }
+
+  Widget _buildBottomAppBar() {
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 8.0,
+      color: const Color(0xFFFBEAFF),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            _buildNavIconButton(icon: Icons.calendar_today, tooltip: 'ปฏิทิน', index: 0),
+            _buildNavIconButton(icon: Icons.people_alt, tooltip: 'คนไข้', index: 1),
+            const SizedBox(width: 40),
+            _buildNavIconButton(icon: Icons.bar_chart, tooltip: 'รายงาน', index: 3),
+            _buildNavIconButton(icon: Icons.settings, tooltip: 'ตั้งค่า', index: 4),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildNavIconButton({required IconData icon, required String tooltip, required int index}) {
+    return IconButton(
+      icon: Icon(icon, size: 30),
+      color: _selectedIndex == index ? Colors.purple : Colors.purple.shade200,
+      onPressed: () => _onItemTapped(index),
+      tooltip: tooltip,
+    );
+  }
+
+  void _onItemTapped(int index) {
+    if (_selectedIndex == index) return;
+    setState(() { _selectedIndex = index; });
+
+    if (index == 0) {
+      Navigator.pop(context);
+    } else if (index == 1) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PatientsScreen()));
+    } else if (index == 3) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ReportsScreen()));
+    } else if (index == 4) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
+    }
+  }
+
+  // --- Utility Functions ---
+  String _getThaiDayName(int weekday) {
+    const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+    return days[weekday - 1];
+  }
+
+  DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  List<Map<String, dynamic>> buildAppointmentListWithGaps(
+    List<Map<String, dynamic>> rawAppointments,
+    DayWorkingHours dayWorkingHours,
+    DateTime selectedDate,
+  ) {
+    List<Map<String, dynamic>> finalCombinedList = [];
+    List<Map<String, dynamic>> events = [];
+
+    for (var slot in dayWorkingHours.timeSlots) {
+      events.add({'time': _combineDateAndTime(selectedDate, slot.openTime), 'type': 'clinic_open'});
+      events.add({'time': _combineDateAndTime(selectedDate, slot.closeTime), 'type': 'clinic_close'});
+    }
+
+    for (var appt in rawAppointments) {
+      events.add({'time': (appt['appointment']['startTime'] as Timestamp).toDate(), 'type': 'appointment_start', 'data': appt});
+      events.add({'time': (appt['appointment']['endTime'] as Timestamp).toDate(), 'type': 'appointment_end'});
+    }
+
+    events.sort((a, b) {
+      int compare = (a['time'] as DateTime).compareTo(b['time'] as DateTime);
+      if (compare == 0) {
+        if (a['type'] == 'clinic_open' || a['type'] == 'appointment_start') return -1;
+        if (b['type'] == 'clinic_open' || b['type'] == 'appointment_start') return 1;
+      }
+      return compare;
+    });
+
+    DateTime? lastProcessedTime;
+    int openClinicCount = 0;
+    int activeAppointmentCount = 0;
+
+    for (var event in events) {
+      final currentTime = event['time'] as DateTime;
+      if (lastProcessedTime != null && currentTime.isAfter(lastProcessedTime)) {
+        if (openClinicCount > 0 && activeAppointmentCount == 0) {
+          finalCombinedList.add({'isGap': true, 'start': lastProcessedTime, 'end': currentTime});
+        }
+      }
+
+      if (event['type'] == 'clinic_open') {
+        openClinicCount++;
+      } else if (event['type'] == 'clinic_close') openClinicCount--;
+      else if (event['type'] == 'appointment_start') {
+        activeAppointmentCount++;
+        finalCombinedList.add(event['data']);
+      } else if (event['type'] == 'appointment_end') activeAppointmentCount--;
+      
+      lastProcessedTime = currentTime;
+    }
+
+    finalCombinedList.sort((a, b) {
+      DateTime aStart = a['isGap'] == true ? a['start'] : (a['appointment']['startTime'] as Timestamp).toDate();
+      DateTime bStart = b['isGap'] == true ? b['start'] : (b['appointment']['startTime'] as Timestamp).toDate();
+      return aStart.compareTo(bStart);
+    });
+
+    return finalCombinedList;
   }
 }

@@ -32,6 +32,11 @@ class AppointmentService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    // เพิ่มการตรวจสอบว่ามีการนัดหมายซ้ำซ้อนหรือไม่
+    if (await _isTimeSlotConflict(date, startTime, endTime)) {
+        throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
+    }
+
   }
 
   Future<void> updateAppointment({
@@ -60,6 +65,11 @@ class AppointmentService {
       'endTime': Timestamp.fromDate(endTime),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+     // เพิ่มการตรวจสอบว่ามีการนัดหมายซ้ำซ้อนหรือไม่
+    if (await _isTimeSlotConflict(date, startTime, endTime, appointmentId)) {
+      throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
+    }
+
   }
 
   Future<List<Map<String, dynamic>>> getAppointmentsByDate(
@@ -83,6 +93,34 @@ class AppointmentService {
       data['appointmentId'] = doc.id;
       return data;
     }).toList();
+  }
+
+   Future<bool> _isTimeSlotConflict(
+    DateTime date,
+    DateTime startTime,
+    DateTime endTime, [
+    String? excludeAppointmentId,
+  ]) async {
+    final appointments = await getAppointmentsByDate(date);
+
+    for (final appointment in appointments) {
+      if (appointment['appointmentId'] == excludeAppointmentId) continue; // Skip the appointment being updated
+
+      final existingStart = (appointment['startTime'] as Timestamp).toDate();
+      final existingEnd = (appointment['endTime'] as Timestamp).toDate();
+
+      // Check for overlap:
+      // (start1 < end2) && (end1 > start2)
+      if (startTime.isBefore(existingEnd) && endTime.isAfter(existingStart)) {
+        return true; // Conflict found
+      }
+      // Also check if the new appointment completely contains an existing one
+      if (startTime.isBefore(existingStart) && endTime.isAfter(existingEnd)) {
+        return true;
+      }
+    }
+
+    return false; // No conflict
   }
 
   Future<Map<String, dynamic>?> getPatientById(String patientId) async {

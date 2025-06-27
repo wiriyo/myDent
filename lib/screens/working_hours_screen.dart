@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-// Import Firestore
 import '../services/working_hours_service.dart';
 import '../models/working_hours_model.dart';
-// Removed shared_preferences and dart:convert as they are no longer used for persistence
+import '../main.dart'; // Import the global key
+
 
 class WorkingHoursScreen extends StatefulWidget {
   const WorkingHoursScreen({super.key});
@@ -17,6 +17,26 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
   // Keep a state variable to hold the mutable list of working hours after loading.
   List<DayWorkingHours>? _workingHours;
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+
+  int _selectedIndex = 4; // ✨ เพิ่มตัวแปรสำหรับเก็บ index ที่เลือก
+
+  // ✨ เพิ่มฟังก์ชันสำหรับจัดการการกดปุ่มใน Bottom Navigation Bar
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    if (index == 0) {
+      Navigator.pushReplacementNamed(context, '/calendar');
+    } else if (index == 1) {
+      Navigator.pushReplacementNamed(context, '/patients');
+    } else if (index == 3) {
+      Navigator.pushReplacementNamed(context, '/reports');
+    } else if (index == 4) {
+      // ถ้ากดปุ่มตั้งค่า (index 4) ให้ย้อนกลับไปหน้าตั้งค่าหลัก
+      Navigator.pop(context);
+    }
+  }
 
   @override
   void initState() {
@@ -38,7 +58,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
       await _workingHoursService.saveWorkingHours(workingHoursToSave);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessengerKey.currentState?.showSnackBar(
           const SnackBar(content: Text('บันทึกเวลาทำการเรียบร้อยแล้ว')),
         );
       }
@@ -106,7 +126,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
 
       // Basic validation: open time must be before close time for the current slot
       if (_timeToMinutes(tempSlot.openTime) >= _timeToMinutes(tempSlot.closeTime)) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessengerKey.currentState?.showSnackBar(
           const SnackBar(content: Text('เวลาเปิดต้องก่อนเวลาปิดในช่องเดียวกัน')),
         );
         return;
@@ -114,7 +134,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
 
       // Advanced validation: check for overlaps with other slots in the same day
       if (_hasOverlap(day.timeSlots, tempSlot, slotIndex)) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessengerKey.currentState?.showSnackBar(
           const SnackBar(content: Text('ช่วงเวลาทำการทับซ้อนกับช่วงเวลาอื่นในวันเดียวกัน')),
         );
         return;
@@ -294,7 +314,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                   );
                                   // Check for overlap with default new slot
                                   if (_hasOverlap(day.timeSlots, newSlot)) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    scaffoldMessengerKey.currentState?.showSnackBar(
                                       const SnackBar(content: Text('ไม่สามารถเพิ่มช่วงเวลาได้ เนื่องจากมีช่วงเวลาทับซ้อนกัน')),
                                     );
                                     return;
@@ -330,7 +350,45 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
         foregroundColor: Colors.white,
         child: const Icon(Icons.save),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // Moved to bottom right
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // ✨ ปรับตำแหน่งปุ่ม
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        color: const Color(0xFFFBEAFF),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.calendar_today, size: 30),
+                color: _selectedIndex == 0 ? Colors.purple : Colors.purple.shade200,
+                onPressed: () => _onItemTapped(0),
+                tooltip: 'ปฏิทิน',
+              ),
+              IconButton(
+                icon: const Icon(Icons.people_alt, size: 30),
+                color: _selectedIndex == 1 ? Colors.purple : Colors.purple.shade200,
+                onPressed: () => _onItemTapped(1),
+                tooltip: 'คนไข้',
+              ),
+              const SizedBox(width: 40), // ที่ว่างสำหรับ FloatingActionButton
+              IconButton(
+                icon: const Icon(Icons.bar_chart, size: 30),
+                color: _selectedIndex == 3 ? Colors.purple : Colors.purple.shade200,
+                onPressed: () => _onItemTapped(3),
+                tooltip: 'รายงาน',
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, size: 30),
+                color: _selectedIndex == 4 ? Colors.purple : Colors.purple.shade200,
+                onPressed: () => _onItemTapped(4),
+                tooltip: 'ตั้งค่า',
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

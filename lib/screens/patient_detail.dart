@@ -280,11 +280,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
 
     Color cardColor;
     if (rating >= 5) {
-      cardColor = const Color(0xFFE0F7E9);
+      cardColor = const Color(0xFFE0F7E9); // Greenish for high rating
     } else if (rating >= 4) {
-      cardColor = const Color(0xFFFFF8E1);
+      cardColor = const Color(0xFFFFF8E1); // Yellowish for medium rating
     } else {
-      cardColor = const Color(0xFFFFEBEE);
+      cardColor = const Color(0xFFFFEBEE); // Reddish for lower rating
     }
 
     return Scaffold(

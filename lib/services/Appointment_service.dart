@@ -3,8 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class AppointmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CollectionReference _appointmentsCollection = FirebaseFirestore.instance.collection('appointments');
+
+
 
   Future<void> addAppointment({
+    required String appointmentId,
     required String patientId,
     required String patientName,
     required String treatment,
@@ -167,4 +171,30 @@ class AppointmentService {
       yield result;
     }
   }
+
+  // ฟังก์ชันสำหรับลบนัดหมายตาม ID ที่ส่งเข้ามาค่ะ
+  Future<void> deleteAppointment(String appointmentId) async {
+    try {
+      await _appointmentsCollection.doc(appointmentId).delete();
+    } catch (e) {
+      // เผื่อว่าเกิดข้อผิดพลาด เราจะได้รู้ค่ะ
+      print('เกิดข้อผิดพลาดในการลบนัดหมาย: $e');
+      rethrow; // ส่งต่อ error ให้ที่เรียกใช้จัดการต่อได้
+    }
+  }
+
+  /// ฟังก์ชันสำหรับอัปเดตสถานะของนัดหมายค่ะ
+  Future<void> updateAppointmentStatus(String appointmentId, String status) async {
+    try {
+      await _appointmentsCollection.doc(appointmentId).update({
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(), // อัปเดตเวลาล่าสุดด้วยเลยค่ะ
+      });
+    } catch (e) {
+      print('เกิดข้อผิดพลาดในการอัปเดตสถานะ: $e');
+      rethrow;
+    }
+  }
+  
 }
+

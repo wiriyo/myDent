@@ -474,7 +474,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     )
   ));
 }
-    }
+    } // Closing brace for the 'else' block (isGap == false)
     return Expanded(
       child: SizedBox(
         height: totalHeight,

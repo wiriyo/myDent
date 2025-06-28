@@ -195,6 +195,28 @@ class AppointmentService {
       rethrow;
     }
   }
+
+  Future<void> updateAppointmentDetails({
+    required String appointmentId,
+    required String status,
+    String? postponedReason, // รับค่าเหตุผลเข้ามา (อาจจะเป็น null ได้)
+  }) async {
+    try {
+      final dataToUpdate = <String, dynamic>{
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (postponedReason != null) {
+        dataToUpdate['postponedReason'] = postponedReason;
+      }
+
+      await _appointmentsCollection.doc(appointmentId).update(dataToUpdate);
+    } catch (e) {
+      print('เกิดข้อผิดพลาดในการอัปเดตรายละเอียดนัดหมาย: $e');
+      rethrow;
+    }
+  }
   
 }
 

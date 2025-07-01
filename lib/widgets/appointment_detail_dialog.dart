@@ -67,16 +67,18 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       if (await canLaunchUrl(phoneUri)) {
         await launchUrl(phoneUri);
       } else {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้')));
+        }
       }
     } else {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ไม่มีเบอร์โทรศัพท์สำหรับคนไข้คนนี้')),
         );
+      }
     }
   }
 
@@ -125,10 +127,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           widget.onDataChanged();
         }
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ: $e')));
+        }
       }
     }
   }

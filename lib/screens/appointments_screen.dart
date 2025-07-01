@@ -104,8 +104,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Appointments'),
-        backgroundColor: const Color(0xFFFBEAFF),
-        foregroundColor: const Color(0xFF6A4DBA),
+        backgroundColor: const Color(0xFFD9B8FF),
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -114,7 +114,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           ),
         ],
       ),
-      backgroundColor: const Color(0xFFF3E5F5),
+      backgroundColor: const Color(0xFFEFE0FF),
       body: Column(
         children: [
           const SizedBox(height: 8),

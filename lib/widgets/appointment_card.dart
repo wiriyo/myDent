@@ -1,4 +1,4 @@
-// 📁 lib/widgets/appointment_card.dart (ฉบับสมบูรณ์)
+// 📁 lib/widgets/appointment_card.dart (แก้ไข Layout ให้สมบูรณ์และปลอดภัย)
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -20,12 +20,14 @@ class AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- ดึงข้อมูลพื้นฐาน ---
     final startTime = (appointment['startTime'] as Timestamp).toDate();
     final endTime = (appointment['endTime'] as Timestamp).toDate();
     final status = appointment['status'] ?? '-';
     final patientName = patient['name'] ?? '-';
     final treatment = appointment['treatment'] ?? '-';
 
+    // --- เลือกสีพื้นหลังของการ์ด ---
     Color cardColor = switch (status) {
       'ยืนยันแล้ว' => const Color(0xFFD4EDDA),
       'รอยืนยัน' || 'ติดต่อไม่ได้' => const Color(0xFFFFF3CD),
@@ -44,17 +46,22 @@ class AppointmentCard extends StatelessWidget {
       child: Card(
         elevation: 0,
         color: cardColor,
-        margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 1.5),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         shape: RoundedRectangleBorder(
           side: BorderSide(color: borderColor, width: 1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         clipBehavior: Clip.antiAlias,
         child: LayoutBuilder(
           builder: (context, constraints) {
             bool showCompact = isCompact || constraints.maxWidth < 110;
+
+            // ✨ ใช้ Container ที่มีความสูงที่แน่นอนสำหรับหน้า ListView ✨
+            // และใช้ Column ธรรมดาสำหรับ Timeline view
             return Container(
               padding: EdgeInsets.all(showCompact ? 6 : 12),
+              // กำหนดความสูงขั้นต่ำเพื่อให้การ์ดไม่เล็กเกินไปใน ListView
+              constraints: const BoxConstraints(minHeight: 90),
               child: showCompact
                   ? _buildCompactView(startTime, patientName)
                   : _buildFullView(startTime, endTime, patientName, treatment, status),
@@ -65,10 +72,11 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
+  // Widget สำหรับการ์ดเวอร์ชันมินิ (เมื่ออยู่ใน Timeline ที่แคบ)
   Widget _buildCompactView(DateTime startTime, String patientName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.start, // จัดชิดบน
       children: [
         Text(
           DateFormat.Hm().format(startTime),
@@ -85,9 +93,11 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
+  // ✨ Widget สำหรับการ์ดเวอร์ชันเต็ม (ที่แก้ไขแล้ว ไม่ใช้ Spacer) ✨
   Widget _buildFullView(DateTime startTime, DateTime endTime, String patientName, String treatment, String status) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min, // ✨ ทำให้ Column ไม่พยายามขยายจนสุด
       children: [
         Text(
           patientName,
@@ -100,13 +110,17 @@ class AppointmentCard extends StatelessWidget {
           'เวลา: ${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}',
           style: const TextStyle(fontSize: 13),
         ),
-        Text(
-          treatment,
-          style: const TextStyle(fontSize: 13, color: Colors.black54),
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
+        // ✨ ใช้ Expanded หุ้ม Text เพื่อให้ตัดคำได้เมื่อข้อความยาว ✨
+        Expanded(
+          child: Text(
+            treatment,
+            style: const TextStyle(fontSize: 13, color: Colors.black54),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
         ),
-        const Spacer(), // ใช้ Spacer เพื่อดัน Status ไปข้างล่าง
+        // ✨ ไม่ใช้ Spacer แต่ใช้ SizedBox และ Align เพื่อจัดตำแหน่ง Status ✨
+         const SizedBox(height: 8),
         Align(
           alignment: Alignment.bottomRight,
           child: Container(
@@ -115,7 +129,10 @@ class AppointmentCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.5),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(status, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+            child: Text(
+              status,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ],

@@ -165,7 +165,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         elevation: 0,
         title: Text(
           'นัดหมายวันที่ ${DateFormat('d MMM yyyy', 'th_TH').format(widget.selectedDate)}',
-          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
       body: Column(

@@ -145,10 +145,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         postponedReason: reason,
       );
       if (mounted) {
+        Navigator.pop(context); // ✨ เพิ่มบรรทัดนี้เพื่อปิดหน้าต่างค่ะ ✨
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
         widget.onDataChanged();
@@ -251,7 +252,23 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             const SizedBox(height: 16),
 
             // ✨ ย้ายชื่อคนไข้มาอยู่ตรงนี้แทนค่ะ! ✨
-            Text(patientName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF6A4DBA))),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Image.asset('assets/icons/user.png', width: 24, height: 24, color: const Color(0xFF6A4DBA)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    patientName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF6A4DBA),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
 
             // (ส่วนที่เหลือเหมือนเดิมทั้งหมดค่ะ)
@@ -259,9 +276,23 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             const SizedBox(height: 4),
             Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: Colors.green.shade100, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset('assets/icons/phone.png', width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
             const SizedBox(height: 16),
-            Text(treatment, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text('เวลา: ${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}', style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Image.asset('assets/icons/treatment.png', width: 40, height: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(treatment, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text('เวลา: ${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}', style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _currentStatus,

@@ -593,9 +593,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final cardWidth = (contentWidth / layoutInfo.maxOverlaps) - 4;
         final left = layoutInfo.columnIndex * (cardWidth + 4);
 
+        // คำนวณระยะเวลาของนัดหมาย
+        final durationInMinutes = itemEnd.difference(itemStart).inMinutes;
+        final bool isShortAppointment = durationInMinutes <= 30;
+
         // ✨ เพิ่มการดึง ID ของนัดหมายออกมาอย่างปลอดภัย ✨
         final appointmentData = item['appointment'] as Map<String, dynamic>;
         final String appointmentId = appointmentData['appointmentId'] ?? '';
+
+        
 
         positionedItems.add(
           Positioned(
@@ -629,6 +635,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 );
               },
               isCompact: layoutInfo.maxOverlaps > 1,
+              isShort: isShortAppointment,
             ),
           ),
         );

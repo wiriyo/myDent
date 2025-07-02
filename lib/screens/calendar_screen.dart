@@ -275,11 +275,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
       body: Column(
         children: [
+          // ✨ ย้ายปุ่มเลือกมุมมองออกมานอก Container ของปฏิทิน ✨
+          // ทำให้ปุ่มมีพื้นหลังเป็นสีเดียวกับ body แต่ยังคงตำแหน่งเดิมด้านบน
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: _buildViewModeSelector(),
+          ),
           Container(
+            // ✨ ปรับ margin ของปฏิทินตาม view mode ที่เลือก ✨
+            margin: _calendarFormat == CalendarFormat.week
+                ? const EdgeInsets.only(left: 54, right: 4) // week view: จัดให้ตรงกับ content area ด้านล่าง
+                : const EdgeInsets.symmetric(horizontal: 12), // month view: จัดให้ตรงกับปุ่มด้านบน
             padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
             decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+              borderRadius: BorderRadius.all(Radius.circular(20)), // ✨ ปรับมุมให้โค้งมนทั้งหมด
               boxShadow: [
                 BoxShadow(
                   color: Colors.black12,
@@ -288,61 +298,54 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                // ✨✨✨ เรียกใช้ฟังก์ชันสร้างปุ่มแบบใหม่ตรงนี้ค่ะ ✨✨✨
-                _buildViewModeSelector(),
-                const SizedBox(height: 8),
-                TableCalendar(
-                  locale: 'th_TH',
-                  firstDay: DateTime.utc(2020, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  calendarFormat: _calendarFormat,
-                  onDaySelected: (selectedDay, focusedDay) {
-                    if (!isSameDay(_selectedDay, selectedDay)) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay; // อัปเดต focusedDay ด้วย
-                      });
-                      _fetchAppointmentsAndWorkingHoursForSelectedDay(
-                        selectedDay,
-                      );
-                    }
-                  },
-                  onFormatChanged: (format) {
-                    // ไม่จำเป็นแล้ว เพราะเราควบคุมด้วยปุ่มของเราเอง
-                    if (format == CalendarFormat.month) {
-                      setState(() => _calendarFormat = CalendarFormat.month);
-                    } else if (format == CalendarFormat.week) {
-                      setState(() => _calendarFormat = CalendarFormat.week);
-                    }
-                    // ไม่ต้องทำอะไรหากเป็น format อื่นๆ
-                  }, // ปรับตรงนี้
-                  onPageChanged: (focusedDay) {
-                    _focusedDay = focusedDay;
-                  },
-                  calendarStyle: CalendarStyle(
-                    todayDecoration: BoxDecoration(
-                      color: Colors.purple.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    selectedDecoration: BoxDecoration(
-                      color: Colors.purple.shade300,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false,
-                    titleCentered: true,
-                    titleTextStyle: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+            child: TableCalendar(
+              locale: 'th_TH',
+              firstDay: DateTime.utc(2020, 1, 1),
+              lastDay: DateTime.utc(2030, 12, 31),
+              focusedDay: _focusedDay,
+              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+              calendarFormat: _calendarFormat,
+              onDaySelected: (selectedDay, focusedDay) {
+                if (!isSameDay(_selectedDay, selectedDay)) {
+                  setState(() {
+                    _selectedDay = selectedDay;
+                    _focusedDay = focusedDay; // อัปเดต focusedDay ด้วย
+                  });
+                  _fetchAppointmentsAndWorkingHoursForSelectedDay(
+                    selectedDay,
+                  );
+                }
+              },
+              onFormatChanged: (format) {
+                // ไม่จำเป็นแล้ว เพราะเราควบคุมด้วยปุ่มของเราเอง
+                if (format == CalendarFormat.month) {
+                  setState(() => _calendarFormat = CalendarFormat.month);
+                } else if (format == CalendarFormat.week) {
+                  setState(() => _calendarFormat = CalendarFormat.week);
+                }
+                // ไม่ต้องทำอะไรหากเป็น format อื่นๆ
+              }, // ปรับตรงนี้
+              onPageChanged: (focusedDay) {
+                _focusedDay = focusedDay;
+              },
+              calendarStyle: CalendarStyle(
+                todayDecoration: BoxDecoration(
+                  color: Colors.purple.shade100,
+                  shape: BoxShape.circle,
                 ),
-              ],
+                selectedDecoration: BoxDecoration(
+                  color: Colors.purple.shade300,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              headerStyle: const HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                titleTextStyle: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
           Expanded(
@@ -710,7 +713,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
         _buildViewModeButton(
           label: 'วัน',
-          icon: Icons.calendar_view_day_outlined, // ใช้ไอคอนแบบโปร่ง
+          icon: Icons.calendar_view_day, // ✨ เปลี่ยนเป็นไอคอนเดียวกับหน้า Daily
           isActive: false, // ปุ่มนี้ไม่ active เพราะเป็นแค่ทางไปหน้าอื่น
           onPressed: () {
             Navigator.push(
@@ -732,21 +735,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
     required bool isActive,
     required VoidCallback onPressed,
   }) {
-    final activeColor = Colors.purple.shade100;
+    final activeColor = Colors.white;
     final activeTextColor = Colors.purple.shade800;
-    final inactiveColor = Colors.grey.shade200;
+    final inactiveColor = Colors.transparent;
+    final inactiveTextColor = Colors.grey.shade700;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4.0),
       child: TextButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, color: isActive ? activeTextColor : Colors.grey.shade600, size: 18),
-        label: Text(label, style: TextStyle(color: isActive ? activeTextColor : Colors.grey.shade700, fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
+        icon: Icon(icon, color: isActive ? activeTextColor : inactiveTextColor, size: 18),
+        label: Text(
+          label,
+          style: TextStyle(
+            color: isActive ? activeTextColor : inactiveTextColor,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
         style: TextButton.styleFrom(
-          backgroundColor: isActive ? activeColor : Colors.transparent,
-          side: BorderSide(color: isActive ? Colors.transparent : inactiveColor),
+          backgroundColor: isActive ? activeColor : inactiveColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          elevation: isActive ? 2 : 0,
+          shadowColor: isActive ? Colors.black.withOpacity(0.2) : Colors.transparent,
         ),
       ),
     );

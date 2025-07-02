@@ -246,8 +246,8 @@ class AppointmentCard extends StatelessWidget {
             index < rating
                 ? 'assets/icons/tooth_good.png'
                 : 'assets/icons/tooth_broke.png',
-            width: 12,
-            height: 12,
+            width: 16,
+            height: 16,
           ),
         );
       }),
@@ -284,8 +284,22 @@ class AppointmentCard extends StatelessWidget {
     final durationInMinutes = endTime.difference(startTime).inMinutes;
     final bool isLongAppointment = durationInMinutes > 60;
 
+    // ✨ กำหนดขนาด Font และ Icon ตามเงื่อนไข ✨
+    // ใช้ Layout ขนาดใหญ่เมื่อเป็นการ์ดนัดหมายยาว และไม่ได้ถูกบีบอัด (isCompact = false)
+    final bool useLargeLayout = isLongAppointment && !isCompact;
+
+    final double iconSize = useLargeLayout ? 20.0 : 16.0;
+    final double titleFontSize = useLargeLayout ? 20.0 : 15.0;
+    final double subtitleFontSize = useLargeLayout ? 18.0 : 12.0;
+    final double treatmentFontSize = useLargeLayout ? 18.0 : 13.0;
+    final double statusFontSize = useLargeLayout ? 16.0 : 11.0;
+    final double notesIconSize = useLargeLayout ? 18.0 : 14.0;
+    final double notesFontSize = useLargeLayout ? 18.0 : 12.0;
+
+
     return Stack(
-      children: [Column(
+      children: [
+        Column(
       mainAxisAlignment: MainAxisAlignment.spaceBetween, // จัดการพื้นที่แนวตั้งให้ Widget แรกอยู่บนสุด และตัวสุดท้ายอยู่ล่างสุด
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -294,14 +308,17 @@ class AppointmentCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // ✨ เพิ่มช่องว่างด้านบนเมื่อเป็นการ์ดนัดหมายยาว เพื่อไม่ให้ทับกับ Rating ✨
+            if (isLongAppointment)
+              const SizedBox(height: 30),
             Row(
               children: [
-                Image.asset('assets/icons/user.png', width: 16, height: 16),
+                Image.asset('assets/icons/user.png', width: iconSize, height: iconSize),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     patientName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: titleFontSize),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -313,13 +330,13 @@ class AppointmentCard extends StatelessWidget {
               children: [
                 Image.asset(
                   'assets/icons/clock.png',
-                  width: 16,
-                  height: 16,
+                  width: iconSize,
+                  height: iconSize,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   '${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}',
-                  style: const TextStyle(fontSize: 12),
+                  style: TextStyle(fontSize: subtitleFontSize),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -329,12 +346,12 @@ class AppointmentCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.asset('assets/icons/treatment.png', width: 16, height: 16),
+                Image.asset('assets/icons/treatment.png', width: iconSize, height: iconSize),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     treatment,
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                    style: TextStyle(fontSize: treatmentFontSize, color: Colors.black54),
                     overflow: TextOverflow.ellipsis,
                     maxLines: isLongAppointment ? 2 : 1,
                   ),
@@ -346,12 +363,12 @@ class AppointmentCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.notes_outlined, size: 14, color: Colors.grey.shade700),
+                  Icon(Icons.notes_outlined, size: notesIconSize, color: Colors.grey.shade700),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       notes,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontStyle: FontStyle.italic),
+                      style: TextStyle(fontSize: notesFontSize, color: Colors.grey.shade800, fontStyle: FontStyle.italic),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 2,
                     ),
@@ -376,7 +393,7 @@ class AppointmentCard extends StatelessWidget {
                 ),
                 child: Text(
                   status,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: statusFontSize, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(width: 4),
@@ -401,6 +418,6 @@ class AppointmentCard extends StatelessWidget {
         ),
       ),
     ]
-    );
+    ); // Closing bracket for Stack
   }
 }

@@ -271,10 +271,27 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         final cardWidth = (contentWidth / layoutInfo.maxOverlaps) - 4;
         final left = layoutInfo.columnIndex * (cardWidth + 4);
         final appointmentId = (item['appointment'] as Map<String, dynamic>)['appointmentId'] ?? '';
-        positionedItems.add(Positioned(top: top, left: left, width: cardWidth, height: height, child: AppointmentCard(appointment: item['appointment'], patient: item['patient'], onTap: () {
-          if (appointmentId.isEmpty) return;
-          showDialog(context: context, builder: (_) => AppointmentDetailDialog(appointmentId: appointmentId, appointment: item['appointment'], patient: item['patient'], onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)));
-        }, isCompact: layoutInfo.maxOverlaps > 1)));
+        
+        // ✨ คำนวณระยะเวลาของนัด และกำหนดว่าจะใช้การ์ดแบบย่อ (isShort) หรือไม่ ✨
+        final durationInMinutes = itemEnd.difference(itemStart).inMinutes;
+        // นัดหมายที่สั้นกว่าหรือเท่ากับ 30 นาที จะใช้การ์ดแบบย่อ
+        final bool isShortAppointment = durationInMinutes <= 30;
+
+        positionedItems.add(Positioned(
+            top: top,
+            left: left,
+            width: cardWidth,
+            height: height,
+            child: AppointmentCard(
+                appointment: item['appointment'],
+                patient: item['patient'],
+                onTap: () {
+                  if (appointmentId.isEmpty) return;
+                  showDialog(context: context, builder: (_) => AppointmentDetailDialog(appointmentId: appointmentId, appointment: item['appointment'], patient: item['patient'], onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)));
+                },
+                isCompact: layoutInfo.maxOverlaps > 1,
+                isShort: isShortAppointment, // 👈 ส่งค่า isShort ไปยัง AppointmentCard
+            )));
       }
     }
     return Expanded(child: SizedBox(height: totalHeight, child: Stack(children: positionedItems)));
@@ -757,6 +774,3 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 //     );
 //   }
 // }
-
-
-

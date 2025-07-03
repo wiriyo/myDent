@@ -3,9 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/patient_service.dart';
-import 'calendar_screen.dart'; // สำหรับการนำทาง
-import 'reports_screen.dart';
-import 'setting_screen.dart';
+import '../styles/app_theme.dart';
+import '../widgets/custom_bottom_nav_bar.dart'; // ✨ [FIX] 1. import Navbar ใหม่ของเราเข้ามาค่ะ
+import 'appointment_add.dart';
+
 
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
@@ -81,11 +82,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEFE0FF), 
+      backgroundColor: AppTheme.background, 
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('รายชื่อคนไข้', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
-        backgroundColor: const Color(0xFFE0BBFF), 
+        title: const Text('รายชื่อคนไข้'),
+        backgroundColor: AppTheme.primaryLight, 
         elevation: 0,
       ),
       body: Column(
@@ -93,7 +94,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
           _buildSearchBar(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                 : _allPatients.isEmpty
                     ? _buildEmptyState()
                     : _searchResults.isEmpty
@@ -117,7 +118,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
       ),
       floatingActionButton: _buildFloatingActionButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: _buildBottomAppBar(),
+      // ✨ [FIX] 2. เรียกใช้ CustomBottomNavBar ของเราตรงนี้เลยค่ะ
+      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
     );
   }
 
@@ -126,10 +128,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: TextField(
         controller: _searchController,
-        style: const TextStyle(fontFamily: 'Poppins'), // ✨ [FIX] เพิ่มฟอนต์ให้ช่องค้นหา
+        style: const TextStyle(fontFamily: AppTheme.fontFamily),
         decoration: InputDecoration(
           hintText: 'ค้นหาด้วยชื่อ หรือเบอร์โทร...',
-          hintStyle: const TextStyle(fontFamily: 'Poppins'), // ✨ [FIX] เพิ่มฟอนต์ให้ Hint
+          hintStyle: const TextStyle(fontFamily: AppTheme.fontFamily),
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -158,9 +160,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
         children: [
           Icon(Icons.sentiment_dissatisfied, size: 60, color: Colors.grey.shade400),
           const SizedBox(height: 16),
-          const Text('ยังไม่มีข้อมูลคนไข้ในระบบ', style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Poppins')),
+          const Text('ยังไม่มีข้อมูลคนไข้ในระบบ', style: TextStyle(fontSize: 16, color: AppTheme.textDisabled, fontFamily: AppTheme.fontFamily)),
           const SizedBox(height: 8),
-          const Text('กดปุ่ม + เพื่อเพิ่มคนไข้ใหม่ได้เลยค่ะ', style: TextStyle(color: Colors.grey, fontFamily: 'Poppins')),
+          const Text('กดปุ่ม + เพื่อเพิ่มคนไข้ใหม่ได้เลยค่ะ', style: TextStyle(color: AppTheme.textDisabled, fontFamily: AppTheme.fontFamily)),
         ],
       ),
     );
@@ -173,43 +175,18 @@ class _PatientsScreenState extends State<PatientsScreen> {
         children: [
           Icon(Icons.search_off, size: 60, color: Colors.grey.shade400),
           const SizedBox(height: 16),
-          const Text('ไม่พบข้อมูลคนไข้ที่ค้นหา', style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Poppins')),
+          const Text('ไม่พบข้อมูลคนไข้ที่ค้นหา', style: TextStyle(fontSize: 16, color: AppTheme.textDisabled, fontFamily: AppTheme.fontFamily)),
         ],
       ),
     );
   }
 
-  Widget _buildBottomAppBar() {
-    return BottomAppBar(
-      shape: const CircularNotchedRectangle(),
-      notchMargin: 8.0,
-      color: const Color(0xFFFBEAFF), 
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: <Widget>[
-          _buildNavIconButton(icon: Icons.calendar_today, tooltip: 'ปฏิทิน', index: 0),
-          _buildNavIconButton(icon: Icons.people_alt, tooltip: 'คนไข้', index: 1),
-          const SizedBox(width: 40),
-          _buildNavIconButton(icon: Icons.bar_chart, tooltip: 'รายงาน', index: 3),
-          _buildNavIconButton(icon: Icons.settings, tooltip: 'ตั้งค่า', index: 4),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavIconButton({required IconData icon, required String tooltip, required int index}) {
-    return IconButton(
-      icon: Icon(icon, size: 30),
-      color: index == 1 ? Colors.purple : Colors.purple.shade200,
-      onPressed: () => _onItemTapped(index),
-      tooltip: tooltip,
-    );
-  }
+  // ✨ [FIX] 3. ลบ _buildBottomAppBar และฟังก์ชันที่เกี่ยวข้องออกไปค่ะ
   
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
       onPressed: _navigateToAdd,
-      backgroundColor: Colors.purple,
+      backgroundColor: AppTheme.primary,
       tooltip: 'เพิ่มคนไข้ใหม่',
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       child: const Icon(Icons.add, color: Colors.white, size: 36),
@@ -217,13 +194,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   // --- ✨ ระบบนำทางและจัดการ Action ✨ ---
-  void _onItemTapped(int index) {
-    if (index == 1) return;
-    if (index == 0) { Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const CalendarScreen())); } 
-    else if (index == 3) { Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ReportsScreen())); } 
-    else if (index == 4) { Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SettingsScreen())); }
-  }
-
   void _navigateToAdd() async {
     final result = await Navigator.pushNamed(context, '/add_patient');
     if (result == true) {
@@ -250,7 +220,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   void _makeCall(String? phone) async {
     if (phone == null || phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่มีเบอร์โทรศัพท์ค่ะ', style: TextStyle(fontFamily: 'Poppins'))));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่มีเบอร์โทรศัพท์ค่ะ', style: TextStyle(fontFamily: AppTheme.fontFamily))));
       return;
     }
     final phoneNumber = phone.replaceAll('-', '');
@@ -258,7 +228,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้ค่ะ', style: TextStyle(fontFamily: 'Poppins'))));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้ค่ะ', style: TextStyle(fontFamily: AppTheme.fontFamily))));
     }
   }
 
@@ -268,11 +238,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ยืนยันการลบ', style: TextStyle(fontFamily: 'Poppins')),
-        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลคนไข้รายนี้?', style: TextStyle(fontFamily: 'Poppins')),
+        title: const Text('ยืนยันการลบ', style: TextStyle(fontFamily: AppTheme.fontFamily)),
+        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลคนไข้รายนี้?', style: TextStyle(fontFamily: AppTheme.fontFamily)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก', style: TextStyle(fontFamily: 'Poppins'))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ลบ', style: TextStyle(color: Colors.red, fontFamily: 'Poppins'))),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก', style: TextStyle(fontFamily: AppTheme.fontFamily))),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ลบ', style: TextStyle(color: Colors.red, fontFamily: AppTheme.fontFamily))),
         ],
       ),
     );
@@ -309,11 +279,13 @@ class _PatientCard extends StatelessWidget {
     final rating = (data['rating'] as num?)?.toInt() ?? 0;
     final gender = data['gender'] ?? 'ไม่ระบุ';
     final age = data['age']?.toString() ?? '-';
+    final medicalHistory = data['medicalHistory'] as String?;
+    final allergy = data['allergy'] as String?;
     
     final cardColor = switch (rating) {
-      >= 5 => const Color(0xFFD0F8CE),
-      4    => const Color(0xFFFFF9C4),
-      _    => const Color(0xFFFFCDD2),
+      >= 5 => AppTheme.rating5Star,
+      4    => AppTheme.rating4Star,
+      _    => AppTheme.rating3StarAndBelow,
     };
 
     return Card(
@@ -322,7 +294,7 @@ class _PatientCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: Colors.grey.shade200)
       ),
       child: Stack(
@@ -330,7 +302,7 @@ class _PatientCard extends StatelessWidget {
           // --- ส่วนข้อมูลหลัก ---
           InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(24),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -347,9 +319,25 @@ class _PatientCard extends StatelessWidget {
                           children: [
                              _buildInfoRow(iconAsset: 'assets/icons/user.png', text: '$prefix $name', isTitle: true),
                              const SizedBox(height: 4),
-                             _buildInfoRow(iconAsset: 'assets/icons/phone.png', text: phone),
+                             Row(
+                               children: [
+                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/phone.png', text: phone)),
+                                 if (medicalHistory != null && medicalHistory.isNotEmpty) ...[
+                                   const SizedBox(width: 16),
+                                   Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/medical_report.png', text: medicalHistory)),
+                                 ],
+                               ],
+                             ),
                              const SizedBox(height: 2),
-                             _buildInfoRow(iconAsset: 'assets/icons/age.png', text: '$age ปี'),
+                             Row(
+                               children: [
+                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/age.png', text: '$age ปี')),
+                                 if (allergy != null && allergy.isNotEmpty) ...[
+                                   const SizedBox(width: 16),
+                                   Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/no_drugs.png', text: allergy)),
+                                 ],
+                               ],
+                             ),
                           ],
                         ),
                       ),
@@ -360,11 +348,11 @@ class _PatientCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildActionButton(onPressed: onCall, iconAsset: 'assets/icons/phone.png', text: 'โทร', backgroundColor: Colors.green.shade100, foregroundColor: Colors.green.shade900),
+                      _buildActionButton(onPressed: onCall, iconAsset: 'assets/icons/phone.png', text: 'โทร', backgroundColor: AppTheme.buttonCallBg, foregroundColor: AppTheme.buttonCallFg),
                       const SizedBox(width: 8),
-                      _buildActionButton(onPressed: onEdit, iconAsset: 'assets/icons/edit.png', text: 'แก้ไข', backgroundColor: Colors.orange.shade100, foregroundColor: Colors.orange.shade900),
+                      _buildActionButton(onPressed: onEdit, iconAsset: 'assets/icons/edit.png', text: 'แก้ไข', backgroundColor: AppTheme.buttonEditBg, foregroundColor: AppTheme.buttonEditFg),
                       const SizedBox(width: 8),
-                      _buildActionButton(onPressed: onDelete, iconAsset: 'assets/icons/delete.png', text: 'ลบ', backgroundColor: Colors.red.shade100, foregroundColor: Colors.red.shade900),
+                      _buildActionButton(onPressed: onDelete, iconAsset: 'assets/icons/delete.png', text: 'ลบ', backgroundColor: AppTheme.buttonDeleteBg, foregroundColor: AppTheme.buttonDeleteFg),
                     ],
                   ),
                 ],
@@ -377,7 +365,7 @@ class _PatientCard extends StatelessWidget {
             left: 12,
             child: Icon(
               gender == 'ชาย' ? Icons.male : Icons.female,
-              color: gender == 'ชาย' ? Colors.blue.shade300 : Colors.pink.shade200,
+              color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale,
               size: 40,
             ),
           ),
@@ -408,17 +396,20 @@ class _PatientCard extends StatelessWidget {
     );
   }
   
-  Widget _buildInfoRow({required String iconAsset, required String text, bool isTitle = false}) {
+  Widget _buildInfoRow({String? iconAsset, IconData? icon, required String text, bool isTitle = false}) {
     return Row(
       children: [
-        Image.asset(iconAsset, width: isTitle ? 18 : 16, height: isTitle ? 18 : 16),
+        if (iconAsset != null)
+          Image.asset(iconAsset, width: isTitle ? 18 : 16, height: isTitle ? 18 : 16)
+        else if (icon != null)
+          Icon(icon, size: 16, color: AppTheme.textSecondary),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
             style: isTitle 
-              ? const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Poppins')
-              : TextStyle(color: Colors.grey.shade700, fontSize: 16, fontFamily: 'Poppins'),
+              ? const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)
+              : const TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontFamily: AppTheme.fontFamily),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -444,7 +435,7 @@ class _PatientCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
         ),
         elevation: 1,
-        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Poppins')
+        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: AppTheme.fontFamily)
       ),
     );
   }

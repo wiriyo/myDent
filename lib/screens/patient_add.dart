@@ -159,14 +159,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         title: const Text("เพิ่มข้อมูลคนไข้"),
         backgroundColor: const Color(0xFFE0BBFF),
         elevation: 0,
-        // actions: [
-        //   IconButton(
-        //     icon: Image.asset('assets/icons/back.png', width: 24),
-        //     onPressed: () {
-        //       Navigator.pop(context);
-        //     },
-        //   ),
-        // ],
       ),
       backgroundColor: const Color(0xFFEFE0FF),
       body: Padding(

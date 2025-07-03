@@ -67,7 +67,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _selectedDayWorkingHours = dayWorkingHours;
       });
     } catch(e) {
-       debugPrint('Error fetching data for calendar screen: $e');
+        debugPrint('Error fetching data for calendar screen: $e');
     } finally {
         if(mounted) setState(() { _isLoading = false; });
     }
@@ -81,14 +81,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEFE0FF),
+      backgroundColor: const Color(0xFFF3E5F5),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFD9B8FF),
+        backgroundColor: const Color(0xFFE1BEE7),
         elevation: 0,
-        title: const Text('ปฏิทินนัดหมาย'),
+        title: const Text('ปฏิทินนัดหมาย', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         actions: widget.showReset ? [
           IconButton(
-            icon: const Icon(Icons.developer_mode),
+            icon: const Icon(Icons.developer_mode, color: Colors.black54),
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('skipLogin');
@@ -97,90 +97,93 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ] : null,
       ),
-      // ✅✅✅ วางโค้ด body ชุดใหม่นี้เข้าไปแทนที่ค่ะ ✅✅✅
-
-body: Column(
-  children: [
-    // ✨ 1. ย้ายปุ่มเลือกมุมมองออกมานอก Container ของปฏิทิน ✨
-    Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: ViewModeSelector(
-        calendarFormat: _calendarFormat,
-        onFormatChanged: (format) {
-          if (_calendarFormat != format) {
-            setState(() { _calendarFormat = format; });
-          }
-        },
-        onDailyViewTapped: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: ViewModeSelector(
+              calendarFormat: _calendarFormat,
+              onFormatChanged: (format) {
+                if (_calendarFormat != format) {
+                  setState(() { _calendarFormat = format; });
+                }
+              },
+              onDailyViewTapped: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay),
+                  ),
+                ).then((newFormat) {
+                   // รับค่า format ที่อาจจะส่งกลับมาจาก DailyCalendarScreen
+                   if (newFormat is CalendarFormat && newFormat != _calendarFormat) {
+                     setState(() {
+                       _calendarFormat = newFormat;
+                     });
+                   }
+                  _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
+                });
+              },
             ),
-          ).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay));
-        },
-      ),
-    ),
-    
-    // ✨ 2. ให้ Container หุ้มเฉพาะปฏิทินเท่านั้น ✨
-    Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: Container(
-        padding: const EdgeInsets.all(8.0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: TableCalendar(
-          locale: 'th_TH',
-          firstDay: DateTime.utc(2020, 1, 1),
-          lastDay: DateTime.utc(2030, 12, 31),
-          focusedDay: _focusedDay,
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          calendarFormat: _calendarFormat,
-          headerStyle: const HeaderStyle(
-            formatButtonVisible: false,
-            titleCentered: true,
-            titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          calendarStyle: CalendarStyle(
-            todayDecoration: BoxDecoration(color: Colors.purple.shade100, shape: BoxShape.circle),
-            selectedDecoration: BoxDecoration(color: Colors.purple.shade300, shape: BoxShape.circle),
-          ),
-          onDaySelected: (selectedDay, focusedDay) {
-            if (!isSameDay(_selectedDay, selectedDay)) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-              });
-              _fetchAppointmentsAndWorkingHoursForSelectedDay(selectedDay);
-            }
-          },
-          onPageChanged: (focusedDay) {
-            _focusedDay = focusedDay;
-          },
-        ),
-      ),
-    ),
-    
-    const SizedBox(height: 12),
-    
-    // ✨ 3. ส่วน Timeline และรายการนัดหมาย (ไม่มีการเปลี่ยนแปลง) ✨
-    Expanded(
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.purple))
-          : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
-              ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)))
-              : TimelineView(
-                  selectedDate: _selectedDay,
-                  appointments: _selectedAppointmentsWithPatients,
-                  workingHours: _selectedDayWorkingHours!,
-                  onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Container(
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+              ),
+              child: TableCalendar(
+                locale: 'th_TH',
+                firstDay: DateTime.utc(2020, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedDay,
+                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                calendarFormat: _calendarFormat,
+                headerStyle: const HeaderStyle(
+                  formatButtonVisible: false,
+                  titleCentered: true,
+                  titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-    ),
-  ],
-),
+                calendarStyle: CalendarStyle(
+                  todayDecoration: BoxDecoration(color: Colors.purple.shade100, shape: BoxShape.circle),
+                  selectedDecoration: BoxDecoration(color: Colors.purple.shade300, shape: BoxShape.circle),
+                ),
+                onDaySelected: (selectedDay, focusedDay) {
+                  if (!isSameDay(_selectedDay, selectedDay)) {
+                    setState(() {
+                      _selectedDay = selectedDay;
+                      _focusedDay = focusedDay;
+                    });
+                    _fetchAppointmentsAndWorkingHoursForSelectedDay(selectedDay);
+                  }
+                },
+                onPageChanged: (focusedDay) {
+                  _focusedDay = focusedDay;
+                },
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+                : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
+                    ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)))
+                    : TimelineView(
+                        selectedDate: _selectedDay,
+                        appointments: _selectedAppointmentsWithPatients,
+                        workingHours: _selectedDayWorkingHours!,
+                        onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay),
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showDialog(context: context, builder: (_) => AppointmentAddDialog(initialDate: _selectedDay)).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay)),
         backgroundColor: Colors.purple,
@@ -206,11 +209,17 @@ body: Column(
   }
 
   void _onItemTapped(int index) {
-    setState(() { _selectedIndex = index; });
+    if (_selectedIndex == index) return;
+
+    // setState(() { _selectedIndex = index; }); // ไม่จำเป็นต้อง set state ที่นี่แล้ว
+    
     if (index == 1) {
       Navigator.push(context, MaterialPageRoute(builder: (context) => const PatientsScreen()));
-    } else if (index == 3) Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportsScreen()));
-    else if (index == 4) Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
+    } else if (index == 3) {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportsScreen()));
+    } else if (index == 4) {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
+    }
   }
 
   Widget _buildNavIconButton({required IconData icon, required String tooltip, required int index}) {

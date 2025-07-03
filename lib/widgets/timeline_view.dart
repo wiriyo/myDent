@@ -118,12 +118,15 @@ class TimelineView extends StatelessWidget {
       builder: (context, constraints) {
         return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 4.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTimeline(workingHours),
-              _buildContentArea(context, combinedList, workingHours, constraints),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTimeline(workingHours),
+                _buildContentArea(context, combinedList, workingHours, constraints),
+              ],
+            ),
           ),
         );
       },
@@ -140,12 +143,33 @@ class TimelineView extends StatelessWidget {
     final dayEnd = slots.last.closeTime;
     int currentMinute = dayStart.hour * 60 + dayStart.minute;
     final endMinute = dayEnd.hour * 60 + dayEnd.minute;
+
     while (currentMinute <= endMinute) {
-      bool isHour = currentMinute % 60 == 0;
-      timeWidgets.add(SizedBox(height: 30 * (hourHeight / 60), child: Align(alignment: Alignment.topRight, child: Transform.translate(offset: const Offset(0, -7), child: isHour ? Text(DateFormat('HH:mm').format(DateTime(2024, 1, 1, currentMinute ~/ 60)), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)) : Padding(padding: const EdgeInsets.only(right: 8.0), child: Container(width: 10, height: 1, color: Colors.grey.shade400))))));
+      final currentTime = DateTime(2024, 1, 1, currentMinute ~/ 60, currentMinute % 60);
+      
+      // ✨ [FIX] ปรับฟอนต์ให้เป็นตัวบางและขนาดเท่ากันทั้งหมดค่ะ! ✨
+      final timeText = Text(
+        DateFormat('HH:mm').format(currentTime),
+        style: TextStyle(
+          fontWeight: FontWeight.normal, // ตัวบางทั้งหมด
+          fontSize: 12, // ขนาด 12 เท่ากันทั้งหมด
+          color: Colors.grey.shade700, // สีเทาเหมือนกันทั้งหมด
+        ),
+      );
+
+      timeWidgets.add(SizedBox(
+        height: 30 * (hourHeight / 60),
+        child: Align(
+          alignment: Alignment.topRight,
+          child: Transform.translate(
+            offset: const Offset(0, -7),
+            child: timeText,
+          ),
+        ),
+      ));
       currentMinute += 30;
     }
-    return Container(width: 55.0, padding: const EdgeInsets.only(right: 4), child: Column(children: timeWidgets));
+    return Container(width: 60.0, padding: const EdgeInsets.only(right: 4), child: Column(children: timeWidgets));
   }
 
   Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, DayWorkingHours workingHours, BoxConstraints constraints) {
@@ -155,7 +179,9 @@ class TimelineView extends StatelessWidget {
     final dayStartTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.first.openTime);
     final dayEndTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.last.closeTime);
     final totalHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute);
-    final double contentWidth = constraints.maxWidth - 55.0; // 55.0 for timeline width
+    
+    final double contentWidth = constraints.maxWidth - 60.0; 
+    
     List<Widget> positionedItems = [];
     final totalHours = dayEndTime.difference(dayStartTime).inHours;
     for (int i = 0; i <= totalHours; i++) {

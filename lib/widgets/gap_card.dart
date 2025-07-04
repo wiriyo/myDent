@@ -1,7 +1,6 @@
 // 📁 lib/widgets/gap_card.dart
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 class GapCard extends StatelessWidget {
   final DateTime gapStart;
@@ -88,15 +87,13 @@ class _DashedBorderPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
   final double radius;
-  final double dashWidth;
-  final double dashSpace;
+  final double dashWidth = 5.0; // Initialize dashWidth
+  final double dashSpace = 5.0; // Initialize dashSpace
 
   _DashedBorderPainter({
     this.color = Colors.black,
     this.strokeWidth = 2.0,
     this.radius = 8.0,
-    this.dashWidth = 5.0,
-    this.dashSpace = 5.0,
   });
 
   @override

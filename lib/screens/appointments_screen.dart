@@ -1,8 +1,14 @@
+// v1.0.3 - Final Fix
+// 📁 lib/screens/appointments_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // Import for DateFormat
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../auth/login_screen.dart';
+import '../models/appointment_model.dart'; // ✨ 1. เราจะใช้ Model โดยตรงค่ะ
 import '../models/working_hours_model.dart';
 import '../services/appointment_service.dart';
 import '../services/working_hours_service.dart';
@@ -17,6 +23,7 @@ class AppointmentsScreen extends StatefulWidget {
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
   late Future<DayWorkingHours?> _todayWorkingHoursFuture;
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+  final AppointmentService _appointmentService = AppointmentService(); // ✨ สร้าง instance ไว้ใช้ค่ะ
 
   @override
   void initState() {
@@ -38,22 +45,14 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
 
   String _getThaiDayName(int weekday) {
     switch (weekday) {
-      case DateTime.monday:
-        return 'จันทร์';
-      case DateTime.tuesday:
-        return 'อังคาร';
-      case DateTime.wednesday:
-        return 'พุธ';
-      case DateTime.thursday:
-        return 'พฤหัสบดี';
-      case DateTime.friday:
-        return 'ศุกร์';
-      case DateTime.saturday:
-        return 'เสาร์';
-      case DateTime.sunday:
-        return 'อาทิตย์';
-      default:
-        return '';
+      case DateTime.monday: return 'จันทร์';
+      case DateTime.tuesday: return 'อังคาร';
+      case DateTime.wednesday: return 'พุธ';
+      case DateTime.thursday: return 'พฤหัสบดี';
+      case DateTime.friday: return 'ศุกร์';
+      case DateTime.saturday: return 'เสาร์';
+      case DateTime.sunday: return 'อาทิตย์';
+      default: return '';
     }
   }
 
@@ -62,7 +61,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       final allHours = await _workingHoursService.loadWorkingHours();
       final todayWeekday = DateTime.now().weekday;
       final todayThaiName = _getThaiDayName(todayWeekday);
-      // Find the working hours for today. Return null if not found.
+      
       return allHours.firstWhere((day) => day.dayName == todayThaiName,
           orElse: () => throw Exception('Working hours for today not found'));
     } catch (e) {
@@ -80,7 +79,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       timeText = 'คลินิกปิดทำการ';
     } else {
       timeText = day.timeSlots.map((slot) {
-        // Use format(context) for locale-specific time format
         return '${slot.openTime.format(context)} - ${slot.closeTime.format(context)}';
       }).join(' และ ');
     }
@@ -124,7 +122,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator.adaptive());
               }
-              // If there's an error or no data, show a placeholder card.
               if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
                 return const Card(
                     margin: EdgeInsets.symmetric(horizontal: 16.0),
@@ -135,30 +132,36 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'รายการนัดหมายของฉัน',
+            'รายการนัดหมายวันนี้',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: AppointmentService().getAppointmentsForCurrentUser(),
+            // ✨ 2. เปลี่ยน StreamBuilder ให้รับ List<AppointmentModel> ค่ะ
+            child: StreamBuilder<List<AppointmentModel>>(
+              // ✨ 3. เรียกใช้ฟังก์ชันที่ถูกต้อง และส่งวันที่ของวันนี้เข้าไปค่ะ
+              stream: _appointmentService.getAppointmentsStreamByDate(DateTime.now()),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                if (snapshot.hasError) {
+                  return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
+                }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('ไม่มีนัดหมาย'));
+                  return const Center(child: Text('ไม่มีนัดหมายสำหรับวันนี้ค่ะ'));
                 }
 
-                final appointments = snapshot.data!;
-                // Sort appointments by start time
-                appointments.sort((a, b) => (a['startTime'] as String).compareTo(b['startTime'] as String));
+                // ✨ 4. ข้อมูลที่ได้เป็น List<AppointmentModel> ที่กรองและเรียงมาแล้วค่ะ
+                final todayAppointments = snapshot.data!;
+                
                 return ListView.builder(
-
                   padding: const EdgeInsets.all(16.0),
-                  itemCount: appointments.length,
+                  itemCount: todayAppointments.length,
                   itemBuilder: (context, index) {
-                    final appt = appointments[index];
+                    // ✨ 5. ตอนนี้ appt เป็น Object ของ AppointmentModel แล้วค่ะ
+                    final appt = todayAppointments[index];
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
                       child: Container(
@@ -177,8 +180,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                               Row(
                                 children: [
                                   Expanded(
+                                    // ✨ 6. เข้าถึงข้อมูลได้โดยตรงเลยค่ะ
                                     child: Text(
-                                      appt['patientName'] ?? '',
+                                      appt.patientName,
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                     ),
                                   ),
@@ -189,18 +193,17 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      appt['status'] ?? 'Pending',
+                                      appt.status,
                                       style: const TextStyle(color: Colors.black),
                                     ),
                                   )
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(appt['type'] ?? '', style: const TextStyle(color: Colors.purple)),
-                              const SizedBox(height: 4), // Add a small space
+                              Text(appt.treatment, style: const TextStyle(color: Colors.purple)),
+                              const SizedBox(height: 4),
                               Text(
-                                // Format the date and time for display
-                                '${DateFormat('dd/MM/yyyy').format(DateTime.parse(appt['startTime']))} ${appt['startTime']?.substring(11, 16)} - ${appt['endTime']?.substring(11, 16)}',
+                                '${DateFormat('dd/MM/yyyy').format(appt.startTime)} ${DateFormat.Hm().format(appt.startTime)} - ${DateFormat.Hm().format(appt.endTime)}',
                               ),
                             ],
                           ),

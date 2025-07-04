@@ -1,4 +1,5 @@
-// 📁 lib/widgets/timeline_view.dart (เฟอร์นิเจอร์ชิ้นใหม่ของเรา ✨)
+// v1.0.4
+// 📁 lib/widgets/timeline_view.dart
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -7,11 +8,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/working_hours_model.dart';
 import '../screens/appointment_add.dart';
+import '../models/appointment_model.dart'; // ✨ 1. import พิมพ์เขียวใหม่ของเรา
 import 'appointment_card.dart';
 import 'gap_card.dart';
 import 'appointment_detail_dialog.dart';
 
-// --- คลาสผู้ช่วยสำหรับคำนวณ Layout ---
 class _AppointmentLayoutInfo {
   final Map<String, dynamic> appointmentData;
   final DateTime startTime;
@@ -30,7 +31,6 @@ class _AppointmentLayoutInfo {
   }
 }
 
-// --- Widget หลักของ Timeline View ---
 class TimelineView extends StatelessWidget {
   final DateTime selectedDate;
   final List<Map<String, dynamic>> appointments;
@@ -46,8 +46,6 @@ class TimelineView extends StatelessWidget {
     required this.onDataChanged,
     this.hourHeight = 120.0,
   });
-
-  // --- Logic สำหรับสร้าง List และคำนวณ Layout ---
   
   DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
@@ -132,8 +130,6 @@ class TimelineView extends StatelessWidget {
       },
     );
   }
-
-  // --- Widget ผู้ช่วยสำหรับสร้าง UI ---
   
   Widget _buildTimeline(DayWorkingHours workingHours) {
     List<Widget> timeWidgets = [];
@@ -147,13 +143,12 @@ class TimelineView extends StatelessWidget {
     while (currentMinute <= endMinute) {
       final currentTime = DateTime(2024, 1, 1, currentMinute ~/ 60, currentMinute % 60);
       
-      // ✨ [FIX] ปรับฟอนต์ให้เป็นตัวบางและขนาดเท่ากันทั้งหมดค่ะ! ✨
       final timeText = Text(
         DateFormat('HH:mm').format(currentTime),
-        style: TextStyle(
-          fontWeight: FontWeight.normal, // ตัวบางทั้งหมด
-          fontSize: 12, // ขนาด 12 เท่ากันทั้งหมด
-          color: Colors.grey.shade700, // สีเทาเหมือนกันทั้งหมด
+        style: const TextStyle(
+          fontWeight: FontWeight.normal,
+          fontSize: 12,
+          color: Color(0xFF6A4DBA),
         ),
       );
 
@@ -200,16 +195,32 @@ class TimelineView extends StatelessWidget {
         final layoutInfo = appointmentLayouts.firstWhere((l) => l.appointmentData == item, orElse: () => _AppointmentLayoutInfo(appointmentData: item, startTime: itemStart, endTime: itemEnd));
         final cardWidth = (contentWidth / layoutInfo.maxOverlaps) - 4;
         final left = layoutInfo.columnIndex * (cardWidth + 4);
-        final appointmentId = (item['appointment'] as Map<String, dynamic>)['appointmentId'] ?? '';
+        
+        // เราจะดึง appointmentId ออกมาเพื่อใช้สร้าง Model ค่ะ
+        final appointmentMap = item['appointment'] as Map<String, dynamic>;
+        final appointmentId = appointmentMap['appointmentId'] as String? ?? '';
 
-        // คำนวณว่าเป็นนัดหมายแบบสั้นหรือไม่
+        // ✨ [FIXED] สร้าง AppointmentModel จาก Map ก่อนส่งต่อค่ะ!
+        final appointmentModel = AppointmentModel.fromMap(appointmentId, appointmentMap);
+
         final durationInMinutes = itemEnd.difference(itemStart).inMinutes;
         final bool isShortAppointment = durationInMinutes <= 30;
         
-        positionedItems.add(Positioned(top: top, left: left, width: cardWidth, height: height, child: AppointmentCard(appointment: item['appointment'], patient: item['patient'], onTap: () {
-          if (appointmentId.isEmpty) return;
-          showDialog(context: context, builder: (_) => AppointmentDetailDialog(appointmentId: appointmentId, appointment: item['appointment'], patient: item['patient'], onDataChanged: onDataChanged));
-        }, isCompact: layoutInfo.maxOverlaps > 1, isShort: isShortAppointment)));
+        positionedItems.add(Positioned(top: top, left: left, width: cardWidth, height: height, child: AppointmentCard(
+          appointment: item['appointment'], 
+          patient: item['patient'], 
+          onTap: () {
+            if (appointmentId.isEmpty) return;
+            showDialog(context: context, builder: (_) => AppointmentDetailDialog(
+                // ✨ [FIXED] ส่ง appointmentModel ที่เป็น object ไปแทน Map ค่ะ
+                appointment: appointmentModel, 
+                patient: item['patient'], 
+                onDataChanged: onDataChanged
+            ));
+          }, 
+          isCompact: layoutInfo.maxOverlaps > 1, 
+          isShort: isShortAppointment
+        )));
       }
     }
     return Expanded(child: SizedBox(height: totalHeight, child: Stack(children: positionedItems)));

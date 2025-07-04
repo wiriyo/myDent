@@ -1,4 +1,5 @@
-// 📁 lib/widgets/appointment_detail_dialog.dart (ฉบับนำหัตถการกลับมาแล้วค่ะ 💖)
+// v1.0.3 - Fixed
+// 📁 lib/widgets/appointment_detail_dialog.dart
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,16 +8,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/appointment_service.dart';
 import '../screens/appointment_add.dart';
+import '../models/appointment_model.dart';
+import '../styles/app_theme.dart';
 
 class AppointmentDetailDialog extends StatefulWidget {
-  final String appointmentId;
-  final Map<String, dynamic> appointment;
+  final AppointmentModel appointment;
   final Map<String, dynamic> patient;
   final VoidCallback onDataChanged;
 
   const AppointmentDetailDialog({
     super.key,
-    required this.appointmentId,
     required this.appointment,
     required this.patient,
     required this.onDataChanged,
@@ -44,21 +45,17 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   @override
   void initState() {
     super.initState();
-    _currentStatus = widget.appointment['status'] ?? 'รอยืนยัน';
-
+    _currentStatus = widget.appointment.status;
     _reasonController = TextEditingController(
-      text: widget.appointment['postponedReason'] ?? '',
+      text: widget.appointment.notes ?? '',
     );
   }
 
-   @override
+  @override
   void dispose() {
-    // ✨ อย่าลืม dispose controller เพื่อคืนหน่วยความจำนะคะ ✨
     _reasonController.dispose();
     super.dispose();
   }
-
-  // --- ฟังก์ชันสำหรับจัดการการทำงานของปุ่ม ---
 
   void _makePhoneCall() async {
     final String? telephone = widget.patient['telephone']?.toString();
@@ -68,9 +65,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         await launchUrl(phoneUri);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้')));
         }
       }
     } else {
@@ -86,21 +81,23 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     Navigator.pop(context);
     showDialog(
       context: context,
-      builder:
-          (_) => AppointmentAddDialog(
-        appointmentData: {
-          'appointmentId': widget.appointmentId,
-          ...widget.appointment,
-        },
+      // ตอนนี้การเรียก AppointmentAddDialog ถูกต้องแล้วค่ะ
+      builder: (_) => AppointmentAddDialog(
+        appointment: widget.appointment, 
       ),
-    ).then((_) => widget.onDataChanged());
+    ).then((value) {
+      if (value == true) {
+        widget.onDataChanged();
+      }
+    });
   }
 
   void _deleteAppointment() async {
+    if (widget.appointment.appointmentId == null) return;
+
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('ยืนยันการลบ'),
         content: const Text('คุณต้องการลบนัดหมายนี้ใช่หรือไม่?'),
         actions: [
@@ -118,7 +115,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
     if (confirm == true) {
       try {
-        await _appointmentService.deleteAppointment(widget.appointmentId);
+        await _appointmentService.deleteAppointment(widget.appointment.appointmentId!);
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -128,9 +125,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ: $e')));
         }
       }
     }
@@ -138,14 +133,26 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
   void _saveChanges() async {
     try {
-      final reason = _currentStatus == 'เลื่อนนัด' ? _reasonController.text : null;
-      await _appointmentService.updateAppointmentDetails(
-        appointmentId: widget.appointmentId,
+      // ✨ [FIX] เพิ่ม userId ที่ขาดหายไปตรงนี้ค่ะ! ✨
+      // เราดึงข้อมูล userId มาจาก widget.appointment ที่มีอยู่แล้วค่ะ
+      final updatedAppointment = AppointmentModel(
+        appointmentId: widget.appointment.appointmentId,
+        userId: widget.appointment.userId, // <-- เพิ่มบรรทัดนี้เข้ามาค่ะ!
+        patientId: widget.appointment.patientId,
+        patientName: widget.appointment.patientName,
+        treatment: widget.appointment.treatment,
+        duration: widget.appointment.duration,
+        startTime: widget.appointment.startTime,
+        endTime: widget.appointment.endTime,
+        teeth: widget.appointment.teeth,
         status: _currentStatus,
-        postponedReason: reason,
+        notes: _reasonController.text.trim().isEmpty ? null : _reasonController.text.trim(),
       );
+
+      await _appointmentService.updateAppointment(updatedAppointment);
+      
       if (mounted) {
-        Navigator.pop(context); // ✨ เพิ่มบรรทัดนี้เพื่อปิดหน้าต่างค่ะ ✨
+        Navigator.pop(context); 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),
@@ -200,36 +207,28 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final String patientName =
-        widget.patient['name']?.toString() ?? 'ไม่มีชื่อ';
+    final String patientName = widget.appointment.patientName;
     final int rating = (widget.patient['rating'] as num?)?.toInt() ?? 0;
     final int age = _calculateAge(widget.patient['birthDate']);
     final String telephone = widget.patient['telephone']?.toString() ?? '-';
-    final String treatment = widget.appointment['treatment']?.toString() ?? '-';
-    final DateTime startTime =
-        (widget.appointment['startTime'] as Timestamp).toDate();
-    final DateTime endTime =
-        (widget.appointment['endTime'] as Timestamp).toDate();
+    final String treatment = widget.appointment.treatment;
+    final DateTime startTime = widget.appointment.startTime;
+    final DateTime endTime = widget.appointment.endTime;
     final String gender = widget.patient['gender'] ?? '';
 
-    Color dialogColor;
-    if (rating >= 5) {
-      dialogColor = const Color(0xFFE0F7E9);
-    } else if (rating >= 4) {
-      dialogColor = const Color(0xFFFFF8E1);
-    } else {
-      dialogColor = const Color(0xFFFFEBEE);
-    }
+    final dialogColor = switch (rating) {
+      >= 5 => AppTheme.rating5Star,
+      4    => AppTheme.rating4Star,
+      _    => AppTheme.rating3StarAndBelow,
+    };
 
     return AlertDialog(
       backgroundColor: dialogColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      // กำหนด padding ให้สวยงาม
       titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       
-      // --- ✨ ส่วนหัวเรื่อง (Title): เหลือแค่ Rating อย่างเดียวค่ะ ✨ ---
       title: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -242,7 +241,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         ],
       ),
 
-        // --- ส่วนเนื้อหา (Content) ---
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -250,8 +248,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           children: [
             const Divider(),
             const SizedBox(height: 16),
-
-            // ✨ ย้ายชื่อคนไข้มาอยู่ตรงนี้แทนค่ะ! ✨
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -264,17 +260,16 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF6A4DBA),
+                      fontFamily: AppTheme.fontFamily
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-
-            // (ส่วนที่เหลือเหมือนเดิมทั้งหมดค่ะ)
-            Row(children: [Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16)), const SizedBox(width: 8), if (gender.isNotEmpty) Icon(gender == 'ชาย' ? Icons.male : Icons.female, color: gender == 'ชาย' ? Colors.blue.shade300 : Colors.pink.shade200, size: 20)]),
+            Row(children: [Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const SizedBox(width: 8), if (gender.isNotEmpty) Icon(gender == 'ชาย' ? Icons.male : Icons.female, color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale, size: 20)]),
             const SizedBox(height: 4),
-            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: Colors.green.shade100, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset('assets/icons/phone.png', width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
+            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: Colors.green.shade100, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset('assets/icons/phone.png', width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
             const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,9 +280,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(treatment, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                      Text(treatment, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
                       const SizedBox(height: 4),
-                      Text('เวลา: ${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}', style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+                      Text('เวลา: ${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}', style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)),
                     ],
                   ),
                 ),
@@ -300,12 +295,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
               decoration: InputDecoration(labelText: 'สถานะ', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
-            if (_currentStatus == 'เลื่อนนัด')
+            // Note: This logic for notes can be improved later.
+            // For now, we show the text field if the status is 'เลื่อนนัด' or if there are existing notes.
+            if (_currentStatus == 'เลื่อนนัด' || (_reasonController.text.isNotEmpty && _currentStatus != 'เลื่อนนัด'))
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: TextField(
                   controller: _reasonController,
-                  decoration: InputDecoration(labelText: 'เหตุผลการเลื่อนนัด', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  decoration: InputDecoration(labelText: 'หมายเหตุ/เหตุผล', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                   maxLines: 2,
                 ),
               ),
@@ -313,19 +310,18 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         ),
       ),
 
-      // --- ส่วนปุ่มควบคุม (Actions) ---
       actions: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                _buildIconActionButton(iconPath: 'assets/icons/save.png', backgroundColor: Colors.green.shade300, tooltip: 'บันทึกการเปลี่ยนแปลง', onPressed: _saveChanges),
+                _buildIconActionButton(iconPath: 'assets/icons/save.png', backgroundColor: AppTheme.buttonCallBg, tooltip: 'บันทึกการเปลี่ยนแปลง', onPressed: _saveChanges),
                 const SizedBox(width: 12),
-                _buildIconActionButton(iconPath: 'assets/icons/edit.png', backgroundColor: Colors.orange.shade300, tooltip: 'แก้ไขนัดหมาย', onPressed: _editAppointment),
+                _buildIconActionButton(iconPath: 'assets/icons/edit.png', backgroundColor: AppTheme.buttonEditBg, tooltip: 'แก้ไขนัดหมาย', onPressed: _editAppointment),
               ],
             ),
-            _buildIconActionButton(iconPath: 'assets/icons/delete.png', backgroundColor: Colors.red.shade300, tooltip: 'ลบนัดหมาย', onPressed: _deleteAppointment),
+            _buildIconActionButton(iconPath: 'assets/icons/delete.png', backgroundColor: AppTheme.buttonDeleteBg, tooltip: 'ลบนัดหมาย', onPressed: _deleteAppointment),
           ],
         ),
       ],
@@ -339,15 +335,15 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     required VoidCallback onPressed,
   }) {
     return SizedBox(
-      height: 48, // เพิ่มความสูงเล็กน้อย
-      width: 64,  // ✨ เพิ่มความกว้างให้ปุ่มดูสมดุลค่ะ ✨
+      height: 48,
+      width: 64,
       child: Material(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(14), // เพิ่มขอบมนให้ดูนุ่มนวลขึ้น
+        borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.antiAlias,
         child: IconButton(
           tooltip: tooltip,
-          icon: Image.asset(iconPath, width: 26, height: 26, color: Colors.white), // ปรับขนาดไอคอนให้ใหญ่ขึ้นนิดนึง
+          icon: Image.asset(iconPath, width: 26, height: 26, color: Colors.black54),
           onPressed: onPressed,
         ),
       ),

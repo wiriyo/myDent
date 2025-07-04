@@ -1,130 +1,107 @@
+// v1.0.2 - Final
+// 📁 lib/services/appointment_service.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import '../models/appointment_model.dart'; 
 
 class AppointmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CollectionReference _appointmentsCollection = FirebaseFirestore.instance.collection('appointments');
 
-
-
-  Future<void> addAppointment({
-    required String appointmentId,
-    required String patientId,
-    required String patientName,
-    required String treatment,
-    required int duration,
-    required DateTime date,
-    required DateTime startTime,
-    required DateTime endTime,
-    String status = 'รอยืนยัน',
-  }) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) throw Exception("ยังไม่ได้ล็อกอิน");
-
-    final docRef = _firestore.collection('appointments').doc();
-    await docRef.set({
-      'appointmentId': docRef.id,
-      'userId': userId,
-      'patientId': patientId,
-      'patientName': patientName,
-      'treatment': treatment,
-      'duration': duration,
-      'status': status,
-      'date': Timestamp.fromDate(date),
-      'startTime': Timestamp.fromDate(startTime),
-      'endTime': Timestamp.fromDate(endTime),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    // เพิ่มการตรวจสอบว่ามีการนัดหมายซ้ำซ้อนหรือไม่
-    if (await _isTimeSlotConflict(date, startTime, endTime)) {
-        throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
-    }
-
-  }
-
-  Future<void> updateAppointment({
-    required String appointmentId,
-    required String patientId,
-    required String patientName,
-    required String treatment,
-    required int duration,
-    required String status,
-    required DateTime date,
-    required DateTime startTime,
-    required DateTime endTime,
-  }) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) throw Exception("ยังไม่ได้ล็อกอิน");
-
-    await _firestore.collection('appointments').doc(appointmentId).update({
-      'userId': userId,
-      'patientId': patientId,
-      'patientName': patientName,
-      'treatment': treatment,
-      'duration': duration,
-      'status': status,
-      'date': Timestamp.fromDate(date),
-      'startTime': Timestamp.fromDate(startTime),
-      'endTime': Timestamp.fromDate(endTime),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-     // เพิ่มการตรวจสอบว่ามีการนัดหมายซ้ำซ้อนหรือไม่
-    if (await _isTimeSlotConflict(date, startTime, endTime, appointmentId)) {
+  Future<void> addAppointment(AppointmentModel appointment) async {
+    if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime)) {
       throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
     }
 
+    try {
+      final docRef = _appointmentsCollection.doc();
+      await docRef.set({
+        ...appointment.toMap(), 
+        'appointmentId': docRef.id, 
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint("Error adding appointment: $e");
+      rethrow;
+    }
   }
 
-  Future<List<Map<String, dynamic>>> getAppointmentsByDate(
-    DateTime selectedDate,
-  ) async {
-    final startOfDay = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final endOfDay = startOfDay.add(const Duration(days: 1));
-
-    final snapshot = await _firestore
-        .collection('appointments')
-        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-        .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
-        .get();
-
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      data['appointmentId'] = doc.id;
-      return data;
-    }).toList();
-  }
-
-   Future<bool> _isTimeSlotConflict(
-    DateTime date,
-    DateTime startTime,
-    DateTime endTime, [
-    String? excludeAppointmentId,
-  ]) async {
-    final appointments = await getAppointmentsByDate(date);
-
-    for (final appointment in appointments) {
-      if (appointment['appointmentId'] == excludeAppointmentId) continue; // Skip the appointment being updated
-
-      final existingStart = (appointment['startTime'] as Timestamp).toDate();
-      final existingEnd = (appointment['endTime'] as Timestamp).toDate();
-
-      // Check for overlap:
-      // (start1 < end2) && (end1 > start2)
-      if (startTime.isBefore(existingEnd) && endTime.isAfter(existingStart)) {
-        return true; // Conflict found
-      }
-      // Also check if the new appointment completely contains an existing one
-      if (startTime.isBefore(existingStart) && endTime.isAfter(existingEnd)) {
-        return true;
-      }
+  Future<void> updateAppointment(AppointmentModel appointment) async {
+    if (appointment.appointmentId == null) {
+      throw Exception("Appointment ID is missing, cannot update.");
     }
 
-    return false; // No conflict
+    if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime, appointment.appointmentId)) {
+      throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
+    }
+
+    try {
+      await _appointmentsCollection.doc(appointment.appointmentId).update({
+        ...appointment.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint("Error updating appointment: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<AppointmentModel>> getAppointmentsByDate(DateTime selectedDate) async {
+    final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    try {
+      final snapshot = await _appointmentsCollection
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
+          .get();
+
+      return snapshot.docs
+          .map((doc) => AppointmentModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
+          .toList();
+    } catch (e) {
+      debugPrint("Error fetching appointments by date: $e");
+      return []; 
+    }
+  }
+
+  Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
+    try {
+      final querySnapshot = await _appointmentsCollection
+        .where('startTime', isLessThan: Timestamp.fromDate(endTime))
+        .where('endTime', isGreaterThan: Timestamp.fromDate(startTime))
+        .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return false;
+      }
+
+      if (excludeAppointmentId != null && querySnapshot.docs.length == 1 && querySnapshot.docs.first.id == excludeAppointmentId) {
+        return false;
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint("Error checking for time slot conflict: $e");
+      return true; 
+    }
+  }
+
+  Stream<List<AppointmentModel>> getAppointmentsStreamByDate(DateTime selectedDate) {
+    final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return _appointmentsCollection
+        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+        .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => AppointmentModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
+              .toList();
+        });
   }
 
   Future<Map<String, dynamic>?> getPatientById(String patientId) async {
@@ -136,87 +113,12 @@ class AppointmentService {
     return data;
   }
 
-  Stream<List<Map<String, dynamic>>> getAppointmentsForCurrentUser() async* {
-    final String? uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      yield [];
-      return;
-    }
-
-    final snapshots = _firestore
-        .collection('appointments')
-        .where('userId', isEqualTo: uid)
-        .snapshots();
-
-    await for (final snapshot in snapshots) {
-      final appointments = snapshot.docs.map((doc) => doc.data()).toList();
-      final patientIds = appointments.map((a) => a['patientId']).toSet();
-
-      final Map<String, String> patientNames = {};
-      for (final pid in patientIds) {
-        final patientSnapshot = await _firestore.collection('patients').doc(pid).get();
-        if (patientSnapshot.exists) {
-          final data = patientSnapshot.data();
-          patientNames[pid] = data?['name'] ?? '';
-        }
-      }
-
-      final result = appointments.map((a) {
-        return {
-          ...a,
-          'patientName': patientNames[a['patientId']] ?? '',
-        };
-      }).toList();
-
-      yield result;
-    }
-  }
-
-  // ฟังก์ชันสำหรับลบนัดหมายตาม ID ที่ส่งเข้ามาค่ะ
   Future<void> deleteAppointment(String appointmentId) async {
     try {
       await _appointmentsCollection.doc(appointmentId).delete();
     } catch (e) {
-      // เผื่อว่าเกิดข้อผิดพลาด เราจะได้รู้ค่ะ
-      print('เกิดข้อผิดพลาดในการลบนัดหมาย: $e');
-      rethrow; // ส่งต่อ error ให้ที่เรียกใช้จัดการต่อได้
-    }
-  }
-
-  /// ฟังก์ชันสำหรับอัปเดตสถานะของนัดหมายค่ะ
-  Future<void> updateAppointmentStatus(String appointmentId, String status) async {
-    try {
-      await _appointmentsCollection.doc(appointmentId).update({
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(), // อัปเดตเวลาล่าสุดด้วยเลยค่ะ
-      });
-    } catch (e) {
-      print('เกิดข้อผิดพลาดในการอัปเดตสถานะ: $e');
+      debugPrint('เกิดข้อผิดพลาดในการลบนัดหมาย: $e');
       rethrow;
     }
   }
-
-  Future<void> updateAppointmentDetails({
-    required String appointmentId,
-    required String status,
-    String? postponedReason, // รับค่าเหตุผลเข้ามา (อาจจะเป็น null ได้)
-  }) async {
-    try {
-      final dataToUpdate = <String, dynamic>{
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (postponedReason != null) {
-        dataToUpdate['postponedReason'] = postponedReason;
-      }
-
-      await _appointmentsCollection.doc(appointmentId).update(dataToUpdate);
-    } catch (e) {
-      print('เกิดข้อผิดพลาดในการอัปเดตรายละเอียดนัดหมาย: $e');
-      rethrow;
-    }
-  }
-  
 }
-

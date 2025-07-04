@@ -1,3 +1,4 @@
+// v1.0.1
 // 📁 lib/widgets/view_mode_selector.dart (เฟอร์นิเจอร์ชิ้นที่สองของเรา ✨)
 
 import 'package:flutter/material.dart';
@@ -7,12 +8,15 @@ class ViewModeSelector extends StatelessWidget {
   final CalendarFormat calendarFormat;
   final Function(CalendarFormat) onFormatChanged;
   final VoidCallback onDailyViewTapped;
+  // ✨ [FIX] เพิ่มตัวแปรใหม่เพื่อบอกว่าตอนนี้เราอยู่ในหน้ารายวันหรือเปล่า
+  final bool isDailyViewActive;
 
   const ViewModeSelector({
     super.key,
     required this.calendarFormat,
     required this.onFormatChanged,
     required this.onDailyViewTapped,
+    this.isDailyViewActive = false, // ✨ ค่าเริ่มต้นคือ false
   });
 
   @override
@@ -23,19 +27,22 @@ class ViewModeSelector extends StatelessWidget {
         _buildViewModeButton(
           label: 'เดือน',
           icon: Icons.calendar_month,
-          isActive: calendarFormat == CalendarFormat.month,
+          // ✨ [FIX] จะไฮไลท์ก็ต่อเมื่อไม่ได้อยู่ในหน้ารายวัน และ format เป็น month
+          isActive: !isDailyViewActive && calendarFormat == CalendarFormat.month,
           onPressed: () => onFormatChanged(CalendarFormat.month),
         ),
         _buildViewModeButton(
           label: 'สัปดาห์',
           icon: Icons.view_week,
-          isActive: calendarFormat == CalendarFormat.week,
+          // ✨ [FIX] จะไฮไลท์ก็ต่อเมื่อไม่ได้อยู่ในหน้ารายวัน และ format เป็น week
+          isActive: !isDailyViewActive && calendarFormat == CalendarFormat.week,
           onPressed: () => onFormatChanged(CalendarFormat.week),
         ),
         _buildViewModeButton(
           label: 'วัน',
           icon: Icons.calendar_view_day_outlined,
-          isActive: false, // ปุ่มนี้ไม่เคย active เพราะเป็นการนำทาง
+          // ✨ [FIX] จะไฮไลท์ก็ต่อเมื่อเราอยู่ในหน้ารายวัน!
+          isActive: isDailyViewActive,
           onPressed: onDailyViewTapped,
         ),
       ],

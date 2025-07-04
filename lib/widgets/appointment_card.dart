@@ -1,10 +1,11 @@
+// v1.0.2
 // 📁 lib/widgets/appointment_card.dart
-// ไลลาช่วยปรับปรุงโค้ดให้น่ารักและปลอดภัยยิ่งขึ้นค่ะ 💕
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../styles/app_theme.dart'; // ✨ 1. import AppTheme ของเราเข้ามาค่ะ
 
 // ✨ สร้าง record น่ารักๆ ไว้เก็บคู่สี จะได้ไม่ต้องพิมพ์ซ้ำซ้อนค่ะ
 typedef CardTheme = ({Color cardColor, Color borderColor});
@@ -42,22 +43,24 @@ class AppointmentCard extends StatelessWidget {
 
   // --- ✨ [Helper] ฟังก์ชันเลือกสีการ์ดสุดน่ารัก by ไลลา ✨ ---
   CardTheme _getCardTheme(int rating, String status) {
+    // ✨ [FIX] 2. เปลี่ยนมาใช้สีจาก AppTheme สำหรับ Rating ค่ะ
     if (rating > 0) {
       return switch (rating) {
         5 => (
-            cardColor: const Color(0xFFE0F2F1),
-            borderColor: const Color(0xFFB2DFDB)
+            cardColor: AppTheme.rating5Star,
+            borderColor: Colors.green.shade200, // ขอบสีเข้ม
           ),
         4 => (
-            cardColor: const Color(0xFFFFF8E1),
-            borderColor: const Color(0xFFFFECB3)
+            cardColor: AppTheme.rating4Star,
+            borderColor: Colors.yellow.shade300, // ขอบสีเข้ม
           ),
         _ => (
-            cardColor: const Color(0xFFFCE4EC),
-            borderColor: const Color(0xFFF8BBD0)
+            cardColor: AppTheme.rating3StarAndBelow,
+            borderColor: Colors.red.shade200, // ขอบสีเข้ม
           ),
       };
     }
+    // สีตามสถานะยังคงเดิมค่ะ
     return switch (status) {
       'ยืนยันแล้ว' => (
           cardColor: const Color(0xFFE8F5E9),
@@ -212,57 +215,56 @@ class AppointmentCard extends StatelessWidget {
         Column(
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center, // จัดให้อยู่กลางสวยๆ
-                children: [
-                  if (useLargeLayout) const SizedBox(height: 30),
-                  _buildInfoRow(
-                    iconAsset: 'assets/icons/user.png',
-                    text: patientName,
-                    iconSize: iconSize,
-                    textStyle: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: titleSize),
-                  ),
-                  const SizedBox(height: 4),
-
-                  // ✨ [FIX] จะแสดงเวลาและโน้ตเฉพาะนัดที่ยาวกว่า 60 นาทีเท่านั้นค่ะ! ✨
-                  if (isLongAppointment) ...[
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    if (useLargeLayout) const SizedBox(height: 30),
                     _buildInfoRow(
-                      iconAsset: 'assets/icons/clock.png',
-                      text:
-                          '${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)} ($durationInMinutes นาที)',
+                      iconAsset: 'assets/icons/user.png',
+                      text: patientName,
+                      iconSize: iconSize,
+                      textStyle: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: titleSize),
+                    ),
+                    const SizedBox(height: 4),
+                    if (isLongAppointment) ...[
+                      _buildInfoRow(
+                        iconAsset: 'assets/icons/clock.png',
+                        text:
+                            '${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)} ($durationInMinutes นาที)',
+                        iconSize: iconSize,
+                        textStyle: TextStyle(
+                            fontSize: detailSize, color: Colors.black.withOpacity(0.8)),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    _buildInfoRow(
+                      iconAsset: 'assets/icons/treatment.png',
+                      text: treatment,
                       iconSize: iconSize,
                       textStyle: TextStyle(
                           fontSize: detailSize, color: Colors.black.withOpacity(0.8)),
+                      maxLines: useLargeLayout ? 2 : 1,
                     ),
-                    const SizedBox(height: 4),
+                    if (isLongAppointment && notes.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _buildInfoRow(
+                        icon: Icons.notes_rounded,
+                        text: notes,
+                        iconSize: iconSize,
+                        iconColor: Colors.grey.shade700,
+                        textStyle: TextStyle(
+                            fontSize: notesSize,
+                            color: Colors.grey.shade800,
+                            fontStyle: FontStyle.italic),
+                        maxLines: 2,
+                      ),
+                    ],
                   ],
-
-                  _buildInfoRow(
-                    iconAsset: 'assets/icons/treatment.png',
-                    text: treatment,
-                    iconSize: iconSize,
-                    textStyle: TextStyle(
-                        fontSize: detailSize, color: Colors.black.withOpacity(0.8)),
-                    maxLines: useLargeLayout ? 2 : 1,
-                  ),
-
-                  if (isLongAppointment && notes.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    _buildInfoRow(
-                      icon: Icons.notes_rounded,
-                      text: notes,
-                      iconSize: iconSize,
-                      iconColor: Colors.grey.shade700,
-                      textStyle: TextStyle(
-                          fontSize: notesSize,
-                          color: Colors.grey.shade800,
-                          fontStyle: FontStyle.italic),
-                      maxLines: 2,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 4),
@@ -284,7 +286,7 @@ class AppointmentCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.grey.shade200),
               ),

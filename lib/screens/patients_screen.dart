@@ -1,11 +1,11 @@
+// v1.0.2
 // 📁 lib/screens/patients_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
-import '../widgets/custom_bottom_nav_bar.dart'; // ✨ [FIX] 1. import Navbar ใหม่ของเราเข้ามาค่ะ
-import 'appointment_add.dart';
+import '../widgets/custom_bottom_nav_bar.dart';
 
 
 class PatientsScreen extends StatefulWidget {
@@ -100,7 +100,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
                     : _searchResults.isEmpty
                         ? _buildNoResultsState()
                         : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+                            // ✨ [FIX] เอา Padding ด้านบนออกค่ะ
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), 
                             itemCount: _searchResults.length,
                             itemBuilder: (context, index) {
                               final data = _searchResults[index];
@@ -118,14 +119,14 @@ class _PatientsScreenState extends State<PatientsScreen> {
       ),
       floatingActionButton: _buildFloatingActionButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      // ✨ [FIX] 2. เรียกใช้ CustomBottomNavBar ของเราตรงนี้เลยค่ะ
       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
     );
   }
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      // ✨ [FIX] ลด Padding ด้านล่างลงนิดหน่อยให้สมดุลค่ะ
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), 
       child: TextField(
         controller: _searchController,
         style: const TextStyle(fontFamily: AppTheme.fontFamily),
@@ -180,8 +181,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
       ),
     );
   }
-
-  // ✨ [FIX] 3. ลบ _buildBottomAppBar และฟังก์ชันที่เกี่ยวข้องออกไปค่ะ
   
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
@@ -288,6 +287,12 @@ class _PatientCard extends StatelessWidget {
       _    => AppTheme.rating3StarAndBelow,
     };
 
+    final borderColor = switch (rating) {
+      >= 5 => AppTheme.rating5StarBorder,
+      4    => AppTheme.rating4StarBorder,
+      _    => AppTheme.rating3StarAndBelowBorder,
+    };
+
     return Card(
       elevation: 0,
       color: cardColor,
@@ -295,7 +300,7 @@ class _PatientCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: Colors.grey.shade200)
+        side: BorderSide(color: borderColor, width: 1.5)
       ),
       child: Stack(
         children: [

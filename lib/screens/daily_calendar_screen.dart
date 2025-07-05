@@ -1,4 +1,4 @@
-// v1.0.5 - Fixed
+// v1.0.7 - Final Data Type Fix
 // 📁 lib/screens/daily_calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../services/appointment_service.dart';
+import '../services/patient_service.dart';
 import '../services/working_hours_service.dart';
-import '../models/appointment_model.dart'; // ✨ 1. เพิ่ม import ที่จำเป็นค่ะ
+import '../models/appointment_model.dart';
+import '../models/patient.dart';
 import '../models/working_hours_model.dart';
 import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
@@ -26,6 +28,7 @@ class DailyCalendarScreen extends StatefulWidget {
 
 class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   final AppointmentService _appointmentService = AppointmentService();
+  final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
   List<Map<String, dynamic>> _appointmentsWithPatients = [];
@@ -38,23 +41,23 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate);
   }
 
-  // --- ✨ ระบบจัดการข้อมูล ✨ ---
   Future<void> _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
     setState(() { _isLoading = true; });
 
     try {
-      // ✨ 2. ตอนนี้ appointments เป็น List<AppointmentModel> แล้วค่ะ
       final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
       List<Map<String, dynamic>> appointmentsWithPatients = [];
 
       for (var appointment in appointments) {
-        // ✨ 3. เราจึงเข้าถึง patientId ได้โดยตรงแบบนี้ค่ะ
-        final patient = await _appointmentService.getPatientById(appointment.patientId);
+        final patient = await _patientService.getPatientById(appointment.patientId);
         if (patient != null) {
-          // ✨ 4. และแปลง Model กลับเป็น Map ก่อนส่งให้ TimelineView ค่ะ
+          final appointmentDataForTimeline = appointment.toMap();
+          appointmentDataForTimeline['appointmentId'] = appointment.appointmentId;
+
+          // ✨ The Fix! เอาตุ๊กตา Patient ใส่กล่อง .toMap() ก่อนส่งค่ะ
           appointmentsWithPatients.add({
-            'appointment': appointment.toMap(), 
-            'patient': patient
+            'appointment': appointmentDataForTimeline,
+            'patient': patient.toMap() 
           });
         }
       }
@@ -86,13 +89,12 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     return days[weekday - 1];
   }
 
-  // --- ✨ ส่วนประกอบของ UI ✨ ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        automaticallyImplyLeading: false, 
+        automaticallyImplyLeading: true,
         backgroundColor: AppTheme.primaryLight,
         elevation: 0,
         title: Text(
@@ -108,7 +110,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               isDailyViewActive: true, 
               calendarFormat: CalendarFormat.month,
               onFormatChanged: (format) {
-                Navigator.pop(context, format);
+                Navigator.pop(context);
               },
               onDailyViewTapped: () {
                   _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate);
@@ -131,7 +133,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       ),
       floatingActionButton: _buildFloatingActionButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0), // 0 คือปฏิทิน
+      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
     );
   }
 

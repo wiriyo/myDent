@@ -1,13 +1,12 @@
-// v1.0.2
+// v1.0.3 - Added Tooth Number to Full View
 // 📁 lib/widgets/appointment_card.dart
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../styles/app_theme.dart'; // ✨ 1. import AppTheme ของเราเข้ามาค่ะ
+import '../styles/app_theme.dart';
 
-// ✨ สร้าง record น่ารักๆ ไว้เก็บคู่สี จะได้ไม่ต้องพิมพ์ซ้ำซ้อนค่ะ
 typedef CardTheme = ({Color cardColor, Color borderColor});
 
 class AppointmentCard extends StatelessWidget {
@@ -26,7 +25,6 @@ class AppointmentCard extends StatelessWidget {
     this.isShort = false,
   });
 
-  // --- ✨ [Helper] ฟังก์ชันดึงข้อมูลแบบปลอดภัย by ไลลา ✨ ---
   T _getData<T>(Map<String, dynamic> data, String key, T defaultValue) {
     if (data.containsKey(key) && data[key] is T) {
       return data[key] as T;
@@ -41,26 +39,23 @@ class AppointmentCard extends StatelessWidget {
     return DateTime.now();
   }
 
-  // --- ✨ [Helper] ฟังก์ชันเลือกสีการ์ดสุดน่ารัก by ไลลา ✨ ---
   CardTheme _getCardTheme(int rating, String status) {
-    // ✨ [FIX] 2. เปลี่ยนมาใช้สีจาก AppTheme สำหรับ Rating ค่ะ
     if (rating > 0) {
       return switch (rating) {
         5 => (
             cardColor: AppTheme.rating5Star,
-            borderColor: Colors.green.shade200, // ขอบสีเข้ม
+            borderColor: Colors.green.shade200,
           ),
         4 => (
             cardColor: AppTheme.rating4Star,
-            borderColor: Colors.yellow.shade300, // ขอบสีเข้ม
+            borderColor: Colors.yellow.shade300,
           ),
         _ => (
             cardColor: AppTheme.rating3StarAndBelow,
-            borderColor: Colors.red.shade200, // ขอบสีเข้ม
+            borderColor: Colors.red.shade200,
           ),
       };
     }
-    // สีตามสถานะยังคงเดิมค่ะ
     return switch (status) {
       'ยืนยันแล้ว' => (
           cardColor: const Color(0xFFE8F5E9),
@@ -117,8 +112,9 @@ class AppointmentCard extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               constraints: const BoxConstraints(minHeight: 90),
+              // ✨ ส่งข้อมูล `teeth` เข้าไปด้วยค่ะ
               child: _buildFullView(context, startTime, endTime, patientName,
-                  treatment, status, patientPhone, notes, rating, isCompact),
+                  treatment, teeth, status, patientPhone, notes, rating, isCompact),
             );
           },
         ),
@@ -126,7 +122,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- 🧍 Widget สำหรับนัดหมายสั้นๆ (แถวเดียว) ---
   Widget _buildShortView(
       BuildContext context,
       String patientName,
@@ -190,13 +185,14 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- 📝 Widget สำหรับการ์ดเต็มรูปแบบ (แก้ไขแล้ว!) ---
+  // ✨ อัปเดตฟังก์ชันนี้ให้รับ `teeth` เข้ามาค่ะ
   Widget _buildFullView(
       BuildContext context,
       DateTime startTime,
       DateTime endTime,
       String patientName,
       String treatment,
+      String teeth, // ✨ รับ `teeth` เข้ามาแล้วค่ะ
       String status,
       String phone,
       String notes,
@@ -209,6 +205,9 @@ class AppointmentCard extends StatelessWidget {
     final double titleSize = useLargeLayout ? 19.0 : 16.0;
     final double detailSize = useLargeLayout ? 15.0 : 13.0;
     final double notesSize = useLargeLayout ? 14.0 : 12.0;
+
+    // ✨ สร้างข้อความหัตถการพร้อมซี่ฟันค่ะ
+    final String fullTreatmentText = '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}';
 
     return Stack(
       children: [
@@ -243,7 +242,8 @@ class AppointmentCard extends StatelessWidget {
                     ],
                     _buildInfoRow(
                       iconAsset: 'assets/icons/treatment.png',
-                      text: treatment,
+                      // ✨ ใช้ข้อความใหม่ที่เรารวมไว้แล้วค่ะ
+                      text: fullTreatmentText,
                       iconSize: iconSize,
                       textStyle: TextStyle(
                           fontSize: detailSize, color: Colors.black.withOpacity(0.8)),
@@ -297,7 +297,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- 💁‍♀️ [Helper Widget] สร้างแถวข้อมูลพร้อมไอคอน ---
   Widget _buildInfoRow({
     String? iconAsset,
     IconData? icon,
@@ -329,7 +328,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- 🏷️ [Helper Widget] ป้ายสถานะ ---
   Widget _buildStatusChip(String status, double fontSize) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -347,7 +345,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- ⭐ [Helper Widget] ดาว Rating ---
   Widget _buildRatingStars(int rating) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -366,7 +363,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- 📞 [Helper Widget] ปุ่มโทรแบบเต็ม ---
   Widget _buildCallButton(
       BuildContext context, String phone, String patientName) {
     return InkWell(
@@ -388,7 +384,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- 📞 [Helper Widget] ปุ่มโทรแบบย่อ ---
   Widget _buildCompactCallButton(
       BuildContext context, String phone, String patientName) {
     return InkWell(
@@ -410,7 +405,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- ☎️ [Action] ฟังก์ชันสำหรับโทรออก ---
   void _makeCall(
       BuildContext context, String? phoneNumber, String patientName) async {
     if (phoneNumber == null || phoneNumber.isEmpty) {

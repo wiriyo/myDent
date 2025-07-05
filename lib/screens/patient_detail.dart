@@ -1,14 +1,15 @@
+// v1.0.2 - Final Fix with Patient Model
+// 📁 lib/screens/patient_detail.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../models/patient.dart';
 import '../services/treatment_service.dart';
 import '../services/patient_service.dart';
 import '../models/treatment.dart';
 import 'treatment_add.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:path/path.dart' as path;
 import '../services/medical_image_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../main.dart';
@@ -43,7 +44,8 @@ void openImageViewer({
 
 class _PatientDetailScreenState extends State<PatientDetailScreen>
     with WidgetsBindingObserver {
-  Map<String, dynamic> patient = {};
+  final PatientService _patientService = PatientService();
+  Patient? patient;
   String patientId = '';
 
   @override
@@ -66,11 +68,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   }
 
   Future<void> _reloadPatientData(String docId) async {
-    final fetchedPatient = await PatientService().getPatientById(docId);
-    if (fetchedPatient != null) {
+    final fetchedPatient = await _patientService.getPatientById(docId);
+    if (mounted && fetchedPatient != null) {
       setState(() {
-        patient = fetchedPatient.toMap();
-        patient['docId'] = fetchedPatient.patientId;
+        patient = fetchedPatient;
       });
     }
   }
@@ -78,22 +79,27 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    if (args != null) {
-      patient = args;
-      patientId = patient['docId'] ?? '';
-      if (patientId.isNotEmpty) {
-        _reloadPatientData(patientId);
+    if (patient == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      
+      Patient? initialPatient;
+      if (args is Patient) {
+        // ✨ ถ้าข้อมูลที่ส่งมาเป็น Patient Model อยู่แล้ว ก็ใช้ได้เลยค่ะ
+        initialPatient = args;
+      } else if (args is Map<String, dynamic>) {
+        // ✨ ถ้าเป็น Map แบบเก่า ก็แปลงเป็น Patient Model ค่ะ
+        initialPatient = Patient.fromMap(args);
       }
-    }
-  }
 
-  @override
-  void didUpdateWidget(covariant PatientDetailScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (patientId.isNotEmpty) {
-      _reloadPatientData(patientId);
+      if (initialPatient != null) {
+        setState(() {
+          patient = initialPatient;
+          patientId = initialPatient!.patientId;
+        });
+        if (patientId.isNotEmpty) {
+          _reloadPatientData(patientId);
+        }
+      }
     }
   }
 
@@ -113,24 +119,32 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       }),
     );
   }
+  
+  int _calculateAge(DateTime? birthDate) {
+    if (birthDate == null) return 0;
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
+    return age > 0 ? age : 0;
+  }
 
   Future<void> requestPermissions() async {
     if (await Permission.photos.request().isGranted ||
         await Permission.storage.request().isGranted ||
         await Permission.camera.request().isGranted) {
-      // ผ่านจ้า
     } else {
-      // ไม่อนุญาต ก็แสดง dialog หรือเตือนนิดนึง
     }
   }
 
   Future<File?> pickImage(ImageSource source) async {
-    print("เรียก pickImage แล้วจ้า source: $source");
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
       source: source,
-      imageQuality: 75, // 💖 ลดขนาดเพื่อประหยัดพื้นที่
-      maxWidth: 1080, // ป้องกันภาพใหญ่เกิน
+      imageQuality: 75,
+      maxWidth: 1080,
     );
 
     if (pickedFile != null) {
@@ -182,7 +196,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   }
                 },
               ),
-              // กล้องก็แก้คล้ายกันนะคะ
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Colors.deepOrange),
                 title: const Text("ถ่ายรูปด้วยกล้อง"),
@@ -220,71 +233,32 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     );
   }
 
-  Future<void> uploadMedicalImage(File imageFile) async {
-    if (patientId.isEmpty) return;
-
-    try {
-      final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      final ref = FirebaseStorage.instance.ref().child(
-        'medical_images/$patientId/$fileName.jpg',
-      );
-
-      final uploadTask = await ref.putFile(imageFile);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-
-      await FirebaseFirestore.instance
-          .collection('patients')
-          .doc(patientId)
-          .collection('medical_images')
-          .add({
-            'url': downloadUrl,
-            'uploadedAt': FieldValue.serverTimestamp(),
-          });
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('อัปโหลดภาพสำเร็จแล้ว 💜')));
-    } catch (e) {
-      print('❌ Upload failed: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
-    }
-  }
-
-  Future<String?> uploadImageToStorage(File image) async {
-    try {
-      final fileName = path.basename(image.path);
-      final storageRef = FirebaseStorage.instance.ref().child(
-        'medical_images/$patientId/$fileName',
-      );
-
-      final uploadTask = await storageRef.putFile(image);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-      return downloadUrl;
-    } catch (e) {
-      print('❌ Upload failed: $e');
-      return null;
-    }
-  }
-  // function
-
   @override
   Widget build(BuildContext context) {
-    final String prefix = patient['prefix'] ?? '';
-    final String name = patient['name'] ?? 'ไม่พบชื่อ';
-    final String gender = patient['gender'] ?? 'หญิง';
-    final int age = patient['age'] ?? 0;
-    final String phone = patient['telephone'] ?? '-';
-    final int rating = (patient['rating'] is int) ? patient['rating'] : 3;
+    if (patient == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('รายละเอียดคนไข้'),
+          backgroundColor: const Color(0xFFE0BBFF),
+        ),
+        body: const Center(child: CircularProgressIndicator(color: Colors.purple)),
+      );
+    }
+    
+    final String prefix = patient!.prefix;
+    final String name = patient!.name;
+    final String gender = patient!.gender;
+    final int age = _calculateAge(patient!.birthDate);
+    final String phone = patient!.telephone ?? '-';
+    final int rating = patient!.rating;
 
     Color cardColor;
     if (rating >= 5) {
-      cardColor = const Color(0xFFE0F7E9); // Greenish for high rating
+      cardColor = const Color(0xFFE0F7E9);
     } else if (rating >= 4) {
-      cardColor = const Color(0xFFFFF8E1); // Yellowish for medium rating
+      cardColor = const Color(0xFFFFF8E1);
     } else {
-      cardColor = const Color(0xFFFFEBEE); // Reddish for lower rating
+      cardColor = const Color(0xFFFFEBEE);
     }
 
     return Scaffold(
@@ -375,7 +349,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                             children: [
                               Text('เบอร์โทร: $phone'),
                               const SizedBox(height: 4),
-                              Text('ที่อยู่: ${patient['address'] ?? '-'}'),
+                              Text('ที่อยู่: ${patient!.address ?? '-'}'),
                             ],
                           ),
                         ),
@@ -420,7 +394,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   ),
                 ),
                 
-
                 Row(
                   children: [
                     StreamBuilder<List<Treatment>>(
@@ -428,10 +401,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       builder: (context, snapshot) {
                         final total =
                             snapshot.data?.fold<double>(
-                              0,
-                              (prev, e) => prev + e.price,
-                            ) ??
-                            0.0;
+                                  0,
+                                  (prev, e) => prev + e.price,
+                                ) ??
+                                0.0;
                         return Text(
                           '🧾 ${total.toStringAsFixed(0)} บาท',
                           style: const TextStyle(
@@ -443,7 +416,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       },
                     ),
                     const SizedBox(width: 12),
-                    // 🩻 ปุ่มเพิ่มภาพแบบกลมเล็ก
                     Container(
                       width: 64,
                       height: 64,
@@ -595,8 +567,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
 
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          final id = patient['id'] ?? 'P-0001';
-          showTreatmentDialog(context, patientId: patient['docId']);
+          showTreatmentDialog(context, patientId: patientId);
         },
         backgroundColor: Colors.purple,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

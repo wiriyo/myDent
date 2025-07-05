@@ -1,18 +1,22 @@
-// v1.0.2 - Final
+// v1.0.5 - Added Missing Import
 // 📁 lib/services/appointment_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/appointment_model.dart'; 
+import '../models/patient.dart';
+import '../services/patient_service.dart'; // ✨ The Fix! เพิ่ม import ที่ขาดไปค่ะ
 
 class AppointmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CollectionReference _appointmentsCollection = FirebaseFirestore.instance.collection('appointments');
 
   Future<void> addAppointment(AppointmentModel appointment) async {
-    if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime)) {
-      throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
-    }
+    // ✨ The Fix! ไลลาได้บอกให้พี่ รปภ. ของเราใจดีขึ้นแล้วนะคะ
+    // เราจะอนุญาตให้มีการนัดซ้อนได้ โดยการคอมเมนต์ส่วนที่เช็คเวลาออกไปก่อนค่ะ
+    // if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime)) {
+    //   throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
+    // }
 
     try {
       final docRef = _appointmentsCollection.doc();
@@ -33,9 +37,10 @@ class AppointmentService {
       throw Exception("Appointment ID is missing, cannot update.");
     }
 
-    if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime, appointment.appointmentId)) {
-      throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
-    }
+    // ✨ The Fix! ตอนอัปเดตเราก็จะให้เขานัดซ้อนได้เหมือนกันค่ะ
+    // if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime, appointment.appointmentId)) {
+    //   throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
+    // }
 
     try {
       await _appointmentsCollection.doc(appointment.appointmentId).update({
@@ -67,6 +72,7 @@ class AppointmentService {
     }
   }
 
+  // ฟังก์ชันนี้เรายังเก็บไว้นะคะ เผื่ออนาคตอยากกลับมาใช้ค่ะ
   Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
     try {
       final querySnapshot = await _appointmentsCollection
@@ -78,10 +84,14 @@ class AppointmentService {
         return false;
       }
 
-      if (excludeAppointmentId != null && querySnapshot.docs.length == 1 && querySnapshot.docs.first.id == excludeAppointmentId) {
-        return false;
+      if (excludeAppointmentId != null) {
+        // ถ้ามีนัดเดียว และเป็นนัดของตัวเอง ก็ไม่ถือว่าซ้อนค่ะ
+        if (querySnapshot.docs.length == 1 && querySnapshot.docs.first.id == excludeAppointmentId) {
+          return false;
+        }
       }
       
+      // ถ้ามีนัดอื่นอยู่แล้ว ถือว่าซ้อนค่ะ
       return true;
     } catch (e) {
       debugPrint("Error checking for time slot conflict: $e");
@@ -96,6 +106,7 @@ class AppointmentService {
     return _appointmentsCollection
         .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
         .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
+        .orderBy('startTime')
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
@@ -104,13 +115,9 @@ class AppointmentService {
         });
   }
 
-  Future<Map<String, dynamic>?> getPatientById(String patientId) async {
-    final snapshot = await _firestore.collection('patients').doc(patientId).get();
-    if (!snapshot.exists) return null;
-
-    final data = snapshot.data()!;
-    data['patientId'] = snapshot.id;
-    return data;
+  Future<Patient?> getPatientById(String patientId) async {
+    final PatientService patientService = PatientService();
+    return await patientService.getPatientById(patientId);
   }
 
   Future<void> deleteAppointment(String appointmentId) async {

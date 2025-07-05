@@ -1,98 +1,89 @@
+// v1.1.0 - Complete & Stable
+// 📁 lib/services/patient_service.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/patient.dart';
+import 'package:flutter/foundation.dart';
+import '../models/patient.dart'; // ✨ Import พิมพ์เขียว Patient ของเราค่ะ
 
 class PatientService {
-  final CollectionReference patientsCollection =
-      FirebaseFirestore.instance.collection('patients'); // 🌸 collection มาตรฐานเลยน้า
+  final CollectionReference _patientsCollection = FirebaseFirestore.instance.collection('patients');
 
-  // เพิ่มคนไข้ใหม่
-  Future<void> addPatient(Patient patient) async {
+  // --- ✨ [อ่านข้อมูล] ดึงข้อมูลคนไข้ทั้งหมด (สำหรับ Autocomplete) ---
+  /// ดึงข้อมูลคนไข้ทั้งหมดจาก Firestore แค่ครั้งเดียว
+  /// เหมาะสำหรับใช้ในหน้าเพิ่มนัดหมายเพื่อทำ Autocomplete ค่ะ
+  Future<List<Patient>> fetchPatientsOnce() async {
     try {
-      //await patientsCollection.doc(patient.patientId).set(patient.toMap());
-      final docRef = await patientsCollection.add(patient.toMap());
-      await docRef.update({'patientId': docRef.id});
-    } catch (e) {
-      print('Error adding patient: $e');
-      rethrow;
-    }
-  }
-
-  // อัปเดตข้อมูลคนไข้ (รวมถึง rating ถ้ามี)
-  Future<void> updatePatient(Patient patient) async {
-    try {
-      await patientsCollection.doc(patient.patientId).update(patient.toMap());
-    } catch (e) {
-      print('Error updating patient: $e');
-      rethrow;
-    }
-  }
-
-  // อัปเดตแค่ rating ของคนไข้
-  Future<void> updateRating(String patientId, int rating) async {
-    try {
-      await patientsCollection.doc(patientId).update({
-        'rating': rating,
-      });
-    } catch (e) {
-      print('Error updating rating: $e');
-      rethrow;
-    }
-  }
-
-  // ลบคนไข้
-  Future<void> deletePatient(String patientId) async {
-    try {
-      await patientsCollection.doc(patientId).delete();
-    } catch (e) {
-      print('Error deleting patient: $e');
-      rethrow;
-    }
-  }
-
-  // ดึงข้อมูลคนไข้ทั้งหมดแบบ real-time
-  Stream<List<Patient>> getPatients() {
-    return patientsCollection.snapshots().map((snapshot) {
+      final snapshot = await _patientsCollection.orderBy('name').get();
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        data['patientId'] = doc.id; // เพิ่ม patientId ที่นี่
+        // เพิ่ม docId เข้าไปใน Map ก่อนส่งไปสร้าง Model ค่ะ
+        data['docId'] = doc.id;
+        return Patient.fromMap(data);
+      }).toList();
+    } catch (e) {
+      debugPrint("เกิดข้อผิดพลาดในการดึงข้อมูลคนไข้: $e");
+      return [];
+    }
+  }
+
+  // --- ✨ [อ่านข้อมูล] ดึงข้อมูลคนไข้คนเดียวด้วย ID ---
+  /// ดึงข้อมูลคนไข้คนเดียวแบบเจาะจงด้วย patientId ค่ะ
+  /// เหมาะสำหรับใช้ในหน้ารายละเอียดคนไข้
+  Future<Patient?> getPatientById(String patientId) async {
+    if (patientId.isEmpty) return null;
+    try {
+      final doc = await _patientsCollection.doc(patientId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['docId'] = doc.id;
+        return Patient.fromMap(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("เกิดข้อผิดพลาดในการดึงข้อมูลคนไข้ด้วย ID: $e");
+      return null;
+    }
+  }
+  
+  // --- ✨ [อ่านข้อมูล] ดึงข้อมูลคนไข้ทั้งหมด (แบบ Real-time) ---
+  /// ดึงข้อมูลคนไข้ทั้งหมดแบบ Real-time ค่ะ
+  /// เหมาะสำหรับใช้ในหน้ารายชื่อคนไข้ (PatientsScreen)
+  Stream<List<Patient>> getPatientsStream() {
+    return _patientsCollection.orderBy('name').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['docId'] = doc.id;
         return Patient.fromMap(data);
       }).toList();
     });
   }
 
-    // ดึงข้อมูลคนไข้ทั้งหมดแบบครั้งเดียว (ใช้ .get())
-Future<List<Patient>> fetchPatientsOnce() async {
-  try {
-    final snapshot = await patientsCollection.get();
-    print('--- Loaded ${snapshot.docs.length} documents ---');
-    for (var doc in snapshot.docs) {
-      print('🔍 document: ${doc.id}, data: ${doc.data()}');
-    }
-    return snapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      data['patientId'] = doc.id; // เพิ่ม patientId ที่นี่
-      return Patient.fromMap(data);
-    }).toList();
-  } catch (e) {
-    print('Error fetching patients once: $e');
-    rethrow;
-  }
-}
-
-
-  // ดึงข้อมูลคนไข้คนเดียว (by patientId)
-  Future<Patient?> getPatientById(String patientId) async {
+  // --- ✨ [สร้างข้อมูล] เพิ่มคนไข้ใหม่ ---
+  Future<void> addPatient(Patient patient) async {
     try {
-      DocumentSnapshot doc = await patientsCollection.doc(patientId).get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['patientId'] = doc.id; // เพิ่ม patientId ที่นี่
-        return Patient.fromMap(data);
-      } else {
-        return null;
-      }
+      await _patientsCollection.add(patient.toMap());
     } catch (e) {
-      print('Error getting patient: $e');
+      debugPrint("เกิดข้อผิดพลาดในการเพิ่มคนไข้: $e");
+      rethrow;
+    }
+  }
+
+  // --- ✨ [อัปเดตข้อมูล] แก้ไขข้อมูลคนไข้ ---
+  Future<void> updatePatient(Patient patient) async {
+    try {
+      await _patientsCollection.doc(patient.patientId).update(patient.toMap());
+    } catch (e) {
+      debugPrint("เกิดข้อผิดพลาดในการอัปเดตคนไข้: $e");
+      rethrow;
+    }
+  }
+
+  // --- ✨ [ลบข้อมูล] ลบคนไข้ ---
+  Future<void> deletePatient(String patientId) async {
+    try {
+      await _patientsCollection.doc(patientId).delete();
+    } catch (e) {
+      debugPrint("เกิดข้อผิดพลาดในการลบคนไข้: $e");
       rethrow;
     }
   }

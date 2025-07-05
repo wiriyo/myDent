@@ -1,14 +1,18 @@
-// v1.1.2 - Final
+// v1.1.8 - Re-added Cancel Button
 // 📁 lib/screens/appointment_add.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../models/appointment_model.dart'; 
-import '../services/appointment_service.dart'; 
+import 'package:intl/intl.dart';
+import '../models/appointment_model.dart';
+import '../models/patient.dart';
+import '../services/appointment_service.dart';
+import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 
 class AppointmentAddDialog extends StatefulWidget {
-  final AppointmentModel? appointment; 
+  final AppointmentModel? appointment;
   final DateTime? initialDate;
   final DateTime? initialStartTime;
 
@@ -25,7 +29,10 @@ class AppointmentAddDialog extends StatefulWidget {
 
 class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _appointmentService = AppointmentService();
+  final AppointmentService _appointmentService = AppointmentService();
+  final PatientService _patientService = PatientService();
+
+  List<Patient> _allPatients = [];
 
   String? _selectedPatientId;
   late TextEditingController _patientController;
@@ -33,7 +40,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   late TextEditingController _durationController;
   late TextEditingController _notesController;
   late TextEditingController _teethController;
-  
+
   late DateTime _selectedDate;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -52,28 +59,38 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   @override
   void initState() {
     super.initState();
-    _isEditing = widget.appointment != null;
+    _loadAllPatients();
 
+    _isEditing = widget.appointment != null;
     final initialAppointment = widget.appointment;
 
     _patientController = TextEditingController(text: initialAppointment?.patientName ?? '');
     _selectedPatientId = initialAppointment?.patientId;
-    
+
     _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? '');
     _durationController = TextEditingController(text: initialAppointment?.duration.toString() ?? '30');
     _notesController = TextEditingController(text: initialAppointment?.notes ?? '');
-    _teethController = TextEditingController(text: initialAppointment?.teeth?.join(', ') ?? ''); 
-    
+    _teethController = TextEditingController(text: initialAppointment?.teeth?.join(', ') ?? '');
+
     _status = initialAppointment?.status ?? 'รอยืนยัน';
     _selectedDate = initialAppointment?.startTime ?? widget.initialDate ?? DateTime.now();
-    _startTime = initialAppointment != null 
+    _startTime = initialAppointment != null
         ? TimeOfDay.fromDateTime(initialAppointment.startTime)
-        : widget.initialStartTime != null 
-            ? TimeOfDay.fromDateTime(widget.initialStartTime!) 
+        : widget.initialStartTime != null
+            ? TimeOfDay.fromDateTime(widget.initialStartTime!)
             : const TimeOfDay(hour: 9, minute: 0);
 
     _calculateEndTime();
     _durationController.addListener(_calculateEndTime);
+  }
+
+  Future<void> _loadAllPatients() async {
+    final patients = await _patientService.fetchPatientsOnce();
+    if (mounted) {
+      setState(() {
+        _allPatients = patients;
+      });
+    }
   }
 
   @override
@@ -124,21 +141,21 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้')));
       return;
     }
-    
+
     if (_startTime == null || _endTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้')));
       return;
     }
-    
+
     final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
     final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
-    
+
     final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
     final appointment = AppointmentModel(
       appointmentId: widget.appointment?.appointmentId,
       userId: userId,
-      patientId: _selectedPatientId ?? 'N/A', 
+      patientId: _selectedPatientId ?? 'N/A',
       patientName: _patientController.text.trim(),
       treatment: _treatmentController.text.trim(),
       duration: int.tryParse(_durationController.text.trim()) ?? 30,
@@ -155,15 +172,15 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       } else {
         await _appointmentService.addAppointment(appointment);
       }
-      
-      if(mounted) {
+
+      if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨', style: TextStyle(fontFamily: AppTheme.fontFamily))),
         );
       }
     } catch (e) {
-      if(mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}', style: TextStyle(fontFamily: AppTheme.fontFamily))),
         );
@@ -189,7 +206,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary),
                 ),
                 const SizedBox(height: 24),
-                _buildPatientField(),
+                _buildPatientAutocompleteField(),
                 const SizedBox(height: 16),
                 _buildTreatmentField(),
                 const SizedBox(height: 16),
@@ -210,11 +227,72 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     );
   }
 
-  Widget _buildPatientField() {
-    return TextFormField(
-      controller: _patientController,
-      decoration: const InputDecoration(labelText: 'ชื่อคนไข้'),
-      validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่ชื่อคนไข้' : null,
+  Widget _buildPatientAutocompleteField() {
+    return Autocomplete<Patient>(
+      displayStringForOption: (patient) => patient.name,
+      initialValue: TextEditingValue(text: _patientController.text),
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        _patientController.text = textEditingValue.text;
+        if (textEditingValue.text.isEmpty) {
+          setState(() {
+             _selectedPatientId = null;
+          });
+          return const Iterable<Patient>.empty();
+        }
+        return _allPatients.where((patient) {
+          final patientName = patient.name.toLowerCase();
+          final hnNumber = patient.hnNumber?.toLowerCase() ?? '';
+          final query = textEditingValue.text.toLowerCase();
+          return patientName.contains(query) || hnNumber.contains(query);
+        });
+      },
+      onSelected: (patient) {
+        setState(() {
+          _selectedPatientId = patient.patientId;
+          _patientController.text = patient.name;
+        });
+      },
+      fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: textEditingController,
+          focusNode: focusNode,
+          decoration: const InputDecoration(
+            labelText: 'ชื่อคนไข้',
+            hintText: 'เริ่มพิมพ์เพื่อค้นหาด้วยชื่อ หรือ HN...'
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'กรุณาใส่ชื่อคนไข้';
+            }
+            return null;
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4.0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 250),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: options.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final option = options.elementAt(index);
+                  return InkWell(
+                    onTap: () => onSelected(option),
+                    child: ListTile(
+                      title: Text(option.name),
+                      subtitle: Text('HN: ${option.hnNumber ?? 'N/A'}'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -225,7 +303,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่หัตถการ' : null,
     );
   }
-  
+
   Widget _buildTimeAndDurationFields() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,24 +372,40 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('ยกเลิก'),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: _saveAppointment,
-          icon: const Icon(Icons.save),
-          label: const Text('บันทึก'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.buttonEditBg,
-            foregroundColor: AppTheme.buttonEditFg,
+    if (_isEditing) {
+      // --- ✨ The Fix! เพิ่มปุ่มยกเลิกกลับมาในโหมดแก้ไขค่ะ ---
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('ยกเลิก'),
           ),
-        ),
-      ],
-    );
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: _saveAppointment,
+            icon: const Icon(Icons.save_alt_rounded),
+            label: const Text('บันทึกการแก้ไข'),
+          ),
+        ],
+      );
+    } else {
+      // --- โหมดเพิ่มใหม่: แสดงปุ่มยกเลิกและบันทึกเหมือนเดิมค่ะ ---
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('ยกเลิก'),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: _saveAppointment,
+            icon: const Icon(Icons.add_task_rounded),
+            label: const Text('เพิ่มนัดหมาย'),
+          ),
+        ],
+      );
+    }
   }
 }

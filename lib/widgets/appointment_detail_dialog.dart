@@ -1,4 +1,4 @@
-// v1.0.3 - Fixed
+// v1.1.4 - Added Inline Call Button
 // 📁 lib/widgets/appointment_detail_dialog.dart
 
 import 'package:flutter/material.dart';
@@ -59,7 +59,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
   void _makePhoneCall() async {
     final String? telephone = widget.patient['telephone']?.toString();
-    if (telephone != null && telephone.isNotEmpty) {
+    if (telephone != null && telephone.isNotEmpty && telephone != '-') {
       final Uri phoneUri = Uri.parse('tel:$telephone');
       if (await canLaunchUrl(phoneUri)) {
         await launchUrl(phoneUri);
@@ -81,7 +81,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     Navigator.pop(context);
     showDialog(
       context: context,
-      // ตอนนี้การเรียก AppointmentAddDialog ถูกต้องแล้วค่ะ
       builder: (_) => AppointmentAddDialog(
         appointment: widget.appointment, 
       ),
@@ -133,11 +132,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
   void _saveChanges() async {
     try {
-      // ✨ [FIX] เพิ่ม userId ที่ขาดหายไปตรงนี้ค่ะ! ✨
-      // เราดึงข้อมูล userId มาจาก widget.appointment ที่มีอยู่แล้วค่ะ
       final updatedAppointment = AppointmentModel(
         appointmentId: widget.appointment.appointmentId,
-        userId: widget.appointment.userId, // <-- เพิ่มบรรทัดนี้เข้ามาค่ะ!
+        userId: widget.appointment.userId,
         patientId: widget.appointment.patientId,
         patientName: widget.appointment.patientName,
         treatment: widget.appointment.treatment,
@@ -208,13 +205,15 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final String patientName = widget.appointment.patientName;
-    final int rating = (widget.patient['rating'] as num?)?.toInt() ?? 0;
+    final int rating = (widget.patient['rating'] as num?)?.toInt() ?? 3;
     final int age = _calculateAge(widget.patient['birthDate']);
     final String telephone = widget.patient['telephone']?.toString() ?? '-';
     final String treatment = widget.appointment.treatment;
     final DateTime startTime = widget.appointment.startTime;
     final DateTime endTime = widget.appointment.endTime;
     final String gender = widget.patient['gender'] ?? '';
+    final String medicalHistory = widget.patient['medicalHistory'] ?? 'ไม่มี';
+    final String allergy = widget.patient['allergy'] ?? 'ไม่มี';
 
     final dialogColor = switch (rating) {
       >= 5 => AppTheme.rating5Star,
@@ -251,7 +250,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Image.asset('assets/icons/user.png', width: 24, height: 24, color: const Color(0xFF6A4DBA)),
+                Image.asset('assets/icons/user.png', width: 24, height: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -267,10 +266,47 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(children: [Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const SizedBox(width: 8), if (gender.isNotEmpty) Icon(gender == 'ชาย' ? Icons.male : Icons.female, color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale, size: 20)]),
+            Row(children: [
+              Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), 
+              const SizedBox(width: 8), 
+              if (gender.isNotEmpty) 
+                Icon(
+                  gender == 'ชาย' ? Icons.male : Icons.female, 
+                  color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale, 
+                  size: 20
+                )
+            ]),
             const SizedBox(height: 4),
-            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: Colors.green.shade100, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset('assets/icons/phone.png', width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
+            // ✨ The Fix! เพิ่มปุ่มโทรศัพท์เล็กๆ ไว้ข้างหลังเบอร์โทรค่ะ
+            Row(
+              children: [
+                Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)),
+                const Spacer(),
+                if (telephone.isNotEmpty && telephone != '-')
+                  SizedBox(
+                    height: 38,
+                    width: 38,
+                    child: Material(
+                      color: AppTheme.buttonCallBg,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Image.asset('assets/icons/phone.png', width: 20),
+                        onPressed: _makePhoneCall,
+                        tooltip: 'โทรหาคนไข้',
+                      ),
+                    ),
+                  )
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            _buildInfoRow(text: 'โรคประจำตัว: $medicalHistory'),
+            const SizedBox(height: 4),
+            _buildInfoRow(text: 'แพ้ยา: $allergy'),
             const SizedBox(height: 16),
+
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -295,9 +331,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
               decoration: InputDecoration(labelText: 'สถานะ', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
-            // Note: This logic for notes can be improved later.
-            // For now, we show the text field if the status is 'เลื่อนนัด' or if there are existing notes.
-            if (_currentStatus == 'เลื่อนนัด' || (_reasonController.text.isNotEmpty && _currentStatus != 'เลื่อนนัด'))
+            if (_currentStatus == 'เลื่อนนัด' || (_reasonController.text.isNotEmpty))
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: TextField(
@@ -328,6 +362,19 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     );
   }
 
+  Widget _buildInfoRow({String? icon, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (icon != null) ...[
+          Image.asset(icon, width: 16, height: 16, color: Colors.grey.shade700),
+          const SizedBox(width: 8),
+        ],
+        Expanded(child: Text(text, style: TextStyle(fontSize: 14, fontFamily: AppTheme.fontFamily, color: Colors.grey.shade800))),
+      ],
+    );
+  }
+
   Widget _buildIconActionButton({
     required String iconPath,
     required Color backgroundColor,
@@ -343,7 +390,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         clipBehavior: Clip.antiAlias,
         child: IconButton(
           tooltip: tooltip,
-          icon: Image.asset(iconPath, width: 26, height: 26, color: Colors.black54),
+          icon: Image.asset(iconPath, width: 26, height: 26),
           onPressed: onPressed,
         ),
       ),

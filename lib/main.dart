@@ -1,3 +1,6 @@
+// v1.0.2 - Refreshed
+// 📁 lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -14,7 +17,7 @@ import 'screens/setting_screen.dart';
 import 'screens/patient_detail.dart';
 import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
-// 🌟 เพิ่ม global key
+
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
@@ -44,7 +47,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MyDent',
       debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: scaffoldMessengerKey, // 🎯 ใส่ตรงนี้เลยจ้า
+      scaffoldMessengerKey: scaffoldMessengerKey,
       locale: const Locale('th', 'TH'),
       supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
       localizationsDelegates: const [
@@ -75,6 +78,7 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
+        // ✨ โค้ดส่วนนี้ถูกต้องแล้วค่ะ
         '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
         '/calendar': (context) => const CalendarScreen(),
         '/login': (context) => const LoginScreen(),

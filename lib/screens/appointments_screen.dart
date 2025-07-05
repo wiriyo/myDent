@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../auth/login_screen.dart';
 import '../models/appointment_model.dart'; // ✨ 1. เราจะใช้ Model โดยตรงค่ะ

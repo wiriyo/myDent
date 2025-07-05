@@ -1,13 +1,16 @@
-// v1.0.2 - Fixed
+// v1.0.5 - Refactored for Weekly View
 // 📁 lib/screens/calendar_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 🌸 Imports from our project
 import '../services/appointment_service.dart';
 import '../services/working_hours_service.dart';
-import '../models/appointment_model.dart'; // ✨ 1. เราจะใช้ Model โดยตรงค่ะ
+import '../services/patient_service.dart';
+import '../models/appointment_model.dart';
+import '../models/patient.dart';
 import '../models/working_hours_model.dart';
 import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
@@ -15,6 +18,7 @@ import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
+import 'weekly_calendar_screen.dart'; // ✨ 1. Import บ้านหลังใหม่ของเราเข้ามาค่ะ
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -26,12 +30,14 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen> {
   final AppointmentService _appointmentService = AppointmentService();
+  final PatientService _patientService = PatientService();
   List<Map<String, dynamic>> _selectedAppointmentsWithPatients = [];
   DateTime _focusedDay = DateTime.now();
   late DateTime _selectedDay;
   DayWorkingHours? _selectedDayWorkingHours;
   final WorkingHoursService _workingHoursService = WorkingHoursService();
-  CalendarFormat _calendarFormat = CalendarFormat.month;
+  // 🌸 เราจะให้หน้านี้เป็นรายเดือนเสมอค่ะ
+  CalendarFormat _calendarFormat = CalendarFormat.month; 
   bool _isLoading = true;
 
   @override
@@ -44,18 +50,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Future<void> _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
     setState(() { _isLoading = true; });
     try {
-      // ✨ 2. ตอนนี้ appointments เป็น List<AppointmentModel> แล้วค่ะ
       final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
       List<Map<String, dynamic>> appointmentsWithPatients = [];
 
       for (var appointment in appointments) {
-        // ✨ 3. เราจึงเข้าถึง patientId ได้โดยตรงแบบนี้ค่ะ
-        final patient = await _appointmentService.getPatientById(appointment.patientId);
+        final patient = await _patientService.getPatientById(appointment.patientId);
         if (patient != null) {
-          // ✨ 4. และแปลง Model กลับเป็น Map ก่อนส่งให้ TimelineView ค่ะ
+          final appointmentDataForTimeline = appointment.toMap();
+          appointmentDataForTimeline['appointmentId'] = appointment.appointmentId;
+
           appointmentsWithPatients.add({
-            'appointment': appointment.toMap(), 
-            'patient': patient
+            'appointment': appointmentDataForTimeline,
+            'patient': patient.toMap()
           });
         }
       }
@@ -112,9 +118,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: ViewModeSelector(
               calendarFormat: _calendarFormat,
+              // ✨ 2. สอนให้ปุ่มเลือกมุมมองรู้จักบ้านหลังใหม่ค่ะ
               onFormatChanged: (format) {
-                if (_calendarFormat != format) {
-                  setState(() { _calendarFormat = format; });
+                if (format == CalendarFormat.week) {
+                  // 🚀 ถ้ากดปุ่ม 'สัปดาห์' ให้วาร์ปไปหน้า WeeklyCalendarScreen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WeeklyCalendarScreen(focusedDate: _focusedDay),
+                    ),
+                  ).then((_) {
+                    // 🔄 เมื่อกลับมา ให้รีเฟรชข้อมูลเผื่อมีการเปลี่ยนแปลงค่ะ
+                    _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
+                  });
+                } else {
+                  // ถ้าเป็นโหมดอื่น (เช่น เดือน) ก็แค่เปลี่ยน state เหมือนเดิม
+                  if (_calendarFormat != format) {
+                    setState(() { _calendarFormat = format; });
+                  }
                 }
               },
               onDailyViewTapped: () {
@@ -123,14 +144,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   MaterialPageRoute(
                     builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay),
                   ),
-                ).then((newFormat) {
-                    if (newFormat is CalendarFormat && newFormat != _calendarFormat) {
-                      setState(() {
-                        _calendarFormat = newFormat;
-                      });
-                    }
+                ).then((_) {
                   _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
-                  });
+                });
               },
             ),
           ),
@@ -158,7 +174,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
                 calendarStyle: CalendarStyle(
                   todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
-                  selectedDecoration: BoxDecoration(color: AppTheme.primaryLight, shape: BoxShape.circle),
+                  selectedDecoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
                 ),
                 onDaySelected: (selectedDay, focusedDay) {
                   if (!isSameDay(_selectedDay, selectedDay)) {

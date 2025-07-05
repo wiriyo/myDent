@@ -1,4 +1,4 @@
-// v1.0.5 - Refactored for Weekly View
+// v1.0.7 - Final Fix for Navigation
 // 📁 lib/screens/calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -18,7 +18,11 @@ import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
-import 'weekly_calendar_screen.dart'; // ✨ 1. Import บ้านหลังใหม่ของเราเข้ามาค่ะ
+// ✨ 1. The Fix! จุดที่สำคัญที่สุดอยู่ตรงนี้ค่ะ!
+// พี่ทะเลช่วยไลลาตรวจสอบหน่อยนะคะ ว่าไฟล์หน้าจอรายสัปดาห์ของเรา
+// ชื่อว่า 'weekly_view_screen.dart' เป๊ะๆ แบบนี้เลยใช่ไหมคะ?
+// และต้องอยู่ในโฟลเดอร์เดียวกันกับไฟล์นี้ (lib/screens/) นะคะ
+import 'weekly_calendar_screen.dart'; 
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -36,7 +40,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   late DateTime _selectedDay;
   DayWorkingHours? _selectedDayWorkingHours;
   final WorkingHoursService _workingHoursService = WorkingHoursService();
-  // 🌸 เราจะให้หน้านี้เป็นรายเดือนเสมอค่ะ
   CalendarFormat _calendarFormat = CalendarFormat.month; 
   bool _isLoading = true;
 
@@ -118,21 +121,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: ViewModeSelector(
               calendarFormat: _calendarFormat,
-              // ✨ 2. สอนให้ปุ่มเลือกมุมมองรู้จักบ้านหลังใหม่ค่ะ
               onFormatChanged: (format) {
                 if (format == CalendarFormat.week) {
-                  // 🚀 ถ้ากดปุ่ม 'สัปดาห์' ให้วาร์ปไปหน้า WeeklyCalendarScreen
+                  // ✨ 2. และเราจะเรียกใช้ WeeklyViewScreen ที่นี่ค่ะ
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => WeeklyCalendarScreen(focusedDate: _focusedDay),
+                      builder: (context) => WeeklyViewScreen(focusedDate: _focusedDay),
                     ),
                   ).then((_) {
-                    // 🔄 เมื่อกลับมา ให้รีเฟรชข้อมูลเผื่อมีการเปลี่ยนแปลงค่ะ
                     _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
                   });
                 } else {
-                  // ถ้าเป็นโหมดอื่น (เช่น เดือน) ก็แค่เปลี่ยน state เหมือนเดิม
                   if (_calendarFormat != format) {
                     setState(() { _calendarFormat = format; });
                   }

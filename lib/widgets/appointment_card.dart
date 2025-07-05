@@ -1,4 +1,4 @@
-// v1.0.3 - Added Tooth Number to Full View
+// v1.0.4 - Overflow Fix
 // 📁 lib/widgets/appointment_card.dart
 
 import 'package:flutter/material.dart';
@@ -112,7 +112,6 @@ class AppointmentCard extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               constraints: const BoxConstraints(minHeight: 90),
-              // ✨ ส่งข้อมูล `teeth` เข้าไปด้วยค่ะ
               child: _buildFullView(context, startTime, endTime, patientName,
                   treatment, teeth, status, patientPhone, notes, rating, isCompact),
             );
@@ -185,14 +184,13 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // ✨ อัปเดตฟังก์ชันนี้ให้รับ `teeth` เข้ามาค่ะ
   Widget _buildFullView(
       BuildContext context,
       DateTime startTime,
       DateTime endTime,
       String patientName,
       String treatment,
-      String teeth, // ✨ รับ `teeth` เข้ามาแล้วค่ะ
+      String teeth,
       String status,
       String phone,
       String notes,
@@ -205,8 +203,6 @@ class AppointmentCard extends StatelessWidget {
     final double titleSize = useLargeLayout ? 19.0 : 16.0;
     final double detailSize = useLargeLayout ? 15.0 : 13.0;
     final double notesSize = useLargeLayout ? 14.0 : 12.0;
-
-    // ✨ สร้างข้อความหัตถการพร้อมซี่ฟันค่ะ
     final String fullTreatmentText = '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}';
 
     return Stack(
@@ -242,7 +238,6 @@ class AppointmentCard extends StatelessWidget {
                     ],
                     _buildInfoRow(
                       iconAsset: 'assets/icons/treatment.png',
-                      // ✨ ใช้ข้อความใหม่ที่เรารวมไว้แล้วค่ะ
                       text: fullTreatmentText,
                       iconSize: iconSize,
                       textStyle: TextStyle(
@@ -268,11 +263,12 @@ class AppointmentCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
+            // ✨ The Fix! ทำให้ส่วนท้ายของการ์ดยืดหยุ่นค่ะ
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _buildStatusChip(status, 12),
+                Flexible(child: _buildStatusChip(status, 12)),
                 const SizedBox(width: 4),
                 _buildCompactCallButton(context, phone, patientName),
               ],
@@ -341,6 +337,8 @@ class AppointmentCard extends StatelessWidget {
             fontSize: fontSize,
             fontWeight: FontWeight.w600,
             color: Colors.black87),
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
       ),
     );
   }

@@ -1,4 +1,4 @@
-// v1.1.4 - Added Inline Call Button
+// v1.1.8 - Separated Date and Time
 // 📁 lib/widgets/appointment_detail_dialog.dart
 
 import 'package:flutter/material.dart';
@@ -214,6 +214,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final String gender = widget.patient['gender'] ?? '';
     final String medicalHistory = widget.patient['medicalHistory'] ?? 'ไม่มี';
     final String allergy = widget.patient['allergy'] ?? 'ไม่มี';
+    
+    final List<String> teethList = widget.appointment.teeth ?? [];
+    final String teethString = teethList.join(', ');
+    final String fullTreatmentText = '$treatment ${teethString.isNotEmpty ? '(#$teethString)' : ''}';
+
 
     final dialogColor = switch (rating) {
       >= 5 => AppTheme.rating5Star,
@@ -277,29 +282,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                 )
             ]),
             const SizedBox(height: 4),
-            // ✨ The Fix! เพิ่มปุ่มโทรศัพท์เล็กๆ ไว้ข้างหลังเบอร์โทรค่ะ
-            Row(
-              children: [
-                Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)),
-                const Spacer(),
-                if (telephone.isNotEmpty && telephone != '-')
-                  SizedBox(
-                    height: 38,
-                    width: 38,
-                    child: Material(
-                      color: AppTheme.buttonCallBg,
-                      shape: const CircleBorder(),
-                      clipBehavior: Clip.antiAlias,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Image.asset('assets/icons/phone.png', width: 20),
-                        onPressed: _makePhoneCall,
-                        tooltip: 'โทรหาคนไข้',
-                      ),
-                    ),
-                  )
-              ],
-            ),
+            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: AppTheme.buttonCallBg, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset('assets/icons/phone.png', width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
             
             const SizedBox(height: 8),
             _buildInfoRow(text: 'โรคประจำตัว: $medicalHistory'),
@@ -316,9 +299,18 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(treatment, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
+                      Text(fullTreatmentText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
                       const SizedBox(height: 4),
-                      Text('เวลา: ${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)}', style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)),
+                      // ✨ The Fix! แยกวันที่กับเวลาเป็นคนละแถวค่ะ
+                      Text(
+                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(startTime)}', 
+                        style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'เวลา: ${DateFormat.Hm('th_TH').format(startTime)} - ${DateFormat.Hm('th_TH').format(endTime)}', 
+                        style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
+                      ),
                     ],
                   ),
                 ),
@@ -331,12 +323,13 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
               decoration: InputDecoration(labelText: 'สถานะ', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
-            if (_currentStatus == 'เลื่อนนัด' || (_reasonController.text.isNotEmpty))
+            
+            if (_currentStatus == 'เลื่อนนัด' || _reasonController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: TextField(
                   controller: _reasonController,
-                  decoration: InputDecoration(labelText: 'หมายเหตุ/เหตุผล', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  decoration: InputDecoration(labelText: 'บันทึก / เหตุผลการเลื่อนนัด', filled: true, fillColor: Colors.white.withOpacity(0.8), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                   maxLines: 2,
                 ),
               ),

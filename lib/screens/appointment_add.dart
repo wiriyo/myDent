@@ -1,4 +1,4 @@
-// v1.1.8 - Re-added Cancel Button
+// v1.2.9 - Final UI & Syntax Fix
 // 📁 lib/screens/appointment_add.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,14 +46,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   TimeOfDay? _endTime;
   String _status = 'รอยืนยัน';
 
-  final List<String> statusOptions = [
-    'รอยืนยัน',
-    'ยืนยันแล้ว',
-    'ติดต่อไม่ได้',
-    'ไม่มาตามนัด',
-    'ปฏิเสธนัด',
-  ];
-
   bool _isEditing = false;
 
   @override
@@ -74,6 +66,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
     _status = initialAppointment?.status ?? 'รอยืนยัน';
     _selectedDate = initialAppointment?.startTime ?? widget.initialDate ?? DateTime.now();
+    
     _startTime = initialAppointment != null
         ? TimeOfDay.fromDateTime(initialAppointment.startTime)
         : widget.initialStartTime != null
@@ -117,6 +110,38 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       }
     }
   }
+
+  Future<void> _pickDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppTheme.primary,
+              onPrimary: Colors.white,
+              onSurface: AppTheme.textPrimary,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
 
   Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
@@ -188,6 +213,31 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
   }
 
+  InputDecoration _buildInputDecoration(String label, {Widget? prefixIcon}) {
+    return InputDecoration(
+      prefixIcon: prefixIcon != null ? Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+        child: prefixIcon,
+      ) : null,
+      labelText: label,
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.7),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.5), width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AppTheme.primary, width: 2.0),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -208,15 +258,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 const SizedBox(height: 24),
                 _buildPatientAutocompleteField(),
                 const SizedBox(height: 16),
-                _buildTreatmentField(),
+                _buildTreatmentAndTeethFields(),
+                const SizedBox(height: 16),
+                _buildDateField(),
                 const SizedBox(height: 16),
                 _buildTimeAndDurationFields(),
                 const SizedBox(height: 16),
-                _buildTeethField(),
-                const SizedBox(height: 16),
                 _buildNotesField(),
-                const SizedBox(height: 16),
-                _buildStatusField(),
                 const SizedBox(height: 24),
                 _buildActionButtons(),
               ],
@@ -256,9 +304,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         return TextFormField(
           controller: textEditingController,
           focusNode: focusNode,
-          decoration: const InputDecoration(
-            labelText: 'ชื่อคนไข้',
-            hintText: 'เริ่มพิมพ์เพื่อค้นหาด้วยชื่อ หรือ HN...'
+          decoration: _buildInputDecoration(
+            'ชื่อคนไข้',
+            prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -296,11 +344,49 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     );
   }
 
-  Widget _buildTreatmentField() {
-    return TextFormField(
-      controller: _treatmentController,
-      decoration: const InputDecoration(labelText: 'หัตถการ'),
-      validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่หัตถการ' : null,
+  Widget _buildTreatmentAndTeethFields() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: TextFormField(
+            controller: _treatmentController,
+            decoration: _buildInputDecoration(
+              'หัตถการ',
+              prefixIcon: Image.asset('assets/icons/treatment.png', width: 24, height: 24),
+            ),
+            validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่หัตถการ' : null,
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 120,
+          child: TextFormField(
+            controller: _teethController,
+            decoration: _buildInputDecoration(
+              'ซี่ฟัน',
+              prefixIcon: const Text('#', style: TextStyle(fontSize: 24, color: AppTheme.textSecondary)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateField() {
+    return InkWell(
+      onTap: _pickDate,
+      child: InputDecorator(
+        decoration: _buildInputDecoration(
+          'วันที่',
+          prefixIcon: Image.asset('assets/icons/calendar.png', width: 24, height: 24),
+        ),
+        child: Text(
+          // ✨ The Fix! แก้ไขรูปแบบวันที่ให้ถูกต้องค่ะ
+          DateFormat('dd MMMM yyyy', 'th_TH').format(_selectedDate),
+          style: const TextStyle(fontSize: 16),
+        ),
+      ),
     );
   }
 
@@ -312,10 +398,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           child: InkWell(
             onTap: _pickStartTime,
             child: InputDecorator(
-              decoration: InputDecoration(
-                labelText: 'เวลาเริ่ม',
-                contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              decoration: _buildInputDecoration(
+                'เวลาเริ่ม',
+                prefixIcon: Image.asset('assets/icons/clock.png', width: 24, height: 24),
               ),
               child: Text(
                 _startTime?.format(context) ?? 'เลือกเวลา',
@@ -325,14 +410,16 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
+        SizedBox(
+          width: 120,
           child: TextFormField(
             controller: _durationController,
-            decoration: const InputDecoration(labelText: 'ระยะเวลา (นาที)'),
+            decoration: _buildInputDecoration('ระยะเวลา (นาที)'),
             keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
             validator: (value) {
               if (value == null || value.isEmpty) return 'ใส่เวลา';
-              if (int.tryParse(value) == null) return 'ต้องเป็นตัวเลข';
+              if (int.tryParse(value) == null) return 'ตัวเลข';
               return null;
             },
           ),
@@ -341,71 +428,42 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     );
   }
 
-  Widget _buildTeethField() {
-    return TextFormField(
-      controller: _teethController,
-      decoration: const InputDecoration(
-        labelText: 'ซี่ฟัน (ถ้ามี)',
-        hintText: 'เช่น 18, 28, 46',
-      ),
-    );
-  }
-
   Widget _buildNotesField() {
     return TextFormField(
       controller: _notesController,
-      decoration: const InputDecoration(labelText: 'หมายเหตุ (ถ้ามี)'),
+      decoration: _buildInputDecoration('หมายเหตุ (ถ้ามี)'),
       maxLines: 2,
     );
   }
 
-  Widget _buildStatusField() {
-    return DropdownButtonFormField<String>(
-      value: _status,
-      items: statusOptions.map((status) => DropdownMenuItem(
-        value: status,
-        child: Text(status),
-      )).toList(),
-      onChanged: (value) => setState(() => _status = value ?? _status),
-      decoration: const InputDecoration(labelText: 'สถานะ'),
-    );
-  }
-
   Widget _buildActionButtons() {
-    if (_isEditing) {
-      // --- ✨ The Fix! เพิ่มปุ่มยกเลิกกลับมาในโหมดแก้ไขค่ะ ---
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('ยกเลิก'),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SizedBox(
+          height: 54, 
+          width: 96,
+          child: Material(
+            color: AppTheme.buttonCallBg,
+            borderRadius: BorderRadius.circular(21),
+            clipBehavior: Clip.antiAlias,
+            elevation: 4,
+            shadowColor: AppTheme.primary.withOpacity(0.3),
+            child: InkWell(
+              onTap: _saveAppointment,
+              child: Tooltip(
+                message: _isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มนัดหมาย',
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Image.asset(
+                    'assets/icons/save.png',
+                  ),
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _saveAppointment,
-            icon: const Icon(Icons.save_alt_rounded),
-            label: const Text('บันทึกการแก้ไข'),
-          ),
-        ],
-      );
-    } else {
-      // --- โหมดเพิ่มใหม่: แสดงปุ่มยกเลิกและบันทึกเหมือนเดิมค่ะ ---
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('ยกเลิก'),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _saveAppointment,
-            icon: const Icon(Icons.add_task_rounded),
-            label: const Text('เพิ่มนัดหมาย'),
-          ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
   }
 }

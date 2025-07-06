@@ -355,7 +355,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             child: Row(
                               children: [
-                                Image.asset('assets/icons/user_search.png', width: 24, height: 24, color: AppTheme.primary),
+                                Image.asset('assets/icons/user.png', width: 24, height: 24),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(

@@ -9,8 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/appointment_service.dart';
 import '../services/working_hours_service.dart';
 import '../services/patient_service.dart';
-import '../models/appointment_model.dart';
-import '../models/patient.dart';
 import '../models/working_hours_model.dart';
 import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';

@@ -1,4 +1,4 @@
-// v1.0.7 - Final Data Type Fix
+// v1.0.9 - Added Date Navigation
 // 📁 lib/screens/daily_calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -8,8 +8,6 @@ import 'package:table_calendar/table_calendar.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/working_hours_service.dart';
-import '../models/appointment_model.dart';
-import '../models/patient.dart';
 import '../models/working_hours_model.dart';
 import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
@@ -31,6 +29,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
+  // ✨ The Fix! สร้างตัวแปรสำหรับเก็บวันที่ที่กำลังแสดงผลอยู่ค่ะ
+  late DateTime _currentDate;
   List<Map<String, dynamic>> _appointmentsWithPatients = [];
   DayWorkingHours? _selectedDayWorkingHours;
   bool _isLoading = true;
@@ -38,7 +38,9 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate);
+    // ✨ กำหนดค่าเริ่มต้นให้เป็นวันที่ที่ถูกส่งมาค่ะ
+    _currentDate = widget.selectedDate;
+    _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
   }
 
   Future<void> _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
@@ -53,8 +55,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         if (patient != null) {
           final appointmentDataForTimeline = appointment.toMap();
           appointmentDataForTimeline['appointmentId'] = appointment.appointmentId;
-
-          // ✨ The Fix! เอาตุ๊กตา Patient ใส่กล่อง .toMap() ก่อนส่งค่ะ
+          
           appointmentsWithPatients.add({
             'appointment': appointmentDataForTimeline,
             'patient': patient.toMap() 
@@ -94,13 +95,10 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        automaticallyImplyLeading: true,
+        automaticallyImplyLeading: false, 
         backgroundColor: AppTheme.primaryLight,
         elevation: 0,
-        title: Text(
-          'นัดหมายวันที่ ${DateFormat('d MMMM yyyy', 'th_TH').format(widget.selectedDate)}',
-          style: const TextStyle(fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('รายวัน'),
       ),
       body: Column(
         children: [
@@ -110,11 +108,46 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               isDailyViewActive: true, 
               calendarFormat: CalendarFormat.month,
               onFormatChanged: (format) {
-                Navigator.pop(context);
+                Navigator.pop(context, format);
               },
               onDailyViewTapped: () {
-                  _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate);
+                  _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
               },
+            ),
+          ),
+          // ✨ The Fix! เพิ่มปุ่มลูกศรสำหรับเลื่อนวันค่ะ
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: AppTheme.primary),
+                  onPressed: () {
+                    setState(() {
+                      _currentDate = _currentDate.subtract(const Duration(days: 1));
+                    });
+                    _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
+                  },
+                ),
+                Text(
+                  DateFormat('d MMMM yyyy', 'th_TH').format(_currentDate),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right, color: AppTheme.primary),
+                  onPressed: () {
+                    setState(() {
+                      _currentDate = _currentDate.add(const Duration(days: 1));
+                    });
+                    _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
+                  },
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -123,10 +156,10 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                 : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
                     ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
                     : TimelineView(
-                        selectedDate: widget.selectedDate,
+                        selectedDate: _currentDate,
                         appointments: _appointmentsWithPatients,
                         workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate),
+                        onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate),
                       ),
           ),
         ],
@@ -139,7 +172,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
-      onPressed: () => showDialog(context: context, builder: (context) => AppointmentAddDialog(initialDate: widget.selectedDate)).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(widget.selectedDate)),
+      onPressed: () => showDialog(context: context, builder: (context) => AppointmentAddDialog(initialDate: _currentDate)).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate)),
       backgroundColor: AppTheme.primary,
       tooltip: 'เพิ่มนัดหมายใหม่',
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

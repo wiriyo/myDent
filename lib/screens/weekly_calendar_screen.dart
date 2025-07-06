@@ -9,7 +9,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 // 🌸 Imports from our project
 import '../models/appointment_model.dart';
-import '../models/patient.dart';
 import '../models/working_hours_model.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
@@ -566,7 +565,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 ),
               );
             }
-          }).toList(),
+          }),
         ],
       ),
     );

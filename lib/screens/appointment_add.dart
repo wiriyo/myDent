@@ -1,4 +1,4 @@
-// v1.2.9 - Final UI & Syntax Fix
+// v2.2.0 - ✨ Fix Buddhist Year (พ.ศ.) Display
 // 📁 lib/screens/appointment_add.dart
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/appointment_model.dart';
 import '../models/patient.dart';
+import '../models/treatment_master.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
+import '../services/treatment_master_service.dart';
 import '../styles/app_theme.dart';
 
 class AppointmentAddDialog extends StatefulWidget {
@@ -32,6 +34,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   final PatientService _patientService = PatientService();
 
   List<Patient> _allPatients = [];
+  List<TreatmentMaster> _allTreatmentsMaster = [];
 
   String? _selectedPatientId;
   late TextEditingController _patientController;
@@ -50,7 +53,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   @override
   void initState() {
     super.initState();
-    _loadAllPatients();
+    _loadInitialData();
 
     _isEditing = widget.appointment != null;
     final initialAppointment = widget.appointment;
@@ -76,11 +79,16 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     _durationController.addListener(_calculateEndTime);
   }
 
-  Future<void> _loadAllPatients() async {
-    final patients = await _patientService.fetchPatientsOnce();
+  Future<void> _loadInitialData() async {
+    final patientsFuture = _patientService.fetchPatientsOnce();
+    final treatmentsFuture = TreatmentMasterService.getAllTreatments().first;
+
+    final results = await Future.wait([patientsFuture, treatmentsFuture]);
+
     if (mounted) {
       setState(() {
-        _allPatients = patients;
+        _allPatients = results[0] as List<Patient>;
+        _allTreatmentsMaster = results[1] as List<TreatmentMaster>;
       });
     }
   }
@@ -275,71 +283,102 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Widget _buildPatientAutocompleteField() {
-    return Autocomplete<Patient>(
-      displayStringForOption: (patient) => patient.name,
-      initialValue: TextEditingValue(text: _patientController.text),
-      optionsBuilder: (TextEditingValue textEditingValue) {
-        _patientController.text = textEditingValue.text;
-        if (textEditingValue.text.isEmpty) {
-          setState(() {
-             _selectedPatientId = null;
-          });
-          return const Iterable<Patient>.empty();
-        }
-        return _allPatients.where((patient) {
-          final patientName = patient.name.toLowerCase();
-          final hnNumber = patient.hnNumber?.toLowerCase() ?? '';
-          final query = textEditingValue.text.toLowerCase();
-          return patientName.contains(query) || hnNumber.contains(query);
-        });
-      },
-      onSelected: (patient) {
-        setState(() {
-          _selectedPatientId = patient.patientId;
-          _patientController.text = patient.name;
-        });
-      },
-      fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-        return TextFormField(
-          controller: textEditingController,
-          focusNode: focusNode,
-          decoration: _buildInputDecoration(
-            'ชื่อคนไข้',
-            prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'กรุณาใส่ชื่อคนไข้';
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Autocomplete<Patient>(
+          displayStringForOption: (patient) => patient.name,
+          initialValue: TextEditingValue(text: _patientController.text),
+          optionsBuilder: (TextEditingValue textEditingValue) {
+            _patientController.text = textEditingValue.text;
+            if (textEditingValue.text.isEmpty) {
+              setState(() {
+                 _selectedPatientId = null;
+              });
+              return const Iterable<Patient>.empty();
             }
-            return null;
+            return _allPatients.where((patient) {
+              final patientName = patient.name.toLowerCase();
+              final hnNumber = patient.hnNumber?.toLowerCase() ?? '';
+              final query = textEditingValue.text.toLowerCase();
+              return patientName.contains(query) || hnNumber.contains(query);
+            });
+          },
+          onSelected: (patient) {
+            setState(() {
+              _selectedPatientId = patient.patientId;
+              _patientController.text = patient.name;
+            });
+          },
+          fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+            return TextFormField(
+              controller: textEditingController,
+              focusNode: focusNode,
+              decoration: _buildInputDecoration(
+                'ชื่อคนไข้',
+                prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'กรุณาใส่ชื่อคนไข้';
+                }
+                if (_selectedPatientId == null && !_isEditing) {
+                  return 'กรุณาเลือกคนไข้จากรายการ';
+                }
+                return null;
+              },
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4.0,
+                color: const Color(0xFFFCF5FF), 
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+                ),
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: ((68.0 * options.length) + 24.0).clamp(0.0, 272.0 + 24.0)),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 16.0),
+                      itemCount: options.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final option = options.elementAt(index);
+                        return InkWell(
+                          onTap: () => onSelected(option),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                Image.asset('assets/icons/user_search.png', width: 24, height: 24, color: AppTheme.primary),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      Text('HN: ${option.hnNumber ?? 'N/A'}', style: const TextStyle(color: AppTheme.textSecondary)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            );
           },
         );
-      },
-      optionsViewBuilder: (context, onSelected, options) {
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            elevation: 4.0,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 250),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: options.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final option = options.elementAt(index);
-                  return InkWell(
-                    onTap: () => onSelected(option),
-                    child: ListTile(
-                      title: Text(option.name),
-                      subtitle: Text('HN: ${option.hnNumber ?? 'N/A'}'),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        );
-      },
+      }
     );
   }
 
@@ -348,23 +387,102 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: TextFormField(
-            controller: _treatmentController,
-            decoration: _buildInputDecoration(
-              'หัตถการ',
-              prefixIcon: Image.asset('assets/icons/treatment.png', width: 24, height: 24),
-            ),
-            validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่หัตถการ' : null,
+          flex: 6, 
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Autocomplete<TreatmentMaster>(
+                displayStringForOption: (treatment) => treatment.name,
+                initialValue: TextEditingValue(text: _treatmentController.text),
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  _treatmentController.text = textEditingValue.text;
+                  if (textEditingValue.text.isEmpty) {
+                    return const Iterable<TreatmentMaster>.empty();
+                  }
+                  return _allTreatmentsMaster.where((treatment) {
+                    return treatment.name
+                        .toLowerCase()
+                        .contains(textEditingValue.text.toLowerCase());
+                  });
+                },
+                onSelected: (treatment) {
+                  setState(() {
+                    _treatmentController.text = treatment.name;
+                    _durationController.text = treatment.duration.toString();
+                    _calculateEndTime();
+                  });
+                },
+                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: _buildInputDecoration(
+                      'หัตถการ',
+                      prefixIcon: Image.asset('assets/icons/report.png', width: 24, height: 24),
+                    ),
+                    validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่หัตถการ' : null,
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      color: const Color(0xFFFCF5FF),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+                      ),
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: ((64.0 * options.length) + 24.0).clamp(0.0, 256.0 + 24.0)),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 16.0),
+                            itemCount: options.length,
+                            itemBuilder: (context, index) {
+                              final option = options.elementAt(index);
+                              return InkWell(
+                                onTap: () => onSelected(option),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  child: Row(
+                                    children: [
+                                      Image.asset('assets/icons/report.png', width: 24, height: 24),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                            Text('เวลา: ${option.duration} นาที', style: const TextStyle(color: AppTheme.textSecondary)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
           ),
         ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 120,
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 4,
           child: TextFormField(
             controller: _teethController,
             decoration: _buildInputDecoration(
               'ซี่ฟัน',
-              prefixIcon: const Text('#', style: TextStyle(fontSize: 24, color: AppTheme.textSecondary)),
+              prefixIcon: Image.asset('assets/icons/tooth.png', width: 24, height: 24),
             ),
           ),
         ),
@@ -381,8 +499,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           prefixIcon: Image.asset('assets/icons/calendar.png', width: 24, height: 24),
         ),
         child: Text(
-          // ✨ The Fix! แก้ไขรูปแบบวันที่ให้ถูกต้องค่ะ
-          DateFormat('dd MMMM yyyy', 'th_TH').format(_selectedDate),
+          // 💖 [FIXED v2.2] แก้ไขการแสดงผลปี พ.ศ. ให้ถูกต้อง
+          // โดยการสร้าง format string ที่มี 'y' 4 ตัว และบวกปี ค.ศ. ด้วย 543
+          DateFormat('dd MMMM yyyy', 'th_TH').format(
+            DateTime(_selectedDate.year + 543, _selectedDate.month, _selectedDate.day)
+          ),
           style: const TextStyle(fontSize: 16),
         ),
       ),

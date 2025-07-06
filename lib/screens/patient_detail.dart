@@ -1,4 +1,4 @@
-// v1.0.2 - Final Fix with Patient Model
+// v1.0.3 - Fix Treatment Dialog Argument
 // 📁 lib/screens/patient_detail.dart
 
 import 'dart:io';
@@ -476,10 +476,15 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                     final treatment = treatments[index];
                     return GestureDetector(
                       onTap: () {
+                        // 💖✨ [FIXED v1.0.3] แก้ไขจุดนี้เลยค่ะ!
+                        // จากการ "ขัดเงาพิมพ์เขียว" ใน v1.3 ของ Treatment
+                        // ทำให้ showTreatmentDialog ต้องการรับข้อมูลเป็น Treatment object ทั้งก้อน
+                        // ไม่ใช่ Map อีกต่อไปแล้วค่ะ เราเลยเปลี่ยนจากการส่ง treatment.toMap()
+                        // มาเป็นการส่ง treatment ตรงๆ เลย ปลอดภัยและถูกต้องกว่าเยอะเลยค่ะ!
                         showTreatmentDialog(
                           context,
                           patientId: patientId,
-                          treatment: treatment.toMap(),
+                          treatment: treatment, // <--- แก้ไขตรงนี้จาก .toMap()
                         );
                       },
                       child: Card(

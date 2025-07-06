@@ -1,5 +1,6 @@
-
 // ----- FILE: lib/widgets/treatment_form_master.dart -----
+// เวอร์ชัน 1.1: ไม่มีการเปลี่ยนแปลง
+// ฟอร์มสำหรับจัดการ "เมนู" ยังทำงานเหมือนเดิมค่ะ
 
 import 'package:flutter/material.dart';
 import '../models/treatment_master.dart';
@@ -44,8 +45,6 @@ class _TreatmentFormMasterState extends State<TreatmentFormMaster> {
     priceController.dispose();
     super.dispose();
   }
-
-  
 
   @override
   Widget build(BuildContext context) {

@@ -1,4 +1,6 @@
 // ----- FILE: lib/models/treatment_master.dart -----
+// เวอร์ชัน 1.1: ไม่มีการเปลี่ยนแปลงในไฟล์นี้
+// พิมพ์เขียวสำหรับ "เมนูหัตถการ" ของคลินิก ยังคงสมบูรณ์แบบเหมือนเดิมค่ะ
 
 class TreatmentMaster {
   final String treatmentId;

@@ -1,3 +1,5 @@
+// ----- FILE: lib/screens/treatments_list.dart -----
+
 import 'package:flutter/material.dart';
 import '../models/treatment_master.dart';
 import '../services/treatment_master_service.dart';

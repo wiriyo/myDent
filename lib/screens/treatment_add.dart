@@ -1,4 +1,4 @@
-// lib/screens/treatment_add.dart
+// ----- FILE: lib/screens/treatment_add.dart -----
 
 import 'package:flutter/material.dart';
 import '../widgets/treatment_form.dart';

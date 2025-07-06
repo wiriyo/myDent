@@ -1,3 +1,5 @@
+// ----- FILE: lib/screens/treatments_screen.dart -----
+
 import 'package:flutter/material.dart';
 
 class TreatmentsScreen extends StatelessWidget {

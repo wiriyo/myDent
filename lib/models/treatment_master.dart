@@ -1,3 +1,4 @@
+// ----- FILE: lib/models/treatment_master.dart -----
 
 class TreatmentMaster {
   final String treatmentId;

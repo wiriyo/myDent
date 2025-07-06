@@ -1,3 +1,6 @@
+
+// ----- FILE: lib/widgets/treatment_form.dart -----
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/treatment.dart';

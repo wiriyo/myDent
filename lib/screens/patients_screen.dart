@@ -1,12 +1,13 @@
-// v1.0.2
+// ----------------------------------------------------------------
 // 📁 lib/screens/patients_screen.dart
-
+// v1.1.0 - ✨ อัปเกรดให้ทำงานกับ Patient Model โดยตรง
+// ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/patient.dart'; // ✨ [CHANGED v1.1] import Model มาใช้
 import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
-
 
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
@@ -18,8 +19,10 @@ class PatientsScreen extends StatefulWidget {
 class _PatientsScreenState extends State<PatientsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PatientService _patientService = PatientService();
-  List<Map<String, dynamic>> _allPatients = [];
-  List<Map<String, dynamic>> _searchResults = [];
+  
+  // ✨ [CHANGED v1.1] เปลี่ยนมาใช้ List<Patient> โดยตรงเพื่อความปลอดภัย
+  List<Patient> _allPatients = [];
+  List<Patient> _searchResults = [];
   bool _isLoading = true;
 
   @override
@@ -41,16 +44,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
   Future<void> _fetchAllPatients() async {
     setState(() { _isLoading = true; });
     try {
+      // ✨ [CHANGED v1.1] รับข้อมูลเป็น List<Patient> จาก Service โดยตรง ไม่ต้องแปลงไปมาแล้วค่ะ
       final result = await _patientService.fetchPatientsOnce();
       setState(() {
-        _allPatients = result.map((patient) {
-          final map = patient.toMap();
-          map['docId'] = patient.patientId;
-          return map;
-        }).toList();
-        
-        _allPatients.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-        
+        _allPatients = result;
+        _allPatients.sort((a, b) => a.name.compareTo(b.name));
         _searchResults = List.from(_allPatients);
         _isLoading = false;
       });
@@ -67,10 +65,14 @@ class _PatientsScreenState extends State<PatientsScreen> {
       });
       return;
     }
+    // ✨ [CHANGED v1.1] ค้นหาจาก Property ของ Patient object โดยตรง ปลอดภัยกว่าเยอะเลยค่ะ
     final results = _allPatients.where((patient) {
-      final name = '${patient['prefix'] ?? ''} ${patient['name'] ?? ''}'.toLowerCase();
-      final phone = patient['telephone']?.toLowerCase() ?? '';
-      return name.contains(query.toLowerCase()) || phone.contains(query.toLowerCase());
+      final name = '${patient.prefix} ${patient.name}'.toLowerCase();
+      final phone = patient.telephone?.toLowerCase() ?? '';
+      final hn = patient.hnNumber?.toLowerCase() ?? '';
+      final queryLower = query.toLowerCase();
+      
+      return name.contains(queryLower) || phone.contains(queryLower) || hn.contains(queryLower);
     }).toList();
 
     setState(() {
@@ -100,17 +102,17 @@ class _PatientsScreenState extends State<PatientsScreen> {
                     : _searchResults.isEmpty
                         ? _buildNoResultsState()
                         : ListView.builder(
-                            // ✨ [FIX] เอา Padding ด้านบนออกค่ะ
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), 
                             itemCount: _searchResults.length,
                             itemBuilder: (context, index) {
-                              final data = _searchResults[index];
+                              // ✨ [CHANGED v1.1] ตอนนี้เรามี patient object ที่สมบูรณ์แล้ว
+                              final patient = _searchResults[index];
                               return _PatientCard(
-                                data: data,
-                                onCall: () => _makeCall(data['telephone']),
-                                onEdit: () => _navigateToEdit(data),
-                                onDelete: () => _confirmDelete(data['docId']),
-                                onTap: () => _navigateToDetail(data),
+                                patient: patient, // ✨ ส่งเป็น object แทน Map
+                                onCall: () => _makeCall(patient.telephone),
+                                onEdit: () => _navigateToEdit(patient), // ✨ ส่งเป็น object
+                                onDelete: () => _confirmDelete(patient.patientId),
+                                onTap: () => _navigateToDetail(patient), // ✨ ส่งเป็น object
                               );
                             },
                           ),
@@ -125,13 +127,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      // ✨ [FIX] ลด Padding ด้านล่างลงนิดหน่อยให้สมดุลค่ะ
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), 
       child: TextField(
         controller: _searchController,
         style: const TextStyle(fontFamily: AppTheme.fontFamily),
         decoration: InputDecoration(
-          hintText: 'ค้นหาด้วยชื่อ หรือเบอร์โทร...',
+          hintText: 'ค้นหาด้วยชื่อ, เบอร์โทร, หรือ HN...',
           hintStyle: const TextStyle(fontFamily: AppTheme.fontFamily),
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
           suffixIcon: _searchController.text.isNotEmpty
@@ -200,21 +201,21 @@ class _PatientsScreenState extends State<PatientsScreen> {
     }
   }
 
-  void _navigateToEdit(Map<String, dynamic> data) async {
-    if (data['docId'] != null && data['docId'] != '') {
-      final result = await Navigator.pushNamed(
-        context,
-        '/add_patient',
-        arguments: data,
-      );
-      if (result == true) {
-        await _fetchAllPatients();
-      }
+  // ✨ [CHANGED v1.1] รับเป็น Patient object
+  void _navigateToEdit(Patient patient) async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/add_patient',
+      arguments: patient, // ✨ ส่ง object ไปทั้งก้อนเลย
+    );
+    if (result == true) {
+      await _fetchAllPatients();
     }
   }
 
-  void _navigateToDetail(Map<String, dynamic> data) {
-    Navigator.pushNamed(context, '/patient_detail', arguments: data);
+  // ✨ [CHANGED v1.1] รับเป็น Patient object
+  void _navigateToDetail(Patient patient) {
+    Navigator.pushNamed(context, '/patient_detail', arguments: patient); // ✨ ส่ง object ไปทั้งก้อนเลย
   }
 
   void _makeCall(String? phone) async {
@@ -256,14 +257,15 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
 // --- ✨ การ์ดคนไข้ดีไซน์ใหม่ by ไลลา ✨ ---
 class _PatientCard extends StatelessWidget {
-  final Map<String, dynamic> data;
+  // ✨ [CHANGED v1.1] รับเป็น Patient object แทน Map
+  final Patient patient;
   final VoidCallback onCall;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onTap;
 
   const _PatientCard({
-    required this.data,
+    required this.patient,
     required this.onCall,
     required this.onEdit,
     required this.onDelete,
@@ -272,14 +274,15 @@ class _PatientCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final prefix = data['prefix'] ?? '';
-    final name = data['name'] ?? '-';
-    final phone = data['telephone'] ?? '-';
-    final rating = (data['rating'] as num?)?.toInt() ?? 0;
-    final gender = data['gender'] ?? 'ไม่ระบุ';
-    final age = data['age']?.toString() ?? '-';
-    final medicalHistory = data['medicalHistory'] as String?;
-    final allergy = data['allergy'] as String?;
+    // ✨ [CHANGED v1.1] เข้าถึงข้อมูลจาก property ของ object โดยตรง
+    final prefix = patient.prefix;
+    final name = patient.name;
+    final phone = patient.telephone ?? '-';
+    final rating = patient.rating;
+    final gender = patient.gender;
+    final age = patient.age?.toString() ?? '-';
+    final medicalHistory = patient.medicalHistory;
+    final allergy = patient.allergy;
     
     final cardColor = switch (rating) {
       >= 5 => AppTheme.rating5Star,
@@ -304,7 +307,6 @@ class _PatientCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // --- ส่วนข้อมูลหลัก ---
           InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(24),
@@ -327,7 +329,7 @@ class _PatientCard extends StatelessWidget {
                              Row(
                                children: [
                                  Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/phone.png', text: phone)),
-                                 if (medicalHistory != null && medicalHistory.isNotEmpty) ...[
+                                 if (medicalHistory != null && medicalHistory.isNotEmpty && medicalHistory != "ปฏิเสธ") ...[
                                    const SizedBox(width: 16),
                                    Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/medical_report.png', text: medicalHistory)),
                                  ],
@@ -337,7 +339,7 @@ class _PatientCard extends StatelessWidget {
                              Row(
                                children: [
                                  Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/age.png', text: '$age ปี')),
-                                 if (allergy != null && allergy.isNotEmpty) ...[
+                                 if (allergy != null && allergy.isNotEmpty && allergy != "ปฏิเสธ") ...[
                                    const SizedBox(width: 16),
                                    Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/no_drugs.png', text: allergy)),
                                  ],
@@ -349,7 +351,6 @@ class _PatientCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // --- ส่วนล่าง: ปุ่ม Action ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

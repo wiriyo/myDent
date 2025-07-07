@@ -1,3 +1,5 @@
+// lib/screens/medical_image_gallery.dart
+
 import 'package:flutter/material.dart';
 
 class MedicalImageGallery extends StatelessWidget {

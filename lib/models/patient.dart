@@ -1,12 +1,14 @@
-// v1.0.2 - Final
-// lib/models/patient.dart
+// ----------------------------------------------------------------
+// 📁 lib/models/patient.dart
+// v1.2.0 - ✨ Robust fromMap Factory
+// ----------------------------------------------------------------
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Patient {
   final String patientId;
   final String name;
   final String prefix;
-  final String? hnNumber; // ✨ เพิ่ม hnNumber เข้ามาค่ะ
+  final String? hnNumber;
   final String? telephone;
   final String? address;
   final String? idCard;
@@ -21,7 +23,7 @@ class Patient {
     required this.patientId,
     required this.name,
     required this.prefix,
-    this.hnNumber, // ✨ เพิ่ม hnNumber เข้ามาค่ะ
+    this.hnNumber,
     this.telephone,
     this.address = '',
     this.idCard = '',
@@ -35,10 +37,9 @@ class Patient {
 
   Map<String, dynamic> toMap() {
     return {
-      'patientId': patientId,
       'name': name,
       'prefix': prefix,
-      'hn_number': hnNumber, // ✨ เพิ่ม hn_number สำหรับ Firestore ค่ะ
+      'hn_number': hnNumber,
       'telephone': telephone,
       'address': address,
       'idCard': idCard,
@@ -52,16 +53,27 @@ class Patient {
   }
 
   factory Patient.fromMap(Map<String, dynamic> map) {
+    // ✨ [FIXED v1.2] ทำให้การดึง ID แข็งแรงและฉลาดขึ้น
+    // เพื่อจัดการกับข้อมูลเก่าที่อาจมี field 'patientId' ที่เป็นค่าว่างบันทึกอยู่
+    String id = '';
+    
+    // 1. ให้ความสำคัญกับ docId ที่ส่งมาจาก Service ก่อนเสมอ เพราะนี่คือ ID ที่แท้จริง
+    if (map['docId'] != null && (map['docId'] as String).isNotEmpty) {
+      id = map['docId'];
+    } 
+    // 2. ถ้าไม่มี docId (อาจเป็นกรณีเก่ามากๆ) ให้ลองหาจาก patientId แต่ต้องไม่ใช่ค่าว่าง
+    else if (map['patientId'] != null && (map['patientId'] as String).isNotEmpty) {
+      id = map['patientId'];
+    }
+
     return Patient(
-      // ✨ ทำให้การดึง ID ยืดหยุ่นขึ้นค่ะ
-      patientId: map['patientId'] ?? map['docId'] ?? '', 
+      patientId: id, 
       name: map['name'] ?? '',
       prefix: map['prefix'] ?? '',
-      hnNumber: map['hn_number'], // ✨ เพิ่มการดึง hn_number ค่ะ
+      hnNumber: map['hn_number'],
       telephone: map['telephone'],
       address: map['address'],
       idCard: map['idCard'],
-      // ✨ ทำให้การแปลงวันที่ยืดหยุ่นขึ้นค่ะ
       birthDate: map['birthDate'] is Timestamp 
                  ? (map['birthDate'] as Timestamp).toDate()
                  : (map['birthDate'] is String ? DateTime.tryParse(map['birthDate']) : null),

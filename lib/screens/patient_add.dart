@@ -1,14 +1,16 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/patient_add.dart
-// v1.2.0 - ✨ อัปเกรดให้เรียกใช้ "หัวหน้าเชฟ" (Provider)
+// v2.2.0 - ✨ ปรับปรุง UI ของช่อง HN
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart'; // ✨ [NEW v1.2] import Provider
+import 'package:provider/provider.dart';
 import '../models/patient.dart';
 import '../models/prefix.dart';
-import '../providers/patient_provider.dart'; // ✨ [NEW v1.2] import พ่อครัวของเรา
+import '../providers/patient_provider.dart';
 import '../services/prefix_service.dart';
+import '../styles/app_theme.dart';
+import '../widgets/custom_bottom_nav_bar.dart';
 
 class PatientAddScreen extends StatefulWidget {
   final Patient? patient;
@@ -34,20 +36,40 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   int _calculatedAge = 0;
   bool _isEditing = false;
   String _selectedGender = 'หญิง';
-
-  // ✨ [REMOVED v1.2] ไม่ต้องสร้าง Service เองแล้ว เชฟจัดการให้
-  // final PatientService _patientService = PatientService();
+  
+  Patient? _editingPatient;
+  
+  bool _isDataInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.patient != null) {
-      _isEditing = true;
-      _populateFields(widget.patient!);
-    } else {
-      _prefixController.text = 'น.ส.';
-      _allergyController.text = 'ปฏิเสธ';
-      _diseaseController.text = 'ปฏิเสธ';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isDataInitialized) {
+      Patient? initialPatient = widget.patient;
+
+      if (initialPatient == null) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        if (args is Patient) {
+          initialPatient = args;
+        }
+      }
+
+      if (initialPatient != null) {
+        _isEditing = true;
+        _editingPatient = initialPatient;
+        _populateFields(initialPatient);
+      } else {
+        _prefixController.text = 'น.ส.';
+        _allergyController.text = 'ปฏิเสธ';
+        _diseaseController.text = 'ปฏิเสธ';
+      }
+      
+      _isDataInitialized = true;
     }
   }
 
@@ -107,7 +129,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
     super.dispose();
   }
   
-  // ✨ [NEW v1.2] สร้างเมธอดสำหรับแสดงข้อความแจ้งเตือน
   void _showSnackBar(String message, {bool isError = false}) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +145,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'ระดับความพึงพอใจ',
+          'คะแนนความร่วมมือ',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -169,45 +190,26 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [NEW v1.2] ห่อด้วย ChangeNotifierProvider เพื่อให้ Widget ข้างในเรียกใช้เชฟได้
     return ChangeNotifierProvider(
       create: (_) => PatientProvider(),
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
           title: Text(_isEditing ? "แก้ไขข้อมูลคนไข้" : "เพิ่มข้อมูลคนไข้"),
-          backgroundColor: const Color(0xFFE0BBFF),
+          backgroundColor: AppTheme.primaryLight,
           elevation: 0,
         ),
-        backgroundColor: const Color(0xFFEFE0FF),
-        // ✨ [NEW v1.2] ใช้ Consumer เพื่อคอยฟังสถานะจากเชฟ
+        backgroundColor: AppTheme.background,
         body: Consumer<PatientProvider>(
           builder: (context, provider, child) {
             return AbsorbPointer(
-              absorbing: provider.isLoading, // ถ้าเชฟกำลังทำงาน จะกดปุ่มอื่นไม่ได้
+              absorbing: provider.isLoading,
               child: Padding(
                 padding: const EdgeInsets.only(top: 20.0, left: 20.0, right: 20.0),
                 child: Form(
                   key: _formKey,
                   child: ListView(
                     children: [
-                      // ... (UI ส่วนบนเหมือนเดิม) ...
-                      Row(
-                        children: [
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 8.0, right: 4),
-                              child: Image.asset(
-                                'assets/icons/back.png',
-                                width: 32,
-                                color: Colors.purple,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
                       Row(
                         children: [
                           SizedBox(
@@ -324,8 +326,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                     value == 'หญิง' ? Icons.female : Icons.male,
                                     color:
                                         value == 'หญิง'
-                                            ? Colors.pinkAccent
-                                            : Colors.blueAccent,
+                                            ? AppTheme.iconFemale
+                                            : AppTheme.iconMale,
                                     size: 36,
                                   ),
                                 );
@@ -339,8 +341,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                       value == 'หญิง' ? Icons.female : Icons.male,
                                       color:
                                           value == 'หญิง'
-                                              ? Colors.pinkAccent
-                                              : Colors.blueAccent,
+                                              ? AppTheme.iconFemale
+                                              : AppTheme.iconMale,
                                       size: 28,
                                     ),
                                   );
@@ -364,10 +366,14 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
+                          // ✨ [UI-CHANGED v2.2] ปรับปรุงการแสดงผลช่อง HN
                           Expanded(
                             child: _buildTextField(
                               'HN',
                               _hnController,
+                              readOnly: true, // ทำให้แก้ไขไม่ได้
+                              // ถ้าเป็นการเพิ่มใหม่จะแสดงข้อความ, ถ้าแก้ไขจะแสดง HN เดิม
+                              hintText: _isEditing ? null : 'สร้างอัตโนมัติ',
                             ),
                           ),
                         ],
@@ -396,15 +402,15 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                               style: const TextStyle(fontSize: 16),
                             ),
                             style: TextButton.styleFrom(
-                              backgroundColor: const Color(0xFFFBEAFF),
-                              foregroundColor: Colors.purple,
+                              backgroundColor: AppTheme.bottomNav,
+                              foregroundColor: AppTheme.primary,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 12,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
-                                side: const BorderSide(color: Colors.purpleAccent),
+                                side: BorderSide(color: AppTheme.primaryLight),
                               ),
                             ),
                           ),
@@ -415,9 +421,9 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.purple.shade50,
+                                color: AppTheme.primary.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.purple.shade200),
+                                border: Border.all(color: AppTheme.primaryLight),
                               ),
                               child: Row(
                                 children: [
@@ -432,7 +438,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                     style: const TextStyle(
                                       fontFamily: 'Poppins',
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.deepPurple,
+                                      color: AppTheme.primary,
                                     ),
                                   ),
                                 ],
@@ -448,6 +454,9 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                       _buildTextField('โรคประจำตัว', _diseaseController),
                       const SizedBox(height: 16),
                       _buildRatingDropdown(),
+                      const SizedBox(height: 24),
+                      _buildActionButtons(provider),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
@@ -455,155 +464,167 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
             );
           }
         ),
-        bottomNavigationBar: Padding(
-          padding: const EdgeInsets.all(16.0),
-          // ✨ [NEW v1.2] ใช้ Consumer เพื่อเข้าถึง provider ตอนกดปุ่ม
-          child: Consumer<PatientProvider>(
-            builder: (context, provider, child) {
-              return Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: provider.isLoading ? null : () async {
-                        if (_formKey.currentState!.validate()) {
-                          // ... (ส่วนของ Dialog ยืนยันเหมือนเดิม) ...
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder:
-                                (context) => AlertDialog(
-                                  title: const Text('ยืนยันการบันทึก'),
-                                  content: const Text(
-                                    'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('ยกเลิก'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('บันทึก'),
-                                    ),
-                                  ],
-                                ),
-                          );
-
-                          if (confirm != true) return;
-
-                          final patient = Patient(
-                            patientId: _isEditing ? widget.patient!.patientId : '',
-                            prefix: _prefixController.text.trim(),
-                            name: _nameController.text.trim(),
-                            hnNumber: _hnController.text.trim(),
-                            telephone: _phoneController.text.trim(),
-                            address: _addressController.text.trim(),
-                            idCard: _idCardController.text.trim(),
-                            birthDate: _birthDate,
-                            medicalHistory: _diseaseController.text.trim(),
-                            allergy: _allergyController.text.trim(),
-                            gender: _selectedGender,
-                            age: _calculatedAge,
-                            rating: _selectedRating,
-                          );
-
-                          final success = await provider.savePatient(patient, _isEditing);
-
-                          if (success) {
-                            _showSnackBar('บันทึกข้อมูลสำเร็จแล้วค่ะ!');
-                            Navigator.pop(context, true);
-                          } else {
-                            _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orangeAccent.shade100,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      // ✨ [CHANGED v1.2] แสดง Loading Indicator บนปุ่ม
-                      child: provider.isLoading 
-                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black54))
-                          : Image.asset('assets/icons/save.png', width: 24, height: 24),
-                    ),
-                  ),
-                  if (_isEditing) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: provider.isLoading ? null : () async {
-                          // ... (ส่วนของ Dialog ยืนยันเหมือนเดิม) ...
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder:
-                                (context) => AlertDialog(
-                                  title: const Text('ยืนยันการลบ'),
-                                  content: const Text(
-                                    'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('ยกเลิก'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('ลบ'),
-                                    ),
-                                  ],
-                                ),
-                          );
-
-                          if (confirm != true) return;
-
-                          final success = await provider.deletePatient(widget.patient!.patientId);
-                          
-                          if (success) {
-                             _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
-                             Navigator.pop(context, true);
-                          } else {
-                             _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent.shade100,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
-                        child: provider.isLoading
-                            ? const SizedBox.shrink() // ซ่อนไปเลยถ้ากำลังโหลดอย่างอื่น
-                            : Image.asset('assets/icons/delete.png', width: 24, height: 24),
-                      ),
-                    ),
-                  ],
-                ],
-              );
-            }
-          ),
-        ),
+        bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
       ),
     );
   }
+  
+  Widget _buildActionButtons(PatientProvider provider) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: provider.isLoading ? null : () async {
+              if (_formKey.currentState!.validate()) {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('ยืนยันการบันทึก'),
+                        content: const Text(
+                          'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('ยกเลิก'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('บันทึก'),
+                          ),
+                        ],
+                      ),
+                );
 
+                if (confirm != true) return;
+
+                if (_isEditing && (_editingPatient?.patientId ?? '').isEmpty) {
+                  _showSnackBar('เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้', isError: true);
+                  return;
+                }
+
+                final patient = Patient(
+                  patientId: _isEditing ? _editingPatient!.patientId : '',
+                  prefix: _prefixController.text.trim(),
+                  name: _nameController.text.trim(),
+                  // ✨ [CHANGED v2.2] ส่ง HN จาก controller ไปด้วย (สำหรับโหมดแก้ไข)
+                  hnNumber: _hnController.text.trim(),
+                  telephone: _phoneController.text.trim(),
+                  address: _addressController.text.trim(),
+                  idCard: _idCardController.text.trim(),
+                  birthDate: _birthDate,
+                  medicalHistory: _diseaseController.text.trim(),
+                  allergy: _allergyController.text.trim(),
+                  gender: _selectedGender,
+                  age: _calculatedAge,
+                  rating: _selectedRating,
+                );
+
+                final success = await provider.savePatient(patient, _isEditing);
+
+                if (success) {
+                  _showSnackBar('บันทึกข้อมูลสำเร็จแล้วค่ะ!');
+                  Navigator.pop(context, true);
+                } else {
+                  _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent.shade100,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+            ),
+            child: provider.isLoading 
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black54))
+                : Image.asset('assets/icons/save.png', width: 24, height: 24),
+          ),
+        ),
+        if (_isEditing) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: provider.isLoading ? null : () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('ยืนยันการลบ'),
+                        content: const Text(
+                          'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('ยกเลิก'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('ลบ'),
+                          ),
+                        ],
+                      ),
+                );
+
+                if (confirm != true) return;
+
+                if (_editingPatient != null && _editingPatient!.patientId.isNotEmpty) {
+                  final success = await provider.deletePatient(_editingPatient!.patientId);
+                  
+                  if (success) {
+                     _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
+                     Navigator.of(context).pushNamedAndRemoveUntil('/patients', (Route<dynamic> route) => false);
+                  } else {
+                     _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
+                  }
+                } else {
+                  _showSnackBar('เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้ที่จะลบ', isError: true);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent.shade100,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: provider.isLoading
+                  ? const SizedBox.shrink()
+                  : Image.asset('assets/icons/delete.png', width: 24, height: 24),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ✨ [UI-CHANGED v2.2] ปรับปรุงเมธอดให้รับ readOnly และ hintText ได้
   Widget _buildTextField(
     String label,
     TextEditingController controller, {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    bool readOnly = false,
+    String? hintText,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       validator: validator,
-      style: const TextStyle(fontFamily: 'Poppins'),
+      readOnly: readOnly,
+      style: TextStyle(
+        fontFamily: 'Poppins',
+        // ถ้าเป็น readOnly ให้สีเทาๆ จะได้ดูเหมือนแก้ไขไม่ได้ค่ะ
+        color: readOnly ? Colors.grey.shade700 : Colors.black,
+      ),
       decoration: InputDecoration(
         labelText: label,
+        hintText: hintText, // แสดงข้อความแนะนำ
         prefixIcon: Padding(
           padding: const EdgeInsets.all(10),
           child: Image.asset(
@@ -629,7 +650,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           ),
         ),
         filled: true,
-        fillColor: Colors.white,
+        // ถ้าเป็น readOnly ให้พื้นหลังเป็นสีเทาอ่อนๆ ค่ะ
+        fillColor: readOnly ? Colors.grey.shade200 : Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF6A4DBA)),

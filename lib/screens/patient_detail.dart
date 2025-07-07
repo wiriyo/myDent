@@ -1,6 +1,7 @@
-// v1.0.3 - Fix Treatment Dialog Argument
+// ----------------------------------------------------------------
 // 📁 lib/screens/patient_detail.dart
-
+// v1.2.0 - ✨ Repaired Version
+// ----------------------------------------------------------------
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/patient.dart';
@@ -15,6 +16,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../main.dart';
 import 'medical_image_viewer.dart';
 import 'medical_image_gallery.dart';
+import '../styles/app_theme.dart';
+import '../widgets/custom_bottom_nav_bar.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
@@ -84,10 +87,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       
       Patient? initialPatient;
       if (args is Patient) {
-        // ✨ ถ้าข้อมูลที่ส่งมาเป็น Patient Model อยู่แล้ว ก็ใช้ได้เลยค่ะ
         initialPatient = args;
       } else if (args is Map<String, dynamic>) {
-        // ✨ ถ้าเป็น Map แบบเก่า ก็แปลงเป็น Patient Model ค่ะ
         initialPatient = Patient.fromMap(args);
       }
 
@@ -239,9 +240,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       return Scaffold(
         appBar: AppBar(
           title: const Text('รายละเอียดคนไข้'),
-          backgroundColor: const Color(0xFFE0BBFF),
+          backgroundColor: AppTheme.primaryLight,
         ),
-        body: const Center(child: CircularProgressIndicator(color: Colors.purple)),
+        body: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
       );
     }
     
@@ -252,21 +253,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     final String phone = patient!.telephone ?? '-';
     final int rating = patient!.rating;
 
-    Color cardColor;
-    if (rating >= 5) {
-      cardColor = const Color(0xFFE0F7E9);
-    } else if (rating >= 4) {
-      cardColor = const Color(0xFFFFF8E1);
-    } else {
-      cardColor = const Color(0xFFFFEBEE);
-    }
+    final cardColor = switch (rating) {
+      >= 5 => AppTheme.rating5Star,
+      4    => AppTheme.rating4Star,
+      _    => AppTheme.rating3StarAndBelow,
+    };
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEFE0FF),
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('รายละเอียดคนไข้'),
-        backgroundColor: const Color(0xFFE0BBFF),
+        backgroundColor: AppTheme.primaryLight,
         elevation: 0,
       ),
       body: SafeArea(
@@ -293,7 +291,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.purple.shade100,
+                      color: AppTheme.primaryLight.withOpacity(0.6),
                       blurRadius: 6,
                       offset: const Offset(0, 3),
                     ),
@@ -310,7 +308,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: Colors.purple,
+                            color: AppTheme.primary,
                           ),
                         ),
                         Container(
@@ -321,7 +319,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.8),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.purple.shade200),
+                            border: Border.all(color: AppTheme.primaryLight),
                           ),
                           child: _buildRatingStars(rating),
                         ),
@@ -332,7 +330,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       children: [
                         Icon(
                           gender == 'ชาย' ? Icons.male : Icons.female,
-                          color: gender == 'ชาย' ? Colors.blue : Colors.pink,
+                          color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale,
                           size: 20,
                         ),
                         const SizedBox(width: 6),
@@ -355,8 +353,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         ),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.greenAccent.shade100,
-                            foregroundColor: Colors.black,
+                            backgroundColor: AppTheme.buttonCallBg,
+                            foregroundColor: AppTheme.buttonCallFg,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -390,41 +388,42 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.purple,
+                    color: AppTheme.primary,
                   ),
                 ),
                 
                 Row(
                   children: [
-                    StreamBuilder<List<Treatment>>(
-                      stream: TreatmentService().getTreatments(patientId),
-                      builder: (context, snapshot) {
-                        final total =
-                            snapshot.data?.fold<double>(
-                                  0,
-                                  (prev, e) => prev + e.price,
-                                ) ??
-                                0.0;
-                        return Text(
-                          '🧾 ${total.toStringAsFixed(0)} บาท',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.purple,
-                          ),
-                        );
-                      },
-                    ),
+                    if (patientId.isNotEmpty)
+                      StreamBuilder<List<Treatment>>(
+                        stream: TreatmentService().getTreatments(patientId),
+                        builder: (context, snapshot) {
+                          final total =
+                              snapshot.data?.fold<double>(
+                                    0,
+                                    (prev, e) => prev + e.price,
+                                  ) ??
+                                  0.0;
+                          return Text(
+                            '🧾 ${total.toStringAsFixed(0)} บาท',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primary,
+                            ),
+                          );
+                        },
+                      ),
                     const SizedBox(width: 12),
                     Container(
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade100,
+                        color: AppTheme.buttonEditBg,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.purple.shade100.withOpacity(0.5),
+                            color: AppTheme.primaryLight.withOpacity(0.5),
                             blurRadius: 4,
                             offset: const Offset(2, 2),
                           ),
@@ -447,200 +446,138 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               ],
             ),
 
-            MedicalImageGallery(
-              imageStream: MedicalImageService().getMedicalImages(patientId),
-              patientId: patientId,
-              onImageTap: openImageViewer,
-            ),
+            if (patientId.isNotEmpty)
+              MedicalImageGallery(
+                imageStream: MedicalImageService().getMedicalImages(patientId),
+                patientId: patientId,
+                onImageTap: openImageViewer,
+              ),
 
             const SizedBox(height: 12),
-            StreamBuilder<List<Treatment>>(
-              stream: TreatmentService().getTreatments(patientId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text('ยังไม่มีประวัติการรักษา'),
-                  );
-                }
-
-                final treatments = snapshot.data!;
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: treatments.length,
-                  itemBuilder: (context, index) {
-                    final treatment = treatments[index];
-                    return GestureDetector(
-                      onTap: () {
-                        // 💖✨ [FIXED v1.0.3] แก้ไขจุดนี้เลยค่ะ!
-                        // จากการ "ขัดเงาพิมพ์เขียว" ใน v1.3 ของ Treatment
-                        // ทำให้ showTreatmentDialog ต้องการรับข้อมูลเป็น Treatment object ทั้งก้อน
-                        // ไม่ใช่ Map อีกต่อไปแล้วค่ะ เราเลยเปลี่ยนจากการส่ง treatment.toMap()
-                        // มาเป็นการส่ง treatment ตรงๆ เลย ปลอดภัยและถูกต้องกว่าเยอะเลยค่ะ!
-                        showTreatmentDialog(
-                          context,
-                          patientId: patientId,
-                          treatment: treatment, // <--- แก้ไขตรงนี้จาก .toMap()
-                        );
-                      },
-                      child: Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 2,
-                        color: Colors.white,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 12.0,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Image.asset(
-                                    'assets/icons/report.png',
-                                    width: 24,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(treatment.procedure),
-                                      Row(
-                                        children: [
-                                          Image.asset(
-                                            'assets/icons/tooth.png',
-                                            width: 16,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(treatment.toothNumber),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Image.asset(
-                                        'assets/icons/money.png',
-                                        width: 16,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${treatment.price.toStringAsFixed(0)} บาท',
-                                      ),
-                                    ],
-                                  ),
-                                  Row(
-                                    children: [
-                                      Image.asset(
-                                        'assets/icons/calendar.png',
-                                        width: 16,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${treatment.date.day}/${treatment.date.month}/${treatment.date.year}',
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+            if (patientId.isNotEmpty)
+              StreamBuilder<List<Treatment>>(
+                stream: TreatmentService().getTreatments(patientId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('ยังไม่มีประวัติการรักษา'),
                     );
-                  },
-                );
-              },
-            ),
+                  }
+
+                  final treatments = snapshot.data!;
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: treatments.length,
+                    itemBuilder: (context, index) {
+                      final treatment = treatments[index];
+                      return GestureDetector(
+                        onTap: () {
+                          showTreatmentDialog(
+                            context,
+                            patientId: patientId,
+                            treatment: treatment,
+                          );
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 2,
+                          color: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 12.0,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Image.asset(
+                                      'assets/icons/report.png',
+                                      width: 24,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(treatment.procedure),
+                                        Row(
+                                          children: [
+                                            Image.asset(
+                                              'assets/icons/tooth.png',
+                                              width: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(treatment.toothNumber),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Image.asset(
+                                          'assets/icons/money.png',
+                                          width: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${treatment.price.toStringAsFixed(0)} บาท',
+                                        ),
+                                      ],
+                                    ),
+                                    Row(
+                                      children: [
+                                        Image.asset(
+                                          'assets/icons/calendar.png',
+                                          width: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${treatment.date.day}/${treatment.date.month}/${treatment.date.year}',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
           ],
         ),
       ),
 
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          showTreatmentDialog(context, patientId: patientId);
+          if (patientId.isNotEmpty) {
+            showTreatmentDialog(context, patientId: patientId);
+          }
         },
-        backgroundColor: Colors.purple,
+        backgroundColor: AppTheme.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         child: const Icon(Icons.add, color: Colors.white, size: 36),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        color: const Color(0xFFFBEAFF),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.calendar_today, size: 30),
-                color:
-                    ModalRoute.of(context)?.settings.name == '/calendar'
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () {
-                  if (ModalRoute.of(context)?.settings.name != '/calendar') {
-                    Navigator.pushNamed(context, '/calendar');
-                  }
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.people_alt, size: 30),
-                color:
-                    ModalRoute.of(context)?.settings.name == '/patients'
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () {
-                  if (ModalRoute.of(context)?.settings.name != '/patients') {
-                    Navigator.pushNamed(context, '/patients');
-                  }
-                },
-              ),
-              const SizedBox(width: 40),
-              IconButton(
-                icon: const Icon(Icons.bar_chart, size: 30),
-                color:
-                    ModalRoute.of(context)?.settings.name == '/reports'
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () {
-                  if (ModalRoute.of(context)?.settings.name != '/reports') {
-                    Navigator.pushNamed(context, '/reports');
-                  }
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings, size: 30),
-                color:
-                    ModalRoute.of(context)?.settings.name == '/settings'
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () {
-                  if (ModalRoute.of(context)?.settings.name != '/settings') {
-                    Navigator.pushNamed(context, '/settings');
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
     );
   }
 }

@@ -1,3 +1,4 @@
+// v1.1.0 - ✨ Smarter Navigation Logic
 // 📁 lib/widgets/custom_bottom_nav_bar.dart
 
 import 'package:flutter/material.dart';
@@ -44,9 +45,28 @@ class CustomBottomNavBar extends StatelessWidget {
   }
 
   void _onItemTapped(BuildContext context, int index) {
-    // ไม่ต้องทำอะไรถ้ากดที่หน้าเดิม
-    if (selectedIndex == index) return;
+    // ✨ [LOGIC-UPGRADE v1.1] ทำให้การนำทางฉลาดขึ้น!
+    // เราจะเช็กชื่อ Route ของหน้าปัจจุบัน
+    final String? currentRouteName = ModalRoute.of(context)?.settings.name;
 
+    // กำหนด Route เป้าหมายของแต่ละไอคอน
+    final Map<int, String> routeMap = {
+      0: '/calendar',
+      1: '/patients',
+      3: '/reports',
+      4: '/settings',
+    };
+
+    final String targetRoute = routeMap[index] ?? '';
+
+    // ถ้าเราอยู่ที่หน้าเป้าหมายแล้ว (เช่น อยู่หน้า /patients แล้วกดไอคอน patients)
+    // เราจะไม่ทำอะไรเลย เพื่อป้องกันการโหลดหน้าซ้ำซ้อนค่ะ
+    if (currentRouteName == targetRoute) {
+      print('🐞 Already on route: $targetRoute. Navigation cancelled.');
+      return;
+    }
+
+    // ถ้าไม่ได้อยู่หน้าเป้าหมาย ก็จะนำทางไปหน้าใหม่ค่ะ
     Widget page;
     switch (index) {
       case 0:
@@ -62,13 +82,11 @@ class CustomBottomNavBar extends StatelessWidget {
         page = const SettingsScreen();
         break;
       default:
-        return; // ไม่ควรเกิดขึ้น
+        return;
     }
     
-    // ใช้ pushReplacement เพื่อไม่ให้หน้าจอก่อนหน้าซ้อนทับกันค่ะ
     Navigator.pushReplacement(
       context,
-      // ใช้ PageRouteBuilder เพื่อให้ไม่มี Animation ตอนเปลี่ยนหน้าค่ะ
       PageRouteBuilder(
         pageBuilder: (context, animation1, animation2) => page,
         transitionDuration: Duration.zero,

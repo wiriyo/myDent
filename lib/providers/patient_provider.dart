@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------
-// 📁 lib/providers/patient_provider.dart (‼️ NEW FILE)
-// v1.2.0 - ✨ สร้างหัวหน้าเชฟคนใหม่สำหรับจัดการข้อมูลคนไข้
+// 📁 lib/providers/patient_provider.dart
+// (เวอร์ชันนี้ไม่ต้องแก้ไขอะไรเลยค่ะ เพราะ Logic ถูกย้ายไปที่ Service หมดแล้ว)
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import '../models/patient.dart';
@@ -15,7 +15,6 @@ class PatientProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // เมธอดสำหรับอัปเดตสถานะภายใน
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
@@ -25,16 +24,13 @@ class PatientProvider with ChangeNotifier {
     _error = error;
   }
 
-  // 🍳 เมนูหลักของเชฟ: "บันทึกหรืออัปเดตข้อมูลคนไข้"
   Future<bool> savePatient(Patient patient, bool isEditing) async {
     _setLoading(true);
     _setError(null);
 
     try {
-      // 1. ตรวจสอบและเพิ่ม Prefix ใหม่ถ้ายังไม่มี
       await PrefixService.addIfNotExist(patient.prefix);
 
-      // 2. เรียกใช้ Service เพื่อบันทึกข้อมูลลง Firestore
       if (isEditing) {
         await _patientService.updatePatient(patient);
       } else {
@@ -42,27 +38,27 @@ class PatientProvider with ChangeNotifier {
       }
       
       _setLoading(false);
-      return true; // สำเร็จ!
+      return true;
     } catch (e) {
       _setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล: $e');
       _setLoading(false);
-      return false; // ล้มเหลว
+      return false;
     }
   }
 
-  // 🍳 อีกเมนูของเชฟ: "ลบข้อมูลคนไข้"
   Future<bool> deletePatient(String patientId) async {
     _setLoading(true);
     _setError(null);
 
     try {
+      // ✨ ตอนนี้เมธอดนี้ฉลาดขึ้นแล้วค่ะ!
       await _patientService.deletePatient(patientId);
       _setLoading(false);
-      return true; // สำเร็จ!
+      return true;
     } catch (e) {
       _setError('เกิดข้อผิดพลาดในการลบข้อมูล: $e');
       _setLoading(false);
-      return false; // ล้มเหลว
+      return false;
     }
   }
 }

@@ -1,10 +1,10 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/patients_screen.dart
-// v1.1.0 - ✨ อัปเกรดให้ทำงานกับ Patient Model โดยตรง
+// v1.3.0 - ✨ Redesign Patient Card Info Layout
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/patient.dart'; // ✨ [CHANGED v1.1] import Model มาใช้
+import '../models/patient.dart';
 import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
@@ -20,7 +20,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PatientService _patientService = PatientService();
   
-  // ✨ [CHANGED v1.1] เปลี่ยนมาใช้ List<Patient> โดยตรงเพื่อความปลอดภัย
   List<Patient> _allPatients = [];
   List<Patient> _searchResults = [];
   bool _isLoading = true;
@@ -40,11 +39,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
     super.dispose();
   }
 
-  // --- ✨ ระบบจัดการข้อมูล ✨ ---
   Future<void> _fetchAllPatients() async {
     setState(() { _isLoading = true; });
     try {
-      // ✨ [CHANGED v1.1] รับข้อมูลเป็น List<Patient> จาก Service โดยตรง ไม่ต้องแปลงไปมาแล้วค่ะ
       final result = await _patientService.fetchPatientsOnce();
       setState(() {
         _allPatients = result;
@@ -65,7 +62,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
       });
       return;
     }
-    // ✨ [CHANGED v1.1] ค้นหาจาก Property ของ Patient object โดยตรง ปลอดภัยกว่าเยอะเลยค่ะ
     final results = _allPatients.where((patient) {
       final name = '${patient.prefix} ${patient.name}'.toLowerCase();
       final phone = patient.telephone?.toLowerCase() ?? '';
@@ -80,7 +76,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
     });
   }
   
-  // --- ✨ ส่วนประกอบของ UI ✨ ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,14 +100,13 @@ class _PatientsScreenState extends State<PatientsScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), 
                             itemCount: _searchResults.length,
                             itemBuilder: (context, index) {
-                              // ✨ [CHANGED v1.1] ตอนนี้เรามี patient object ที่สมบูรณ์แล้ว
                               final patient = _searchResults[index];
                               return _PatientCard(
-                                patient: patient, // ✨ ส่งเป็น object แทน Map
+                                patient: patient,
                                 onCall: () => _makeCall(patient.telephone),
-                                onEdit: () => _navigateToEdit(patient), // ✨ ส่งเป็น object
+                                onEdit: () => _navigateToEdit(patient),
                                 onDelete: () => _confirmDelete(patient.patientId),
-                                onTap: () => _navigateToDetail(patient), // ✨ ส่งเป็น object
+                                onTap: () => _navigateToDetail(patient),
                               );
                             },
                           ),
@@ -193,7 +187,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
     );
   }
 
-  // --- ✨ ระบบนำทางและจัดการ Action ✨ ---
   void _navigateToAdd() async {
     final result = await Navigator.pushNamed(context, '/add_patient');
     if (result == true) {
@@ -201,21 +194,19 @@ class _PatientsScreenState extends State<PatientsScreen> {
     }
   }
 
-  // ✨ [CHANGED v1.1] รับเป็น Patient object
   void _navigateToEdit(Patient patient) async {
     final result = await Navigator.pushNamed(
       context,
       '/add_patient',
-      arguments: patient, // ✨ ส่ง object ไปทั้งก้อนเลย
+      arguments: patient,
     );
     if (result == true) {
       await _fetchAllPatients();
     }
   }
 
-  // ✨ [CHANGED v1.1] รับเป็น Patient object
   void _navigateToDetail(Patient patient) {
-    Navigator.pushNamed(context, '/patient_detail', arguments: patient); // ✨ ส่ง object ไปทั้งก้อนเลย
+    Navigator.pushNamed(context, '/patient_detail', arguments: patient);
   }
 
   void _makeCall(String? phone) async {
@@ -254,10 +245,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 }
 
-
-// --- ✨ การ์ดคนไข้ดีไซน์ใหม่ by ไลลา ✨ ---
 class _PatientCard extends StatelessWidget {
-  // ✨ [CHANGED v1.1] รับเป็น Patient object แทน Map
   final Patient patient;
   final VoidCallback onCall;
   final VoidCallback onEdit;
@@ -274,15 +262,14 @@ class _PatientCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [CHANGED v1.1] เข้าถึงข้อมูลจาก property ของ object โดยตรง
     final prefix = patient.prefix;
     final name = patient.name;
     final phone = patient.telephone ?? '-';
     final rating = patient.rating;
     final gender = patient.gender;
     final age = patient.age?.toString() ?? '-';
-    final medicalHistory = patient.medicalHistory;
-    final allergy = patient.allergy;
+    final medicalHistory = (patient.medicalHistory != null && patient.medicalHistory!.isNotEmpty) ? patient.medicalHistory : '-';
+    final allergy = (patient.allergy != null && patient.allergy!.isNotEmpty) ? patient.allergy : '-';
     
     final cardColor = switch (rating) {
       >= 5 => AppTheme.rating5Star,
@@ -317,9 +304,8 @@ class _PatientCard extends StatelessWidget {
                 children: [
                   const SizedBox(height: 25), 
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(width: 40),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,22 +313,36 @@ class _PatientCard extends StatelessWidget {
                              _buildInfoRow(iconAsset: 'assets/icons/user.png', text: '$prefix $name', isTitle: true),
                              const SizedBox(height: 4),
                              Row(
+                               crossAxisAlignment: CrossAxisAlignment.start,
                                children: [
                                  Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/phone.png', text: phone)),
-                                 if (medicalHistory != null && medicalHistory.isNotEmpty && medicalHistory != "ปฏิเสธ") ...[
-                                   const SizedBox(width: 16),
-                                   Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/medical_report.png', text: medicalHistory)),
-                                 ],
+                                 const SizedBox(width: 16),
+                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/medical_report.png', text: medicalHistory!)),
                                ],
                              ),
                              const SizedBox(height: 2),
                              Row(
+                               crossAxisAlignment: CrossAxisAlignment.start,
                                children: [
-                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/age.png', text: '$age ปี')),
-                                 if (allergy != null && allergy.isNotEmpty && allergy != "ปฏิเสธ") ...[
-                                   const SizedBox(width: 16),
-                                   Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/no_drugs.png', text: allergy)),
-                                 ],
+                                 Expanded(
+                                   child: _buildInfoRow(
+                                     iconAsset: 'assets/icons/age.png',
+                                     text: '$age ปี',
+                                     trailing: Row(
+                                       mainAxisSize: MainAxisSize.min,
+                                       children: [
+                                         const SizedBox(width: 8),
+                                         Icon(
+                                          gender == 'ชาย' ? Icons.male : Icons.female,
+                                          color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale,
+                                          size: 16,
+                                         ),
+                                       ],
+                                     )
+                                   ),
+                                 ),
+                                 const SizedBox(width: 16),
+                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/no_drugs.png', text: allergy!)),
                                ],
                              ),
                           ],
@@ -367,12 +367,11 @@ class _PatientCard extends StatelessWidget {
           ),
           
           Positioned(
-            top: 8,
-            left: 12,
-            child: Icon(
-              gender == 'ชาย' ? Icons.male : Icons.female,
-              color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale,
-              size: 40,
+            top: 10,
+            left: 16,
+            child: _buildInfoRow(
+              iconAsset: 'assets/icons/hn_id.png',
+              text: patient.hnNumber ?? 'N/A',
             ),
           ),
 
@@ -402,23 +401,34 @@ class _PatientCard extends StatelessWidget {
     );
   }
   
-  Widget _buildInfoRow({String? iconAsset, IconData? icon, required String text, bool isTitle = false}) {
+  Widget _buildInfoRow({String? iconAsset, IconData? icon, required String text, bool isTitle = false, Widget? trailing}) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (iconAsset != null)
-          Image.asset(iconAsset, width: isTitle ? 18 : 16, height: isTitle ? 18 : 16)
+          Padding(
+            padding: const EdgeInsets.only(top: 2.0),
+            child: Image.asset(iconAsset, width: isTitle ? 18 : 16, height: isTitle ? 18 : 16),
+          )
         else if (icon != null)
-          Icon(icon, size: 16, color: AppTheme.textSecondary),
+          Padding(
+            padding: const EdgeInsets.only(top: 2.0),
+            child: Icon(icon, size: 16, color: AppTheme.textSecondary),
+          ),
         const SizedBox(width: 8),
-        Expanded(
+        Flexible(
           child: Text(
             text,
             style: isTitle 
               ? const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)
               : const TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontFamily: AppTheme.fontFamily),
             overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
         ),
+        if (trailing != null)
+          trailing,
       ],
     );
   }

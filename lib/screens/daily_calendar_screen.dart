@@ -1,4 +1,4 @@
-// v2.0.0 - ✨ Upgraded to Provide Data as Models
+// v2.2.0 - ✨ Connected Refresh Signal
 // 📁 lib/screens/daily_calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -34,7 +34,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   late DateTime _currentDate;
   
-  // ✨ 1. [MODERNIZED] เปลี่ยนมาใช้ Model โดยตรงเพื่อความปลอดภัยและเป็นระเบียบ
   List<AppointmentModel> _appointments = [];
   List<Patient> _patients = [];
   DayWorkingHours? _selectedDayWorkingHours;
@@ -47,21 +46,21 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     _fetchDataForSelectedDay(_currentDate);
   }
 
-  // ✨ 2. [UPGRADED] ปรับปรุงฟังก์ชันการดึงข้อมูลให้ทันสมัย
+  void _handleDataChange() {
+    debugPrint("📱 [DailyCalendarScreen] Data change detected! Refetching data...");
+    _fetchDataForSelectedDay(_currentDate);
+  }
+
   Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
     if (!mounted) return;
     setState(() { _isLoading = true; });
 
     try {
-      // ดึงข้อมูลนัดหมายสำหรับวันที่เลือก
       final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
-      
-      // สร้าง Set ของ patientId ที่ไม่ซ้ำกัน
       final patientIds = appointments.map((appt) => appt.patientId).toSet();
       
       List<Patient> patients = [];
       if (patientIds.isNotEmpty) {
-        // ดึงข้อมูลคนไข้ทั้งหมดที่เกี่ยวข้อง
         for (String id in patientIds) {
           final patient = await _patientService.getPatientById(id);
           if (patient != null) {
@@ -70,7 +69,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         }
       }
       
-      // ดึงข้อมูลเวลาทำงาน
       DayWorkingHours? dayWorkingHours;
       try {
         final allWorkingHours = await _workingHoursService.loadWorkingHours();
@@ -83,7 +81,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       if (!mounted) return;
 
       setState(() {
-        // ✨ 3. [TYPE-SAFE] อัปเดต State ด้วยข้อมูลที่เป็น Model
         _appointments = appointments;
         _patients = patients;
         _selectedDayWorkingHours = dayWorkingHours;
@@ -102,7 +99,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🎨 UI ทั้งหมดเหมือนเดิมเป๊ะค่ะ
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -121,9 +117,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               onFormatChanged: (format) {
                 Navigator.pop(context, format);
               },
-              onDailyViewTapped: () {
-                  _fetchDataForSelectedDay(_currentDate);
-              },
+              onDailyViewTapped: _handleDataChange,
             ),
           ),
           Padding(
@@ -134,26 +128,18 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_left, color: AppTheme.primary),
                   onPressed: () {
-                    setState(() {
-                      _currentDate = _currentDate.subtract(const Duration(days: 1));
-                    });
+                    setState(() { _currentDate = _currentDate.subtract(const Duration(days: 1)); });
                     _fetchDataForSelectedDay(_currentDate);
                   },
                 ),
                 Text(
                   DateFormat('d MMMM yyyy', 'th_TH').format(_currentDate),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textSecondary,
-                  ),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textSecondary),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, color: AppTheme.primary),
                   onPressed: () {
-                    setState(() {
-                      _currentDate = _currentDate.add(const Duration(days: 1));
-                    });
+                    setState(() { _currentDate = _currentDate.add(const Duration(days: 1)); });
                     _fetchDataForSelectedDay(_currentDate);
                   },
                 ),
@@ -167,11 +153,10 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                     ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
                     : TimelineView(
                         selectedDate: _currentDate,
-                        // ✨ 4. [CONNECTED] ส่งข้อมูล Model ที่ถูกต้องไปให้ TimelineView
                         appointments: _appointments,
                         patients: _patients,
                         workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: () => _fetchDataForSelectedDay(_currentDate),
+                        onDataChanged: _handleDataChange,
                       ),
           ),
         ],
@@ -184,7 +169,15 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
-      onPressed: () => showDialog(context: context, builder: (context) => AppointmentAddDialog(initialDate: _currentDate)).then((_) => _fetchDataForSelectedDay(_currentDate)),
+      onPressed: () => showDialog(
+        context: context, 
+        builder: (context) => AppointmentAddDialog(initialDate: _currentDate)
+      ).then((value) {
+        // ✨ [CONNECTED] เชื่อมท่อส่งสัญญาณรีเฟรชที่นี่ค่ะ!
+        if (value == true) {
+          _handleDataChange();
+        }
+      }),
       backgroundColor: AppTheme.primary,
       tooltip: 'เพิ่มนัดหมายใหม่',
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

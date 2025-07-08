@@ -423,10 +423,11 @@ class _AppointmentCard extends StatelessWidget {
 
   Color _getStatusColor(String status) {
     return switch (status) {
-      'มาตามนัด' => Colors.green.shade700,
-      'ยืนยัน' => Colors.blue.shade700,
+      'เสร็จแล้ว' => Colors.green.shade700,
+      'รอยืนยัน' => Colors.blue.shade700,
       'เลื่อนนัด' => Colors.orange.shade800,
       'ยกเลิก' => Colors.red.shade700,
+      'ไม่มาตามนัด' => Colors.red.shade700,
       _ => AppTheme.textSecondary,
     };
   }

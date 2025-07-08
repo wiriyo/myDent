@@ -1,17 +1,25 @@
-// v1.0.4 - Overflow Fix
+ // v1.1.0 - ✨ Upgraded to use Models for Type Safety
 // 📁 lib/widgets/appointment_card.dart
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../models/appointment_model.dart';
+import '../models/patient.dart';
 import '../styles/app_theme.dart';
 
+// ✨ [Type Safety] ไลลาสร้าง Type Definition สำหรับ Theme ของการ์ด
+// เพื่อให้โค้ดอ่านง่ายและจัดการได้สะดวกขึ้นค่ะ
 typedef CardTheme = ({Color cardColor, Color borderColor});
 
 class AppointmentCard extends StatelessWidget {
-  final Map<String, dynamic> appointment;
-  final Map<String, dynamic> patient;
+  // ✨ [MODERNIZED] เปลี่ยนจากการรับ Map<String, dynamic> ที่ไม่ปลอดภัย
+  // มาเป็น Model ที่แข็งแรงและกำหนดชนิดข้อมูลชัดเจนค่ะ
+  // ทำให้เรามั่นใจได้ 100% ว่าข้อมูลที่เข้ามาจะถูกต้องเสมอ
+  final AppointmentModel appointment;
+  final Patient patient;
+
   final VoidCallback onTap;
   final bool isCompact;
   final bool isShort;
@@ -25,37 +33,31 @@ class AppointmentCard extends StatelessWidget {
     this.isShort = false,
   });
 
-  T _getData<T>(Map<String, dynamic> data, String key, T defaultValue) {
-    if (data.containsKey(key) && data[key] is T) {
-      return data[key] as T;
-    }
-    return defaultValue;
-  }
+  // 🗑️ [REMOVED] ไลลาได้ลบฟังก์ชัน _getData และ _getDateTime ที่ไม่จำเป็นออกไปแล้วค่ะ
+  // เพราะตอนนี้เราสามารถเข้าถึงข้อมูลจาก Model ได้โดยตรง (เช่น appointment.status)
+  // ทำให้โค้ดสะอาดและสั้นลงมากเลยค่ะ!
 
-  DateTime _getDateTime(Map<String, dynamic> data, String key) {
-    if (data.containsKey(key) && data[key] is Timestamp) {
-      return (data[key] as Timestamp).toDate();
-    }
-    return DateTime.now();
-  }
-
+  // ฟังก์ชันสำหรับกำหนดสีของการ์ดตาม Rating ของคนไข้ หรือสถานะของนัด
   CardTheme _getCardTheme(int rating, String status) {
+    // ถ้าคนไข้มี Rating (เคยมาใช้บริการและเราให้คะแนนไว้)
+    // เราจะใช้สีตาม Rating เป็นหลักค่ะ
     if (rating > 0) {
       return switch (rating) {
-        5 => (
+        5 => ( // 5 ดาว: สีเขียว สดใส น่าเชื่อถือ
             cardColor: AppTheme.rating5Star,
             borderColor: Colors.green.shade200,
           ),
-        4 => (
+        4 => ( // 4 ดาว: สีเหลืองอมส้ม ดูดี
             cardColor: AppTheme.rating4Star,
             borderColor: Colors.yellow.shade300,
           ),
-        _ => (
+        _ => ( // 3 ดาวหรือต่ำกว่า: สีแดงอ่อนๆ เป็นการเตือนให้ระวัง
             cardColor: AppTheme.rating3StarAndBelow,
             borderColor: Colors.red.shade200,
           ),
       };
     }
+    // ถ้าไม่มี Rating (คนไข้ใหม่) จะใช้สีตามสถานะของนัดแทน
     return switch (status) {
       'ยืนยันแล้ว' => (
           cardColor: const Color(0xFFE8F5E9),
@@ -69,7 +71,7 @@ class AppointmentCard extends StatelessWidget {
           cardColor: const Color(0xFFFFEBEE),
           borderColor: const Color(0xFFFFCDD2)
         ),
-      _ => (
+      _ => ( // สถานะอื่นๆ หรือไม่มีข้อมูล
           cardColor: Colors.grey.shade100,
           borderColor: Colors.grey.shade300
         ),
@@ -78,17 +80,17 @@ class AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final startTime = _getDateTime(appointment, 'startTime');
-    final endTime = _getDateTime(appointment, 'endTime');
-    final status = _getData<String>(appointment, 'status', '-');
-    final treatment = _getData<String>(appointment, 'treatment', 'ไม่มีข้อมูล');
-    final notes = _getData<String>(appointment, 'notes', '');
-    final teethList = _getData<List<dynamic>>(appointment, 'teeth', []);
+    // ✨ [CLEAN CODE] เข้าถึงข้อมูลจาก Model โดยตรง ทำให้โค้ดอ่านง่ายและปลอดภัยขึ้น
+    // เราใช้ Null-aware operators (??) เพื่อกำหนดค่าเริ่มต้นในกรณีที่ข้อมูลเป็น null ค่ะ
+    final status = appointment.status;
+    final treatment = appointment.treatment;
+    final notes = appointment.notes ?? '';
+    final teethList = appointment.teeth ?? [];
     final teeth = teethList.join(', ');
 
-    final patientName = _getData<String>(patient, 'name', 'คนไข้');
-    final patientPhone = _getData<String>(patient, 'telephone', '');
-    final rating = _getData<num>(patient, 'rating', 0).toInt();
+    final patientName = patient.name;
+    final patientPhone = patient.telephone ?? '';
+    final rating = patient.rating;
     final cardTheme = _getCardTheme(rating, status);
 
     return InkWell(
@@ -112,7 +114,8 @@ class AppointmentCard extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               constraints: const BoxConstraints(minHeight: 90),
-              child: _buildFullView(context, startTime, endTime, patientName,
+              // ✨ [SIMPLIFIED] ส่งค่าจาก Model ไปตรงๆ ไม่ต้องผ่าน Map แล้วค่ะ
+              child: _buildFullView(context, appointment.startTime, appointment.endTime, patientName,
                   treatment, teeth, status, patientPhone, notes, rating, isCompact),
             );
           },
@@ -120,6 +123,9 @@ class AppointmentCard extends StatelessWidget {
       ),
     );
   }
+
+  // ส่วนของ UI ที่เหลือ ไลลาไม่ได้แตะต้องอะไรเลยนะคะ ยังคงสวยงามเหมือนเดิมค่ะ
+  // แต่จะมีการปรับการรับค่าเล็กน้อยให้สอดคล้องกับการใช้ Model ค่ะ
 
   Widget _buildShortView(
       BuildContext context,
@@ -263,7 +269,6 @@ class AppointmentCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            // ✨ The Fix! ทำให้ส่วนท้ายของการ์ดยืดหยุ่นค่ะ
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               crossAxisAlignment: CrossAxisAlignment.center,

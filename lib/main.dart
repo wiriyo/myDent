@@ -17,6 +17,7 @@ import 'screens/setting_screen.dart';
 import 'screens/patient_detail.dart';
 import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
+import 'screens/appointment_search_screen.dart'; // import หน้าใหม่
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -89,7 +90,9 @@ class MyApp extends StatelessWidget {
         '/patient_detail': (context) => const PatientDetailScreen(),
         '/treatment_list': (context) => const TreatmentListScreen(),
         '/working_hours': (context) => const WorkingHoursScreen(),
+        '/appointment_search': (context) => const AppointmentSearchScreen(), // ✨ เพิ่ม/แก้ไขตรงนี้ค่ะ
       },
+      
     );
   }
 }

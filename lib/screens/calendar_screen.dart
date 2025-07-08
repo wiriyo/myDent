@@ -1,4 +1,4 @@
-// v1.0.7 - Final Fix for Navigation
+// v2.0.0 - ✨ Upgraded to Provide Data as Models
 // 📁 lib/screens/calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -6,6 +6,8 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 🌸 Imports from our project
+import '../models/appointment_model.dart';
+import '../models/patient.dart';
 import '../services/appointment_service.dart';
 import '../services/working_hours_service.dart';
 import '../services/patient_service.dart';
@@ -16,10 +18,6 @@ import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
-// ✨ 1. The Fix! จุดที่สำคัญที่สุดอยู่ตรงนี้ค่ะ!
-// พี่ทะเลช่วยไลลาตรวจสอบหน่อยนะคะ ว่าไฟล์หน้าจอรายสัปดาห์ของเรา
-// ชื่อว่า 'weekly_view_screen.dart' เป๊ะๆ แบบนี้เลยใช่ไหมคะ?
-// และต้องอยู่ในโฟลเดอร์เดียวกันกับไฟล์นี้ (lib/screens/) นะคะ
 import 'weekly_calendar_screen.dart'; 
 
 class CalendarScreen extends StatefulWidget {
@@ -33,11 +31,16 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   final AppointmentService _appointmentService = AppointmentService();
   final PatientService _patientService = PatientService();
-  List<Map<String, dynamic>> _selectedAppointmentsWithPatients = [];
+  final WorkingHoursService _workingHoursService = WorkingHoursService();
+  
+  // ✨ 1. [MODERNIZED] เปลี่ยนวิธีการเก็บข้อมูลให้เป็น Model ที่ชัดเจน
+  // แยกข้อมูลนัดหมายและข้อมูลคนไข้ออกจากกันเพื่อความเป็นระเบียบค่ะ
+  List<AppointmentModel> _selectedAppointments = [];
+  List<Patient> _patientsForAppointments = [];
+
   DateTime _focusedDay = DateTime.now();
   late DateTime _selectedDay;
   DayWorkingHours? _selectedDayWorkingHours;
-  final WorkingHoursService _workingHoursService = WorkingHoursService();
   CalendarFormat _calendarFormat = CalendarFormat.month; 
   bool _isLoading = true;
 
@@ -45,28 +48,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
+    _fetchDataForSelectedDay(_selectedDay);
   }
 
-  Future<void> _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
+  // ✨ 2. [UPGRADED] ปรับปรุงฟังก์ชันการดึงข้อมูลทั้งหมด
+  Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
+    if (!mounted) return;
     setState(() { _isLoading = true; });
+
     try {
+      // ดึงข้อมูลนัดหมายสำหรับวันที่เลือก
       final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
-      List<Map<String, dynamic>> appointmentsWithPatients = [];
-
-      for (var appointment in appointments) {
-        final patient = await _patientService.getPatientById(appointment.patientId);
-        if (patient != null) {
-          final appointmentDataForTimeline = appointment.toMap();
-          appointmentDataForTimeline['appointmentId'] = appointment.appointmentId;
-
-          appointmentsWithPatients.add({
-            'appointment': appointmentDataForTimeline,
-            'patient': patient.toMap()
-          });
+      
+      // สร้าง Set ของ patientId ที่ไม่ซ้ำกันจากรายการนัดหมาย
+      final patientIds = appointments.map((appt) => appt.patientId).toSet();
+      
+      List<Patient> patients = [];
+      if (patientIds.isNotEmpty) {
+        // ดึงข้อมูลคนไข้ทั้งหมดที่เกี่ยวข้องในครั้งเดียว (ถ้า Service รองรับ)
+        // หรือวนลูปดึงทีละคน (ตามโค้ดเดิม)
+        for (String id in patientIds) {
+          final patient = await _patientService.getPatientById(id);
+          if (patient != null) {
+            patients.add(patient);
+          }
         }
       }
 
+      // ดึงข้อมูลเวลาทำงาน
       DayWorkingHours? dayWorkingHours;
       try {
         final allWorkingHours = await _workingHoursService.loadWorkingHours();
@@ -78,7 +87,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (!mounted) return;
 
       setState(() {
-        _selectedAppointmentsWithPatients = appointmentsWithPatients;
+        // ✨ 3. [TYPE-SAFE] อัปเดต State ด้วยข้อมูลที่เป็น Model แล้วค่ะ
+        _selectedAppointments = appointments;
+        _patientsForAppointments = patients;
         _selectedDayWorkingHours = dayWorkingHours;
         _isLoading = false;
       });
@@ -95,6 +106,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🎨 ส่วน UI ที่เหลือ ไลลาไม่ได้แก้ไขอะไรเลยนะคะ ยังคงเหมือนเดิมทุกประการค่ะ
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -121,14 +133,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
               calendarFormat: _calendarFormat,
               onFormatChanged: (format) {
                 if (format == CalendarFormat.week) {
-                  // ✨ 2. และเราจะเรียกใช้ WeeklyViewScreen ที่นี่ค่ะ
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => WeeklyViewScreen(focusedDate: _focusedDay),
                     ),
                   ).then((_) {
-                    _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
+                    _fetchDataForSelectedDay(_selectedDay);
                   });
                 } else {
                   if (_calendarFormat != format) {
@@ -143,7 +154,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay),
                   ),
                 ).then((_) {
-                  _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay);
+                  _fetchDataForSelectedDay(_selectedDay);
                 });
               },
             ),
@@ -180,7 +191,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       _selectedDay = selectedDay;
                       _focusedDay = focusedDay;
                     });
-                    _fetchAppointmentsAndWorkingHoursForSelectedDay(selectedDay);
+                    _fetchDataForSelectedDay(selectedDay);
                   }
                 },
                 onPageChanged: (focusedDay) {
@@ -199,15 +210,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
                     : TimelineView(
                         selectedDate: _selectedDay,
-                        appointments: _selectedAppointmentsWithPatients,
+                        // ✨ 4. [CONNECTED] ส่งข้อมูลที่เป็น Model ไปให้ TimelineView
+                        // ทำให้ท่อข้อมูลของเราเชื่อมต่อกันอย่างสมบูรณ์แล้วค่ะ!
+                        appointments: _selectedAppointments,
+                        patients: _patientsForAppointments,
                         workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay),
+                        onDataChanged: () => _fetchDataForSelectedDay(_selectedDay),
                       ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showDialog(context: context, builder: (_) => AppointmentAddDialog(initialDate: _selectedDay)).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(_selectedDay)),
+        onPressed: () => showDialog(context: context, builder: (_) => AppointmentAddDialog(initialDate: _selectedDay)).then((_) => _fetchDataForSelectedDay(_selectedDay)),
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

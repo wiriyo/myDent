@@ -1,10 +1,13 @@
-// v1.0.9 - Added Date Navigation
+// v2.0.0 - ✨ Upgraded to Provide Data as Models
 // 📁 lib/screens/daily_calendar_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+// 🌸 Imports from our project
+import '../models/appointment_model.dart';
+import '../models/patient.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/working_hours_service.dart';
@@ -29,40 +32,45 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
-  // ✨ The Fix! สร้างตัวแปรสำหรับเก็บวันที่ที่กำลังแสดงผลอยู่ค่ะ
   late DateTime _currentDate;
-  List<Map<String, dynamic>> _appointmentsWithPatients = [];
+  
+  // ✨ 1. [MODERNIZED] เปลี่ยนมาใช้ Model โดยตรงเพื่อความปลอดภัยและเป็นระเบียบ
+  List<AppointmentModel> _appointments = [];
+  List<Patient> _patients = [];
   DayWorkingHours? _selectedDayWorkingHours;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // ✨ กำหนดค่าเริ่มต้นให้เป็นวันที่ที่ถูกส่งมาค่ะ
     _currentDate = widget.selectedDate;
-    _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
+    _fetchDataForSelectedDay(_currentDate);
   }
 
-  Future<void> _fetchAppointmentsAndWorkingHoursForSelectedDay(DateTime selectedDay) async {
+  // ✨ 2. [UPGRADED] ปรับปรุงฟังก์ชันการดึงข้อมูลให้ทันสมัย
+  Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
+    if (!mounted) return;
     setState(() { _isLoading = true; });
 
     try {
+      // ดึงข้อมูลนัดหมายสำหรับวันที่เลือก
       final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
-      List<Map<String, dynamic>> appointmentsWithPatients = [];
-
-      for (var appointment in appointments) {
-        final patient = await _patientService.getPatientById(appointment.patientId);
-        if (patient != null) {
-          final appointmentDataForTimeline = appointment.toMap();
-          appointmentDataForTimeline['appointmentId'] = appointment.appointmentId;
-          
-          appointmentsWithPatients.add({
-            'appointment': appointmentDataForTimeline,
-            'patient': patient.toMap() 
-          });
+      
+      // สร้าง Set ของ patientId ที่ไม่ซ้ำกัน
+      final patientIds = appointments.map((appt) => appt.patientId).toSet();
+      
+      List<Patient> patients = [];
+      if (patientIds.isNotEmpty) {
+        // ดึงข้อมูลคนไข้ทั้งหมดที่เกี่ยวข้อง
+        for (String id in patientIds) {
+          final patient = await _patientService.getPatientById(id);
+          if (patient != null) {
+            patients.add(patient);
+          }
         }
       }
       
+      // ดึงข้อมูลเวลาทำงาน
       DayWorkingHours? dayWorkingHours;
       try {
         final allWorkingHours = await _workingHoursService.loadWorkingHours();
@@ -75,7 +83,9 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       if (!mounted) return;
 
       setState(() {
-        _appointmentsWithPatients = appointmentsWithPatients;
+        // ✨ 3. [TYPE-SAFE] อัปเดต State ด้วยข้อมูลที่เป็น Model
+        _appointments = appointments;
+        _patients = patients;
         _selectedDayWorkingHours = dayWorkingHours;
         _isLoading = false;
       });
@@ -92,6 +102,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🎨 UI ทั้งหมดเหมือนเดิมเป๊ะค่ะ
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -111,11 +122,10 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                 Navigator.pop(context, format);
               },
               onDailyViewTapped: () {
-                  _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
+                  _fetchDataForSelectedDay(_currentDate);
               },
             ),
           ),
-          // ✨ The Fix! เพิ่มปุ่มลูกศรสำหรับเลื่อนวันค่ะ
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
@@ -127,7 +137,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                     setState(() {
                       _currentDate = _currentDate.subtract(const Duration(days: 1));
                     });
-                    _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
+                    _fetchDataForSelectedDay(_currentDate);
                   },
                 ),
                 Text(
@@ -144,7 +154,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                     setState(() {
                       _currentDate = _currentDate.add(const Duration(days: 1));
                     });
-                    _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate);
+                    _fetchDataForSelectedDay(_currentDate);
                   },
                 ),
               ],
@@ -157,9 +167,11 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                     ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
                     : TimelineView(
                         selectedDate: _currentDate,
-                        appointments: _appointmentsWithPatients,
+                        // ✨ 4. [CONNECTED] ส่งข้อมูล Model ที่ถูกต้องไปให้ TimelineView
+                        appointments: _appointments,
+                        patients: _patients,
                         workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: () => _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate),
+                        onDataChanged: () => _fetchDataForSelectedDay(_currentDate),
                       ),
           ),
         ],
@@ -172,7 +184,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
-      onPressed: () => showDialog(context: context, builder: (context) => AppointmentAddDialog(initialDate: _currentDate)).then((_) => _fetchAppointmentsAndWorkingHoursForSelectedDay(_currentDate)),
+      onPressed: () => showDialog(context: context, builder: (context) => AppointmentAddDialog(initialDate: _currentDate)).then((_) => _fetchDataForSelectedDay(_currentDate)),
       backgroundColor: AppTheme.primary,
       tooltip: 'เพิ่มนัดหมายใหม่',
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

@@ -33,15 +33,6 @@ class AppointmentService {
   }
 
   Future<void> updateAppointment(AppointmentModel appointment) async {
-    if (appointment.appointmentId == null) {
-      throw Exception("Appointment ID is missing, cannot update.");
-    }
-
-    // ✨ The Fix! ตอนอัปเดตเราก็จะให้เขานัดซ้อนได้เหมือนกันค่ะ
-    // if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime, appointment.appointmentId)) {
-    //   throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
-    // }
-
     try {
       await _appointmentsCollection.doc(appointment.appointmentId).update({
         ...appointment.toMap(),

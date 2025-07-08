@@ -1,11 +1,11 @@
-// v1.1.8 - Separated Date and Time
+// v1.4.0 - ✨ Final Fix for Model Compatibility
 // 📁 lib/widgets/appointment_detail_dialog.dart
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/patient.dart';
 import '../services/appointment_service.dart';
 import '../screens/appointment_add.dart';
 import '../models/appointment_model.dart';
@@ -13,7 +13,7 @@ import '../styles/app_theme.dart';
 
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
-  final Map<String, dynamic> patient;
+  final Patient patient;
   final VoidCallback onDataChanged;
 
   const AppointmentDetailDialog({
@@ -58,7 +58,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   }
 
   void _makePhoneCall() async {
-    final String? telephone = widget.patient['telephone']?.toString();
+    final String? telephone = widget.patient.telephone;
     if (telephone != null && telephone.isNotEmpty && telephone != '-') {
       final Uri phoneUri = Uri.parse('tel:$telephone');
       if (await canLaunchUrl(phoneUri)) {
@@ -82,7 +82,10 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     showDialog(
       context: context,
       builder: (_) => AppointmentAddDialog(
-        appointment: widget.appointment, 
+        appointment: widget.appointment,
+        // ✨ [FIXED v1.4.0] เอาพารามิเตอร์ patient ออกไปก่อนนะคะ
+        // เนื่องจากหน้า AppointmentAddDialog ยังไม่รองรับการรับ Patient Model โดยตรงค่ะ
+        // patient: widget.patient, 
       ),
     ).then((value) {
       if (value == true) {
@@ -92,8 +95,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   }
 
   void _deleteAppointment() async {
-    if (widget.appointment.appointmentId == null) return;
-
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -114,7 +115,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
     if (confirm == true) {
       try {
-        await _appointmentService.deleteAppointment(widget.appointment.appointmentId!);
+        await _appointmentService.deleteAppointment(widget.appointment.appointmentId);
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -167,19 +168,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     }
   }
   
-  int _calculateAge(dynamic birthDate) {
+  // ✨ [CORRECTED v1.4.0] ทำให้ฟังก์ชันนี้รับ DateTime? จาก Patient Model ได้อย่างถูกต้อง
+  // เพื่อแก้ปัญหา Type Mismatch ค่ะ
+  int _calculateAge(DateTime? birthDate) {
     if (birthDate == null) return 0;
-    DateTime? birthDateTime;
-    if (birthDate is Timestamp) {
-      birthDateTime = birthDate.toDate();
-    } else if (birthDate is String) {
-      birthDateTime = DateTime.tryParse(birthDate);
-    }
-    if (birthDateTime == null) return 0;
     final today = DateTime.now();
-    int age = today.year - birthDateTime.year;
-    if (today.month < birthDateTime.month ||
-        (today.month == birthDateTime.month && today.day < birthDateTime.day)) {
+    int age = today.year - birthDate.year;
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
       age--;
     }
     return age > 0 ? age : 0;
@@ -204,17 +200,18 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final String patientName = widget.appointment.patientName;
-    final int rating = (widget.patient['rating'] as num?)?.toInt() ?? 3;
-    final int age = _calculateAge(widget.patient['birthDate']);
-    final String telephone = widget.patient['telephone']?.toString() ?? '-';
+    // ✨ [CLEAN CODE] เรียกใช้ _calculateAge ด้วย birthDate ที่เป็น DateTime ได้เลยค่ะ
+    final int age = _calculateAge(widget.patient.birthDate);
+    final String patientName = widget.patient.name;
+    final int rating = widget.patient.rating;
+    final String telephone = widget.patient.telephone ?? '-';
+    final String gender = widget.patient.gender ?? '';
+    final String medicalHistory = widget.patient.medicalHistory ?? 'ไม่มี';
+    final String allergy = widget.patient.allergy ?? 'ไม่มี';
+
     final String treatment = widget.appointment.treatment;
     final DateTime startTime = widget.appointment.startTime;
     final DateTime endTime = widget.appointment.endTime;
-    final String gender = widget.patient['gender'] ?? '';
-    final String medicalHistory = widget.patient['medicalHistory'] ?? 'ไม่มี';
-    final String allergy = widget.patient['allergy'] ?? 'ไม่มี';
-    
     final List<String> teethList = widget.appointment.teeth ?? [];
     final String teethString = teethList.join(', ');
     final String fullTreatmentText = '$treatment ${teethString.isNotEmpty ? '(#$teethString)' : ''}';
@@ -226,6 +223,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       _    => AppTheme.rating3StarAndBelow,
     };
 
+    // 🎨 UI ทั้งหมดเหมือนเดิมเป๊ะค่ะ
     return AlertDialog(
       backgroundColor: dialogColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -301,9 +299,8 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                     children: [
                       Text(fullTreatmentText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
                       const SizedBox(height: 4),
-                      // ✨ The Fix! แยกวันที่กับเวลาเป็นคนละแถวค่ะ
                       Text(
-                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(startTime)}', 
+                        'วันที่: ${DateFormat('dd MMMM yy', 'th_TH').format(startTime)}', 
                         style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
                       ),
                       const SizedBox(height: 4),

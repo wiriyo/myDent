@@ -1,27 +1,27 @@
-// v1.0.4
+// v2.0.0 - ✨ Major Upgrade to Handle Models & Patient Data
 // 📁 lib/widgets/timeline_view.dart
 
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/working_hours_model.dart';
 import '../screens/appointment_add.dart';
-import '../models/appointment_model.dart'; // ✨ 1. import พิมพ์เขียวใหม่ของเรา
+import '../models/appointment_model.dart';
+import '../models/patient.dart'; // ✨ 1. เพิ่ม import สำหรับ Patient Model
 import 'appointment_card.dart';
 import 'gap_card.dart';
 import 'appointment_detail_dialog.dart';
 
 class _AppointmentLayoutInfo {
-  final Map<String, dynamic> appointmentData;
+  final AppointmentModel appointment;
   final DateTime startTime;
   final DateTime endTime;
   int maxOverlaps = 1;
   int columnIndex = 0;
 
   _AppointmentLayoutInfo({
-    required this.appointmentData,
+    required this.appointment,
     required this.startTime,
     required this.endTime,
   });
@@ -33,7 +33,9 @@ class _AppointmentLayoutInfo {
 
 class TimelineView extends StatelessWidget {
   final DateTime selectedDate;
-  final List<Map<String, dynamic>> appointments;
+  // ✨ 2. อัปเกรดพารามิเตอร์ให้รับ List ของ Model โดยตรง
+  final List<AppointmentModel> appointments;
+  final List<Patient> patients; // รับ List ของ Patient Model เข้ามาด้วย
   final DayWorkingHours workingHours;
   final double hourHeight;
   final VoidCallback onDataChanged;
@@ -42,6 +44,7 @@ class TimelineView extends StatelessWidget {
     super.key,
     required this.selectedDate,
     required this.appointments,
+    required this.patients, // เพิ่ม required parameter
     required this.workingHours,
     required this.onDataChanged,
     this.hourHeight = 120.0,
@@ -51,27 +54,34 @@ class TimelineView extends StatelessWidget {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
   
+  // ฟังก์ชันนี้จะรวมรายการนัดหมายกับช่องว่าง (Gap) เพื่อแสดงผลบนไทม์ไลน์
   List<Map<String, dynamic>> _getCombinedList() {
+    // เรียงนัดหมายตามเวลาเริ่มต้นก่อนเสมอ
+    appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    // ถ้าวันนั้นเป็นวันหยุดหรือไม่มีช่วงเวลาทำงาน ก็แสดงแค่นัดหมายอย่างเดียว
     if (workingHours.isClosed || workingHours.timeSlots.isEmpty) {
-      return appointments..sort((a,b) => (a['appointment']['startTime'] as Timestamp).compareTo(b['appointment']['startTime'] as Timestamp));
+      return appointments.map((appt) => {'isGap': false, 'appointment': appt}).toList();
     }
-    appointments.sort((a,b) => (a['appointment']['startTime'] as Timestamp).compareTo(b['appointment']['startTime'] as Timestamp));
     
     List<Map<String, dynamic>> finalCombinedList = [];
+    // จุดเริ่มต้นของวันทำงาน
     DateTime lastEventEnd = _combineDateAndTime(selectedDate, workingHours.timeSlots.first.openTime);
     
-    for(var apptData in appointments){
-      final startTime = (apptData['appointment']['startTime'] as Timestamp).toDate();
-      final endTime = (apptData['appointment']['endTime'] as Timestamp).toDate();
-      if(startTime.isAfter(lastEventEnd)){
-        finalCombinedList.add({'isGap': true, 'start': lastEventEnd, 'end': startTime});
+    for(var appt in appointments){
+      // ถ้านัดนี้เริ่มหลังนัดที่แล้วจบ ให้สร้าง "ช่องว่าง" (GapCard)
+      if(appt.startTime.isAfter(lastEventEnd)){
+        finalCombinedList.add({'isGap': true, 'start': lastEventEnd, 'end': appt.startTime});
       }
-      finalCombinedList.add(apptData);
-      if (endTime.isAfter(lastEventEnd)) {
-        lastEventEnd = endTime;
+      // เพิ่ม "นัดหมาย" (AppointmentCard)
+      finalCombinedList.add({'isGap': false, 'appointment': appt});
+      // อัปเดตเวลาสิ้นสุดล่าสุด
+      if (appt.endTime.isAfter(lastEventEnd)) {
+        lastEventEnd = appt.endTime;
       }
     }
     
+    // ตรวจสอบช่องว่างสุดท้ายของวัน
     final latestCloseTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.last.closeTime);
     if(latestCloseTime.isAfter(lastEventEnd)){
         finalCombinedList.add({'isGap': true, 'start': lastEventEnd, 'end': latestCloseTime});
@@ -79,12 +89,13 @@ class TimelineView extends StatelessWidget {
     return finalCombinedList;
   }
 
-  List<_AppointmentLayoutInfo> _calculateAppointmentLayouts(List<Map<String, dynamic>> appointments) {
+  // ฟังก์ชันคำนวณการซ้อนทับกันของนัดหมาย (ส่วนนี้ไม่ต้องแก้ไขค่ะ)
+  List<_AppointmentLayoutInfo> _calculateAppointmentLayouts(List<AppointmentModel> appointments) {
     if (appointments.isEmpty) return [];
-    var events = appointments.map((data) => _AppointmentLayoutInfo(
-      appointmentData: data,
-      startTime: (data['appointment']['startTime'] as Timestamp).toDate(),
-      endTime: (data['appointment']['endTime'] as Timestamp).toDate(),
+    var events = appointments.map((model) => _AppointmentLayoutInfo(
+      appointment: model,
+      startTime: model.startTime,
+      endTime: model.endTime,
     )).toList();
     events.sort((a, b) => a.startTime.compareTo(b.startTime));
     for (var event in events) { event.columnIndex = 0; event.maxOverlaps = 1; }
@@ -131,6 +142,7 @@ class TimelineView extends StatelessWidget {
     );
   }
   
+  // ส่วนของการสร้างเส้นเวลา (ส่วนนี้ไม่ต้องแก้ไขค่ะ)
   Widget _buildTimeline(DayWorkingHours workingHours) {
     List<Widget> timeWidgets = [];
     final slots = workingHours.timeSlots;
@@ -167,9 +179,9 @@ class TimelineView extends StatelessWidget {
     return Container(width: 60.0, padding: const EdgeInsets.only(right: 4), child: Column(children: timeWidgets));
   }
 
+  // ✨ 3. หัวใจของการแก้ไขอยู่ที่นี่ค่ะ!
   Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, DayWorkingHours workingHours, BoxConstraints constraints) {
-    final appointmentOnlyList = combinedList.where((item) => item['isGap'] != true).toList();
-    final appointmentLayouts = _calculateAppointmentLayouts(appointmentOnlyList);
+    final appointmentLayouts = _calculateAppointmentLayouts(appointments);
     final pixelsPerMinute = hourHeight / 60.0;
     final dayStartTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.first.openTime);
     final dayEndTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.last.closeTime);
@@ -182,39 +194,48 @@ class TimelineView extends StatelessWidget {
     for (int i = 0; i <= totalHours; i++) {
       positionedItems.add(Positioned(top: i * hourHeight, left: 0, right: 0, child: Container(height: 1, color: Colors.purple.shade50)));
     }
+
+    // สร้าง Map เพื่อให้ค้นหา Patient จาก patientId ได้เร็วขึ้นค่ะ
+    final patientMap = {for (var p in patients) p.patientId: p};
+
     for (var item in combinedList) {
       final bool isGap = item['isGap'] == true;
-      final DateTime itemStart = isGap ? item['start'] : (item['appointment']['startTime'] as Timestamp).toDate();
-      final DateTime itemEnd = isGap ? item['end'] : (item['appointment']['endTime'] as Timestamp).toDate();
+      final DateTime itemStart = isGap ? item['start'] : (item['appointment'] as AppointmentModel).startTime;
+      final DateTime itemEnd = isGap ? item['end'] : (item['appointment'] as AppointmentModel).endTime;
       final top = max(0.0, itemStart.difference(dayStartTime).inMinutes * pixelsPerMinute);
       final height = max(0.0, itemEnd.difference(itemStart).inMinutes * pixelsPerMinute);
       if (height <= 0) continue;
+
       if (isGap) {
         positionedItems.add(Positioned(top: top, left: 0, right: 0, height: height, child: GapCard(gapStart: itemStart, gapEnd: itemEnd, onTap: () => showDialog(context: context, builder: (_) => AppointmentAddDialog(initialDate: selectedDate, initialStartTime: itemStart)).then((_) => onDataChanged()))));
       } else {
-        final layoutInfo = appointmentLayouts.firstWhere((l) => l.appointmentData == item, orElse: () => _AppointmentLayoutInfo(appointmentData: item, startTime: itemStart, endTime: itemEnd));
+        final appointmentModel = item['appointment'] as AppointmentModel;
+        
+        // ✨ 4. ค้นหา Patient ที่เป็นเจ้าของนัดหมายนี้
+        final patientModel = patientMap[appointmentModel.patientId];
+
+        // ถ้าหาคนไข้ไม่เจอ (ซึ่งไม่ควรจะเกิดขึ้น) เราจะไม่แสดงการ์ดนั้น
+        if (patientModel == null) {
+          debugPrint('Warning: Patient not found for appointment ${appointmentModel.appointmentId}');
+          continue;
+        }
+
+        final layoutInfo = appointmentLayouts.firstWhere((l) => l.appointment.appointmentId == appointmentModel.appointmentId, orElse: () => _AppointmentLayoutInfo(appointment: appointmentModel, startTime: itemStart, endTime: itemEnd));
         final cardWidth = (contentWidth / layoutInfo.maxOverlaps) - 4;
         final left = layoutInfo.columnIndex * (cardWidth + 4);
         
-        // เราจะดึง appointmentId ออกมาเพื่อใช้สร้าง Model ค่ะ
-        final appointmentMap = item['appointment'] as Map<String, dynamic>;
-        final appointmentId = appointmentMap['appointmentId'] as String? ?? '';
-
-        // ✨ [FIXED] สร้าง AppointmentModel จาก Map ก่อนส่งต่อค่ะ!
-        final appointmentModel = AppointmentModel.fromMap(appointmentId, appointmentMap);
-
         final durationInMinutes = itemEnd.difference(itemStart).inMinutes;
         final bool isShortAppointment = durationInMinutes <= 30;
         
         positionedItems.add(Positioned(top: top, left: left, width: cardWidth, height: height, child: AppointmentCard(
-          appointment: item['appointment'], 
-          patient: item['patient'], 
+          // ✨ 5. ส่ง Model ทั้งสองตัวไปให้ AppointmentCard
+          appointment: appointmentModel, 
+          patient: patientModel,
           onTap: () {
-            if (appointmentId.isEmpty) return;
             showDialog(context: context, builder: (_) => AppointmentDetailDialog(
-                // ✨ [FIXED] ส่ง appointmentModel ที่เป็น object ไปแทน Map ค่ะ
-                appointment: appointmentModel, 
-                patient: item['patient'], 
+                // ✨ 6. ส่ง Model ทั้งสองตัวไปให้ AppointmentDetailDialog
+                appointment: appointmentModel,
+                patient: patientModel,
                 onDataChanged: onDataChanged
             ));
           }, 

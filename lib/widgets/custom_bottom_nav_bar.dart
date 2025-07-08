@@ -1,11 +1,12 @@
-// v1.1.0 - ✨ Smarter Navigation Logic
-// 📁 lib/widgets/custom_bottom_nav_bar.dart
-
+// ----------------------------------------------------------------
+// 📁 lib/widgets/custom_bottom_nav_bar.dart (UPGRADED)
+// v1.3.0 - ✨ Update Navigation to AppointmentSearchScreen
+// ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import '../styles/app_theme.dart';
 import '../screens/calendar_screen.dart';
 import '../screens/patients_screen.dart';
-import '../screens/reports_screen.dart';
+import '../screens/appointment_search_screen.dart'; // ✨ [CHANGED] import หน้าใหม่
 import '../screens/setting_screen.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
@@ -28,7 +29,8 @@ class CustomBottomNavBar extends StatelessWidget {
           _buildNavIconButton(context, icon: Icons.calendar_today, tooltip: 'ปฏิทิน', index: 0),
           _buildNavIconButton(context, icon: Icons.people_alt, tooltip: 'คนไข้', index: 1),
           const SizedBox(width: 40), // The space for the FAB
-          _buildNavIconButton(context, icon: Icons.bar_chart, tooltip: 'รายงาน', index: 3),
+          // ✨ [CHANGED] เปลี่ยนไอคอนและ tooltip ให้เข้ากับหน้าใหม่
+          _buildNavIconButton(context, icon: Icons.search_rounded, tooltip: 'ค้นหานัดหมาย', index: 3),
           _buildNavIconButton(context, icon: Icons.settings, tooltip: 'ตั้งค่า', index: 4),
         ],
       ),
@@ -45,28 +47,21 @@ class CustomBottomNavBar extends StatelessWidget {
   }
 
   void _onItemTapped(BuildContext context, int index) {
-    // ✨ [LOGIC-UPGRADE v1.1] ทำให้การนำทางฉลาดขึ้น!
-    // เราจะเช็กชื่อ Route ของหน้าปัจจุบัน
     final String? currentRouteName = ModalRoute.of(context)?.settings.name;
 
-    // กำหนด Route เป้าหมายของแต่ละไอคอน
     final Map<int, String> routeMap = {
       0: '/calendar',
       1: '/patients',
-      3: '/reports',
+      3: '/appointment_search', // ✨ [CHANGED] เปลี่ยนเส้นทางไปหน้าใหม่
       4: '/settings',
     };
 
     final String targetRoute = routeMap[index] ?? '';
 
-    // ถ้าเราอยู่ที่หน้าเป้าหมายแล้ว (เช่น อยู่หน้า /patients แล้วกดไอคอน patients)
-    // เราจะไม่ทำอะไรเลย เพื่อป้องกันการโหลดหน้าซ้ำซ้อนค่ะ
     if (currentRouteName == targetRoute) {
-      print('🐞 Already on route: $targetRoute. Navigation cancelled.');
       return;
     }
 
-    // ถ้าไม่ได้อยู่หน้าเป้าหมาย ก็จะนำทางไปหน้าใหม่ค่ะ
     Widget page;
     switch (index) {
       case 0:
@@ -76,7 +71,7 @@ class CustomBottomNavBar extends StatelessWidget {
         page = const PatientsScreen();
         break;
       case 3:
-        page = const ReportsScreen();
+        page = const AppointmentSearchScreen(); // ✨ [CHANGED] เปลี่ยนไปเรียกหน้าใหม่
         break;
       case 4:
         page = const SettingsScreen();

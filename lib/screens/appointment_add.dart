@@ -1,6 +1,7 @@
-// v2.2.0 - ✨ Fix Buddhist Year (พ.ศ.) Display
-// 📁 lib/screens/appointment_add.dart
-
+// ----------------------------------------------------------------
+// 📁 lib/screens/appointment_add.dart (UPGRADED)
+// v2.4.0 - ✨ Fix Nullable Type Error on Save
+// ----------------------------------------------------------------
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -36,7 +37,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   List<Patient> _allPatients = [];
   List<TreatmentMaster> _allTreatmentsMaster = [];
 
-  String? _selectedPatientId;
+  Patient? _selectedPatient;
+  
   late TextEditingController _patientController;
   late TextEditingController _treatmentController;
   late TextEditingController _durationController;
@@ -59,7 +61,16 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final initialAppointment = widget.appointment;
 
     _patientController = TextEditingController(text: initialAppointment?.patientName ?? '');
-    _selectedPatientId = initialAppointment?.patientId;
+    
+    if (initialAppointment != null) {
+      _selectedPatient = Patient(
+        patientId: initialAppointment.patientId,
+        name: initialAppointment.patientName,
+        prefix: '',
+        hnNumber: initialAppointment.hnNumber,
+        telephone: initialAppointment.patientPhone,
+      );
+    }
 
     _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? '');
     _durationController = TextEditingController(text: initialAppointment?.duration.toString() ?? '30');
@@ -178,6 +189,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้')));
       return;
     }
+    
+    if (_selectedPatient == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณาเลือกคนไข้จากรายการค่ะ')));
+      return;
+    }
 
     final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
     final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
@@ -185,10 +201,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
     final appointment = AppointmentModel(
-      appointmentId: widget.appointment?.appointmentId,
+      // ✨ [FIXED v2.4] ใช้ ?? '' เพื่อให้แน่ใจว่าค่าที่ส่งไปไม่เป็น null
+      appointmentId: widget.appointment?.appointmentId ?? '',
       userId: userId,
-      patientId: _selectedPatientId ?? 'N/A',
-      patientName: _patientController.text.trim(),
+      patientId: _selectedPatient!.patientId,
+      patientName: _selectedPatient!.name,
+      hnNumber: _selectedPatient!.hnNumber,
+      patientPhone: _selectedPatient!.telephone,
       treatment: _treatmentController.text.trim(),
       duration: int.tryParse(_durationController.text.trim()) ?? 30,
       status: _status,
@@ -289,10 +308,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           displayStringForOption: (patient) => patient.name,
           initialValue: TextEditingValue(text: _patientController.text),
           optionsBuilder: (TextEditingValue textEditingValue) {
-            _patientController.text = textEditingValue.text;
             if (textEditingValue.text.isEmpty) {
               setState(() {
-                 _selectedPatientId = null;
+                 _selectedPatient = null;
               });
               return const Iterable<Patient>.empty();
             }
@@ -305,7 +323,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           },
           onSelected: (patient) {
             setState(() {
-              _selectedPatientId = patient.patientId;
+              _selectedPatient = patient;
               _patientController.text = patient.name;
             });
           },
@@ -318,10 +336,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'กรุณาใส่ชื่อคนไข้';
-                }
-                if (_selectedPatientId == null && !_isEditing) {
+                if (value == null || value.isEmpty || _selectedPatient == null) {
                   return 'กรุณาเลือกคนไข้จากรายการ';
                 }
                 return null;
@@ -499,8 +514,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           prefixIcon: Image.asset('assets/icons/calendar.png', width: 24, height: 24),
         ),
         child: Text(
-          // 💖 [FIXED v2.2] แก้ไขการแสดงผลปี พ.ศ. ให้ถูกต้อง
-          // โดยการสร้าง format string ที่มี 'y' 4 ตัว และบวกปี ค.ศ. ด้วย 543
           DateFormat('dd MMMM yyyy', 'th_TH').format(
             DateTime(_selectedDate.year + 543, _selectedDate.month, _selectedDate.day)
           ),

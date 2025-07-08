@@ -1,19 +1,17 @@
-// v1.0.5 - Added Missing Import
+// v1.1.0 - Added getAppointmentById function
 // 📁 lib/services/appointment_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/appointment_model.dart'; 
 import '../models/patient.dart';
-import '../services/patient_service.dart'; // ✨ The Fix! เพิ่ม import ที่ขาดไปค่ะ
+import '../services/patient_service.dart';
 
 class AppointmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CollectionReference _appointmentsCollection = FirebaseFirestore.instance.collection('appointments');
 
   Future<void> addAppointment(AppointmentModel appointment) async {
-    // ✨ The Fix! ไลลาได้บอกให้พี่ รปภ. ของเราใจดีขึ้นแล้วนะคะ
-    // เราจะอนุญาตให้มีการนัดซ้อนได้ โดยการคอมเมนต์ส่วนที่เช็คเวลาออกไปก่อนค่ะ
     // if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime)) {
     //   throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
     // }
@@ -44,6 +42,23 @@ class AppointmentService {
     }
   }
 
+  // ✨ [ADDED v1.1.0] เพิ่มฟังก์ชันสำหรับดึงข้อมูลนัดหมายฉบับเต็มจาก ID ค่ะ
+  // ฟังก์ชันนี้จำเป็นสำหรับหน้าค้นหา เพื่อให้สามารถเปิดดูรายละเอียดนัดหมายได้ค่ะ
+  Future<AppointmentModel?> getAppointmentById(String appointmentId) async {
+    try {
+      final docSnapshot = await _appointmentsCollection.doc(appointmentId).get();
+      if (docSnapshot.exists) {
+        // ถ้าเจอเอกสาร ก็แปลงข้อมูลเป็น AppointmentModel แล้วส่งกลับไปค่ะ
+        return AppointmentModel.fromFirestore(docSnapshot as DocumentSnapshot<Map<String, dynamic>>);
+      }
+      // ถ้าไม่เจอ ก็ส่งค่า null กลับไปค่ะ
+      return null;
+    } catch (e) {
+      debugPrint("Error fetching appointment by ID: $e");
+      return null;
+    }
+  }
+
   Future<List<AppointmentModel>> getAppointmentsByDate(DateTime selectedDate) async {
     final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
@@ -63,7 +78,6 @@ class AppointmentService {
     }
   }
 
-  // ฟังก์ชันนี้เรายังเก็บไว้นะคะ เผื่ออนาคตอยากกลับมาใช้ค่ะ
   Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
     try {
       final querySnapshot = await _appointmentsCollection
@@ -76,13 +90,11 @@ class AppointmentService {
       }
 
       if (excludeAppointmentId != null) {
-        // ถ้ามีนัดเดียว และเป็นนัดของตัวเอง ก็ไม่ถือว่าซ้อนค่ะ
         if (querySnapshot.docs.length == 1 && querySnapshot.docs.first.id == excludeAppointmentId) {
           return false;
         }
       }
       
-      // ถ้ามีนัดอื่นอยู่แล้ว ถือว่าซ้อนค่ะ
       return true;
     } catch (e) {
       debugPrint("Error checking for time slot conflict: $e");

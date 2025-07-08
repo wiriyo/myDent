@@ -1,16 +1,19 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/appointment_search_screen.dart (UPGRADED)
-// v1.2.0 - ✨ Add Autocomplete Search Feature
+// v1.7.0 - ✨ Enabled Clicking Card to View Details
 // ----------------------------------------------------------------
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../models/appointment_model.dart'; // ✨ [ADDED] Import โมเดลฉบับเต็ม
 import '../models/appointment_search_model.dart';
-import '../models/patient.dart'; // ✨ [NEW v1.2] import Patient model
+import '../models/patient.dart';
+import '../services/appointment_service.dart'; // ✨ [ADDED] Import Service ที่จำเป็น
 import '../services/appointment_search_service.dart';
-import '../services/patient_service.dart'; // ✨ [NEW v1.2] import Patient service
+import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
+import '../widgets/appointment_detail_dialog.dart'; // ✨ [ADDED] Import หน้าต่างรายละเอียด
 import '../widgets/custom_bottom_nav_bar.dart';
 
 class AppointmentSearchScreen extends StatefulWidget {
@@ -24,11 +27,13 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   final _appointmentSearchService = AppointmentSearchService();
-  final _patientService = PatientService(); // ✨ [NEW v1.2]
+  final _patientService = PatientService();
+  // ✨ [ADDED] สร้าง instance ของ AppointmentService เพื่อใช้ดึงข้อมูลฉบับเต็ม
+  final _appointmentServiceFull = AppointmentService();
   Timer? _debounce;
 
   List<AppointmentSearchModel> _appointments = [];
-  List<Patient> _allPatients = []; // ✨ [NEW v1.2] สำหรับเก็บรายชื่อคนไข้ทั้งหมด
+  List<Patient> _allPatients = [];
   bool _isLoading = false;
   bool _isFirstLoad = true;
   bool _isLoadingMore = false;
@@ -39,12 +44,11 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPatientsForSuggestions(); // ✨ [NEW v1.2] โหลดรายชื่อคนไข้ตอนเริ่ม
+    _loadPatientsForSuggestions();
     _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(_onScroll);
   }
 
-  // ✨ [NEW v1.2] เมธอดสำหรับโหลดรายชื่อคนไข้ทั้งหมดมาเตรียมไว้
   Future<void> _loadPatientsForSuggestions() async {
     _allPatients = await _patientService.fetchPatientsOnce();
   }
@@ -126,6 +130,51 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     }
   }
 
+  // ✨ [ADDED] ฟังก์ชันสำหรับจัดการเมื่อมีการคลิกที่การ์ดนัดหมาย
+  Future<void> _showAppointmentDetails(AppointmentSearchModel searchModel) async {
+    // แสดง loading indicator ขณะดึงข้อมูล
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+    );
+
+    try {
+      // ดึงข้อมูล Appointment และ Patient ฉบับเต็ม
+      final appointmentModel = await _appointmentServiceFull.getAppointmentById(searchModel.appointmentId);
+      final patientModel = await _patientService.getPatientById(searchModel.patientId);
+
+      if (mounted) Navigator.of(context).pop(); // ปิด loading indicator
+
+      if (appointmentModel == null || patientModel == null) {
+        throw Exception('ไม่พบข้อมูลนัดหมายหรือคนไข้');
+      }
+
+      // แสดงหน้าต่าง AppointmentDetailDialog
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => AppointmentDetailDialog(
+            appointment: appointmentModel,
+            patient: patientModel,
+            onDataChanged: () {
+              // เมื่อมีการเปลี่ยนแปลงข้อมูลใน dialog ให้ทำการค้นหาใหม่เพื่ออัปเดตหน้าจอ
+              _performSearch(isNewSearch: true);
+            },
+          ),
+        );
+      }
+
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop(); // ปิด loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -146,105 +195,109 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     );
   }
 
-  // ✨ [UPGRADED v1.2] เปลี่ยนช่องค้นหาเป็น Autocomplete
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Autocomplete<Patient>(
-        displayStringForOption: (patient) => patient.name,
-        optionsBuilder: (TextEditingValue textEditingValue) {
-          if (textEditingValue.text.isEmpty) {
-            return const Iterable<Patient>.empty();
-          }
-          // กรองจากรายชื่อคนไข้ที่เราโหลดมาเตรียมไว้
-          return _allPatients.where((patient) {
-            final query = textEditingValue.text.toLowerCase();
-            final name = patient.name.toLowerCase();
-            final hn = patient.hnNumber?.toLowerCase() ?? '';
-            final phone = patient.telephone?.toLowerCase() ?? '';
-            return name.contains(query) || hn.contains(query) || phone.contains(query);
-          });
-        },
-        onSelected: (Patient selection) {
-          // เมื่อเลือกแล้ว ให้ใช้ HN เป็นคำค้นหาเพื่อความแม่นยำ
-          _searchController.text = selection.hnNumber ?? selection.name;
-          _performSearch(isNewSearch: true);
-        },
-        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-          // เชื่อม controller ของ Autocomplete กับของเรา
-          _searchController.value = controller.value;
-          return TextField(
-            controller: controller,
-            focusNode: focusNode,
-            style: const TextStyle(fontFamily: AppTheme.fontFamily),
-            decoration: InputDecoration(
-              hintText: 'ค้นหาด้วยชื่อ, เบอร์โทร, หรือ HN...',
-              hintStyle: const TextStyle(fontFamily: AppTheme.fontFamily),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              suffixIcon: controller.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey),
-                      onPressed: () {
-                        controller.clear();
-                        _searchController.clear();
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30.0),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          );
-        },
-        optionsViewBuilder: (context, onSelected, options) {
-          return Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 4.0,
-              color: const Color(0xFFFCF5FF),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 250),
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
-                  itemCount: options.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final option = options.elementAt(index);
-                    return InkWell(
-                      onTap: () => onSelected(option),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            Image.asset('assets/icons/user.png', width: 24, height: 24),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Autocomplete<Patient>(
+            displayStringForOption: (patient) => patient.name,
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return const Iterable<Patient>.empty();
+              }
+              return _allPatients.where((patient) {
+                final query = textEditingValue.text.toLowerCase();
+                final name = patient.name.toLowerCase();
+                final hn = patient.hnNumber?.toLowerCase() ?? '';
+                final phone = patient.telephone?.toLowerCase() ?? '';
+                return name.contains(query) || hn.contains(query) || phone.contains(query);
+              });
+            },
+            onSelected: (Patient selection) {
+              _searchController.text = selection.hnNumber ?? selection.name;
+              _performSearch(isNewSearch: true);
+            },
+            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+              _searchController.value = controller.value;
+              return TextField(
+                controller: controller,
+                focusNode: focusNode,
+                style: const TextStyle(fontFamily: AppTheme.fontFamily),
+                decoration: InputDecoration(
+                  hintText: 'ค้นหาด้วยชื่อ, เบอร์โทร, หรือ HN...',
+                  hintStyle: const TextStyle(fontFamily: AppTheme.fontFamily),
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  suffixIcon: controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            controller.clear();
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30.0),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              );
+            },
+            optionsViewBuilder: (context, onSelected, options) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 4.0,
+                  color: const Color(0xFFFCF5FF),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+                  ),
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 250),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.all(8.0),
+                        itemCount: options.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final option = options.elementAt(index);
+                          return InkWell(
+                            onTap: () => onSelected(option),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Row(
                                 children: [
-                                  Text(option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  Text('HN: ${option.hnNumber ?? 'N/A'}', style: const TextStyle(color: AppTheme.textSecondary)),
+                                  Image.asset('assets/icons/user.png', width: 24, height: 24),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        Text('HN: ${option.hnNumber ?? 'N/A'}', style: const TextStyle(color: AppTheme.textSecondary)),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
-        },
+        }
       ),
     );
   }
@@ -269,7 +322,12 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
           return _buildLoadMoreButton();
         }
         final appointment = _appointments[index];
-        return _AppointmentCard(appointment: appointment);
+        // ✨ [ADDED] ห่อการ์ดด้วย InkWell เพื่อให้สามารถคลิกได้
+        return InkWell(
+          onTap: () => _showAppointmentDetails(appointment),
+          borderRadius: BorderRadius.circular(16),
+          child: _AppointmentCard(appointment: appointment),
+        );
       },
     );
   }
@@ -323,9 +381,11 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final isPast = appointment.startTime.isBefore(now);
-    final cardColor = isPast ? Colors.grey.shade200 : Colors.white;
+    final cardColor = isPast ? Colors.grey.shade200 : const Color.fromARGB(255, 252, 218, 245);
     final textColor = isPast ? AppTheme.textDisabled : AppTheme.textPrimary;
     final statusColor = _getStatusColor(appointment.status);
+    final Color? iconTintColor = isPast ? Colors.grey.shade600 : null;
+
 
     return Card(
       color: cardColor,
@@ -343,16 +403,36 @@ class _AppointmentCard extends StatelessWidget {
           children: [
             _buildHeader(textColor, statusColor),
             const Divider(height: 24),
-            _buildInfoRow(Icons.person_outline, 'คนไข้', '${appointment.patientName} (HN: ${appointment.hnNumber ?? 'N/A'})', textColor),
-            const SizedBox(height: 8),
-            _buildInfoRow(Icons.medical_services_outlined, 'หัตถการ', appointment.treatment, textColor),
+            _buildInfoRow(
+              imagePath: 'assets/icons/user.png',
+              value: '${appointment.patientName} (HN: ${appointment.hnNumber ?? 'N/A'})',
+              iconColor: iconTintColor,
+              textColor: textColor,
+            ),
+            const SizedBox(height: 12),
+            _buildInfoRow(
+              imagePath: 'assets/icons/report.png',
+              value: appointment.treatment,
+              iconColor: iconTintColor,
+              textColor: textColor,
+            ),
             if (appointment.teeth != null && appointment.teeth!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildInfoRow(Icons.tag, 'ซี่ฟัน', appointment.teeth!.join(', '), textColor),
+              const SizedBox(height: 12),
+              _buildInfoRow(
+                imagePath: 'assets/icons/tooth.png',
+                value: appointment.teeth!.join(', '),
+                iconColor: iconTintColor,
+                textColor: textColor,
+              ),
             ],
             if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildInfoRow(Icons.notes_outlined, 'หมายเหตุ', appointment.notes!, textColor),
+              const SizedBox(height: 12),
+              _buildInfoRow(
+                iconData: Icons.notes_outlined,
+                value: appointment.notes!,
+                iconColor: iconTintColor ?? textColor.withOpacity(0.7),
+                textColor: textColor,
+              ),
             ],
           ],
         ),
@@ -397,24 +477,42 @@ class _AppointmentCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value, Color textColor) {
+  Widget _buildInfoRow({
+    String? imagePath,
+    IconData? iconData,
+    required String value,
+    Color? iconColor,
+    required Color textColor,
+  }) {
+    Widget iconWidget;
+    if (imagePath != null) {
+      iconWidget = Image.asset(
+        imagePath,
+        width: 18,
+        height: 18,
+        color: iconColor,
+      );
+    } else if (iconData != null) {
+      iconWidget = Icon(
+        iconData,
+        size: 18,
+        color: iconColor,
+      );
+    } else {
+      iconWidget = const SizedBox(width: 18);
+    }
+
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 18, color: textColor.withOpacity(0.7)),
-        const SizedBox(width: 12),
+        Padding(
+          padding: const EdgeInsets.only(right: 16.0),
+          child: iconWidget,
+        ),
         Expanded(
-          child: Text.rich(
-            TextSpan(
-              text: '$label: ',
-              style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
-              children: [
-                TextSpan(
-                  text: value,
-                  style: TextStyle(fontWeight: FontWeight.normal, color: textColor),
-                ),
-              ],
-            ),
+          child: Text(
+            value,
+            style: TextStyle(color: textColor, fontSize: 16),
           ),
         ),
       ],

@@ -1,4 +1,4 @@
-// v2.0.0 - ✨ Major Upgrade to Use Models for Type Safety & Consistency
+// v2.3.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
 // 📁 lib/screens/weekly_calendar_screen.dart
 
 import 'dart:math';
@@ -8,7 +8,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 // 🌸 Imports from our project
 import '../models/appointment_model.dart';
-import '../models/patient.dart'; // ✨ [UPGRADED]
+import '../models/patient.dart';
 import '../models/working_hours_model.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
@@ -22,7 +22,6 @@ import '../widgets/gap_card.dart';
 import '../widgets/view_mode_selector.dart';
 import 'daily_calendar_screen.dart';
 
-// ✨ [UPGRADED] เปลี่ยนไปใช้ Model โดยตรงเพื่อความปลอดภัย
 class _WeeklyAppointmentLayoutInfo {
   final AppointmentModel appointment;
   final Patient patient;
@@ -59,7 +58,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   DateTime? _selectedDay;
   bool _isLoading = true;
 
-  // ✨ [UPGRADED] เปลี่ยนโครงสร้างข้อมูลให้เป็น Model ทั้งหมด
   Map<DateTime, ({List<AppointmentModel> appointments, List<Patient> patients, DayWorkingHours? workingHours})> _weeklyData = {};
 
   final ScrollController _headerScrollController = ScrollController();
@@ -67,7 +65,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   final ScrollController _timeAxisScrollController = ScrollController();
   final ScrollController _contentVerticalScrollController = ScrollController();
 
-  final double _hourHeight = 120.0;
+  final double _hourHeight = 120.0; 
   final double _dayColumnWidth = 200.0;
   final double _timeAxisWidth = 60.0;
   final int _startHour = 9;
@@ -101,7 +99,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     _fetchDataForWeek(_focusedDay);
   }
 
-  // ✨ [UPGRADED] ปรับปรุงการดึงข้อมูลทั้งหมดให้ทำงานกับ Model
   Future<void> _fetchDataForWeek(DateTime focusedDay) async {
     setState(() { _isLoading = true; });
 
@@ -159,7 +156,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     return days[weekday - 1];
   }
 
-  // ✨ [UPGRADED] ปรับปรุงการคำนวณ Layout ให้ทำงานกับ Model
   List<_WeeklyAppointmentLayoutInfo> _calculateAppointmentLayouts(List<AppointmentModel> appointments, List<Patient> patients) {
     if (appointments.isEmpty) return [];
     final patientMap = {for (var p in patients) p.patientId: p};
@@ -194,7 +190,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     return events;
   }
 
-  // ✨ [UPGRADED] ปรับปรุงการสร้างรายการนัดหมาย/ช่องว่างให้ทำงานกับ Model
   List<Map<String, dynamic>> _getCombinedListForDay(List<AppointmentModel> appointments, DayWorkingHours workingHours, DateTime selectedDate) {
     appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
     
@@ -225,7 +220,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     return finalCombinedList;
   }
 
-  // 🎨 UI ส่วนใหญ่ยังคงเหมือนเดิมค่ะ ไลลาแค่ปรับการส่งข้อมูลให้ถูกต้อง
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -289,7 +283,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         onPressed: () => showDialog(
           context: context,
           builder: (_) => AppointmentAddDialog(initialDate: _selectedDay ?? DateTime.now())
-        ).then((value) { if(value == true) { _handleDataChange(); } }), // ✨ [CONNECTED]
+        ).then((value) { if(value == true) { _handleDataChange(); } }),
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -322,6 +316,19 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             titleCentered: true,
             titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
             formatButtonVisible: false,
+          ),
+          // ✨ [พ.ศ. FORMAT] เพิ่ม builder เพื่อจัดรูปแบบหัวข้อปฏิทินเป็น พ.ศ. ค่ะ
+          calendarBuilders: CalendarBuilders(
+            headerTitleBuilder: (context, date) {
+              final year = date.year + 543;
+              final month = DateFormat.MMMM('th_TH').format(date);
+              return Center(
+                child: Text(
+                  '$month $year',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary),
+                ),
+              );
+            },
           ),
           calendarStyle: CalendarStyle(
             todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
@@ -393,7 +400,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     );
   }
 
-  // ✨ [UPGRADED] หัวใจของการแก้ไขอยู่ที่นี่ค่ะ!
   Widget _buildDayColumn(DateTime day, ({List<AppointmentModel> appointments, List<Patient> patients, DayWorkingHours? workingHours})? dayData) {
     final pixelsPerMinute = _hourHeight / 60.0;
     final dayStartTime = DateTime(day.year, day.month, day.day, _startHour);
@@ -439,7 +445,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                   gapStart: itemStart,
                   gapEnd: itemEnd,
                   onTap: () => showDialog(context: context, builder: (_) => AppointmentAddDialog(initialDate: day, initialStartTime: itemStart))
-                      .then((value) { if (value == true) { _handleDataChange(); } }), // ✨ [CONNECTED]
+                      .then((value) { if (value == true) { _handleDataChange(); } }),
                 ),
               );
             } else {
@@ -463,7 +469,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                     builder: (_) => AppointmentDetailDialog(
                       appointment: appointmentModel, 
                       patient: patientModel, 
-                      onDataChanged: _handleDataChange, // ✨ [CONNECTED]
+                      onDataChanged: _handleDataChange,
                     )
                   ),
                 ),

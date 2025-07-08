@@ -1,4 +1,4 @@
-// v1.4.0 - ✨ Final Fix for Model Compatibility
+// v1.5.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
 // 📁 lib/widgets/appointment_detail_dialog.dart
 
 import 'package:flutter/material.dart';
@@ -83,9 +83,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       context: context,
       builder: (_) => AppointmentAddDialog(
         appointment: widget.appointment,
-        // ✨ [FIXED v1.4.0] เอาพารามิเตอร์ patient ออกไปก่อนนะคะ
-        // เนื่องจากหน้า AppointmentAddDialog ยังไม่รองรับการรับ Patient Model โดยตรงค่ะ
-        // patient: widget.patient, 
       ),
     ).then((value) {
       if (value == true) {
@@ -168,8 +165,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     }
   }
   
-  // ✨ [CORRECTED v1.4.0] ทำให้ฟังก์ชันนี้รับ DateTime? จาก Patient Model ได้อย่างถูกต้อง
-  // เพื่อแก้ปัญหา Type Mismatch ค่ะ
   int _calculateAge(DateTime? birthDate) {
     if (birthDate == null) return 0;
     final today = DateTime.now();
@@ -200,7 +195,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [CLEAN CODE] เรียกใช้ _calculateAge ด้วย birthDate ที่เป็น DateTime ได้เลยค่ะ
     final int age = _calculateAge(widget.patient.birthDate);
     final String patientName = widget.patient.name;
     final int rating = widget.patient.rating;
@@ -223,7 +217,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       _    => AppTheme.rating3StarAndBelow,
     };
 
-    // 🎨 UI ทั้งหมดเหมือนเดิมเป๊ะค่ะ
     return AlertDialog(
       backgroundColor: dialogColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -300,7 +293,8 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                       Text(fullTreatmentText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
                       const SizedBox(height: 4),
                       Text(
-                        'วันที่: ${DateFormat('dd MMMM yy', 'th_TH').format(startTime)}', 
+                        // ✨ [พ.ศ. FORMAT] เพิ่ม 543 ปีเข้าไปก่อนจัดรูปแบบ และใช้ yyyy เพื่อความสอดคล้องกันค่ะ
+                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(DateTime(startTime.year + 543, startTime.month, startTime.day))}', 
                         style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
                       ),
                       const SizedBox(height: 4),

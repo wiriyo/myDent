@@ -1,4 +1,4 @@
- // v1.1.0 - ✨ Upgraded to use Models for Type Safety
+// v1.2.0 - ✨ Fixed RenderFlex Overflow in Short View
 // 📁 lib/widgets/appointment_card.dart
 
 import 'package:flutter/material.dart';
@@ -9,17 +9,11 @@ import '../models/appointment_model.dart';
 import '../models/patient.dart';
 import '../styles/app_theme.dart';
 
-// ✨ [Type Safety] ไลลาสร้าง Type Definition สำหรับ Theme ของการ์ด
-// เพื่อให้โค้ดอ่านง่ายและจัดการได้สะดวกขึ้นค่ะ
 typedef CardTheme = ({Color cardColor, Color borderColor});
 
 class AppointmentCard extends StatelessWidget {
-  // ✨ [MODERNIZED] เปลี่ยนจากการรับ Map<String, dynamic> ที่ไม่ปลอดภัย
-  // มาเป็น Model ที่แข็งแรงและกำหนดชนิดข้อมูลชัดเจนค่ะ
-  // ทำให้เรามั่นใจได้ 100% ว่าข้อมูลที่เข้ามาจะถูกต้องเสมอ
   final AppointmentModel appointment;
   final Patient patient;
-
   final VoidCallback onTap;
   final bool isCompact;
   final bool isShort;
@@ -33,31 +27,23 @@ class AppointmentCard extends StatelessWidget {
     this.isShort = false,
   });
 
-  // 🗑️ [REMOVED] ไลลาได้ลบฟังก์ชัน _getData และ _getDateTime ที่ไม่จำเป็นออกไปแล้วค่ะ
-  // เพราะตอนนี้เราสามารถเข้าถึงข้อมูลจาก Model ได้โดยตรง (เช่น appointment.status)
-  // ทำให้โค้ดสะอาดและสั้นลงมากเลยค่ะ!
-
-  // ฟังก์ชันสำหรับกำหนดสีของการ์ดตาม Rating ของคนไข้ หรือสถานะของนัด
   CardTheme _getCardTheme(int rating, String status) {
-    // ถ้าคนไข้มี Rating (เคยมาใช้บริการและเราให้คะแนนไว้)
-    // เราจะใช้สีตาม Rating เป็นหลักค่ะ
     if (rating > 0) {
       return switch (rating) {
-        5 => ( // 5 ดาว: สีเขียว สดใส น่าเชื่อถือ
+        5 => (
             cardColor: AppTheme.rating5Star,
             borderColor: Colors.green.shade200,
           ),
-        4 => ( // 4 ดาว: สีเหลืองอมส้ม ดูดี
+        4 => (
             cardColor: AppTheme.rating4Star,
             borderColor: Colors.yellow.shade300,
           ),
-        _ => ( // 3 ดาวหรือต่ำกว่า: สีแดงอ่อนๆ เป็นการเตือนให้ระวัง
+        _ => (
             cardColor: AppTheme.rating3StarAndBelow,
             borderColor: Colors.red.shade200,
           ),
       };
     }
-    // ถ้าไม่มี Rating (คนไข้ใหม่) จะใช้สีตามสถานะของนัดแทน
     return switch (status) {
       'ยืนยันแล้ว' => (
           cardColor: const Color(0xFFE8F5E9),
@@ -71,7 +57,7 @@ class AppointmentCard extends StatelessWidget {
           cardColor: const Color(0xFFFFEBEE),
           borderColor: const Color(0xFFFFCDD2)
         ),
-      _ => ( // สถานะอื่นๆ หรือไม่มีข้อมูล
+      _ => (
           cardColor: Colors.grey.shade100,
           borderColor: Colors.grey.shade300
         ),
@@ -80,8 +66,6 @@ class AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [CLEAN CODE] เข้าถึงข้อมูลจาก Model โดยตรง ทำให้โค้ดอ่านง่ายและปลอดภัยขึ้น
-    // เราใช้ Null-aware operators (??) เพื่อกำหนดค่าเริ่มต้นในกรณีที่ข้อมูลเป็น null ค่ะ
     final status = appointment.status;
     final treatment = appointment.treatment;
     final notes = appointment.notes ?? '';
@@ -114,7 +98,6 @@ class AppointmentCard extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               constraints: const BoxConstraints(minHeight: 90),
-              // ✨ [SIMPLIFIED] ส่งค่าจาก Model ไปตรงๆ ไม่ต้องผ่าน Map แล้วค่ะ
               child: _buildFullView(context, appointment.startTime, appointment.endTime, patientName,
                   treatment, teeth, status, patientPhone, notes, rating, isCompact),
             );
@@ -123,9 +106,6 @@ class AppointmentCard extends StatelessWidget {
       ),
     );
   }
-
-  // ส่วนของ UI ที่เหลือ ไลลาไม่ได้แตะต้องอะไรเลยนะคะ ยังคงสวยงามเหมือนเดิมค่ะ
-  // แต่จะมีการปรับการรับค่าเล็กน้อยให้สอดคล้องกับการใช้ Model ค่ะ
 
   Widget _buildShortView(
       BuildContext context,
@@ -173,7 +153,9 @@ class AppointmentCard extends StatelessWidget {
           const SizedBox(width: 12),
           Image.asset('assets/icons/treatment.png', width: 16, height: 16),
           const SizedBox(width: 6),
-          Expanded(
+          // ✨ [FIX v1.2.0] เปลี่ยนจาก Expanded เป็น Flexible เพื่อแก้ปัญหา Overflow
+          // Flexible จะยอมหดตัวลงได้เมื่อมีพื้นที่ไม่พอ ต่างจาก Expanded ที่จะพยายามจองพื้นที่ให้ได้มากที่สุด
+          Flexible(
             flex: 2,
             child: Text('$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
                 style:

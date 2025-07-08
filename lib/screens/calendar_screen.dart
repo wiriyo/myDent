@@ -1,4 +1,4 @@
-// v2.2.0 - ✨ Re-applied and Verified Refresh Signal Logic
+// v2.3.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
 // 📁 lib/screens/calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -19,6 +19,7 @@ import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart'; 
+import 'package:intl/intl.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -49,10 +50,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _fetchDataForSelectedDay(_selectedDay);
   }
 
-  // ✨ นี่คือฟังก์ชัน "รับสัญญาณ" ของเราค่ะ
-  // เมื่อมีการเปลี่ยนแปลงข้อมูล ฟังก์ชันนี้จะถูกเรียกเพื่อดึงข้อมูลใหม่ทั้งหมด
   void _handleDataChange() {
-    debugPrint("📱 [CalendarScreen] สัญญาณรีเฟรชมาถึงแล้ว! กำลังดึงข้อมูลใหม่ค่ะ...");
+    debugPrint("📱 [CalendarScreen] Data change detected! Refetching data...");
     _fetchDataForSelectedDay(_selectedDay);
   }
 
@@ -169,6 +168,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   titleCentered: true,
                   titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
                 ),
+                // ✨ [พ.ศ. FORMAT] เพิ่ม builder เพื่อจัดรูปแบบหัวข้อปฏิทินเป็น พ.ศ. ค่ะ
+                calendarBuilders: CalendarBuilders(
+                  headerTitleBuilder: (context, date) {
+                    final year = date.year + 543;
+                    final month = DateFormat.MMMM('th_TH').format(date);
+                    return Center(
+                      child: Text(
+                        '$month $year',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary),
+                      ),
+                    );
+                  },
+                ),
                 calendarStyle: CalendarStyle(
                   todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
                   selectedDecoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
@@ -201,7 +213,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         appointments: _selectedAppointments,
                         patients: _patientsForAppointments,
                         workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: _handleDataChange, // ส่ง "ฟังก์ชันรับสัญญาณ" ไปให้ TimelineView
+                        onDataChanged: _handleDataChange,
                       ),
           ),
         ],
@@ -211,8 +223,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           context: context, 
           builder: (_) => AppointmentAddDialog(initialDate: _selectedDay)
         ).then((value) {
-          // ✨ [CONNECTED] จุดนี้คือ "ผู้รับสาร" ที่สำคัญที่สุดค่ะ!
-          // เมื่อ Dialog ปิดและส่งค่า true กลับมา เราจะเรียก _handleDataChange() ทันที
           if (value == true) {
             _handleDataChange();
           }

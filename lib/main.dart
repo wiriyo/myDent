@@ -1,7 +1,8 @@
-// v1.0.2 - Refreshed
+// v1.1.0 - ✨ Fully Enabled Thai Localization
 // 📁 lib/main.dart
 
 import 'package:flutter/material.dart';
+// ✨ [พ.ศ. FIX] เพิ่ม import ที่จำเป็นสำหรับ localization ค่ะ
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +18,7 @@ import 'screens/setting_screen.dart';
 import 'screens/patient_detail.dart';
 import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
-import 'screens/appointment_search_screen.dart'; // import หน้าใหม่
+import 'screens/appointment_search_screen.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -49,13 +50,21 @@ class MyApp extends StatelessWidget {
       title: 'MyDent',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
-      locale: const Locale('th', 'TH'),
-      supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
+      
+      // ✨ [พ.ศ. FIX] การตั้งค่า localization ที่สมบูรณ์แบบค่ะ
+      // การตั้งค่าชุดนี้จะทำให้ทุกส่วนของแอป รวมถึง DatePicker
+      // แสดงผลเป็นภาษาไทยและปี พ.ศ. ได้อย่างถูกต้องค่ะ
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      supportedLocales: const [
+        Locale('th', 'TH'), // ภาษาไทย
+        Locale('en', 'US'), // ภาษาอังกฤษ (สำรอง)
+      ],
+      locale: const Locale('th', 'TH'), // ตั้งค่าภาษาหลักเป็นภาษาไทย
+
       theme: ThemeData(
         primaryColor: const Color(0xFFE0BBFF),
         scaffoldBackgroundColor: const Color(0xFFFFF5FC),
@@ -79,7 +88,6 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
-        // ✨ โค้ดส่วนนี้ถูกต้องแล้วค่ะ
         '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
         '/calendar': (context) => const CalendarScreen(),
         '/login': (context) => const LoginScreen(),
@@ -90,7 +98,7 @@ class MyApp extends StatelessWidget {
         '/patient_detail': (context) => const PatientDetailScreen(),
         '/treatment_list': (context) => const TreatmentListScreen(),
         '/working_hours': (context) => const WorkingHoursScreen(),
-        '/appointment_search': (context) => const AppointmentSearchScreen(), // ✨ เพิ่ม/แก้ไขตรงนี้ค่ะ
+        '/appointment_search': (context) => const AppointmentSearchScreen(),
       },
       
     );

@@ -1,4 +1,4 @@
-// v2.4.0 - ✨ Major Fix for Timeline Axis to Respect Working Hours
+// v2.6.0 - ✨ Fixed Clipping for Both Top and Bottom Timeline Labels
 // 📁 lib/widgets/timeline_view.dart
 
 import 'dart:math';
@@ -131,12 +131,15 @@ class TimelineView extends StatelessWidget {
 
     final combinedList = _getCombinedList();
     
-    // ✨ [FIX v2.4.0] ย้ายการคำนวณตัวแปรส่วนกลางมาไว้ตรงนี้
-    // เพื่อให้ทั้ง _buildTimeline และ _buildContentArea ใช้ค่าเดียวกันค่ะ
     final pixelsPerMinute = hourHeight / 60.0;
     final dayStartTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.first.openTime);
     final dayEndTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.last.closeTime);
     final totalHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute);
+    
+    // ✨ [FIX v2.6.0] เพิ่มพื้นที่ว่างทั้งด้านบนและด้านล่าง เพื่อให้ Label ไม่โดนตัดค่ะ
+    const double topPadding = 14.0; 
+    const double bottomPadding = 14.0; 
+    final containerHeight = totalHeight + topPadding + bottomPadding;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -147,8 +150,9 @@ class TimelineView extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildTimeline(dayStartTime, totalHeight, pixelsPerMinute),
-                _buildContentArea(context, combinedList, dayStartTime, totalHeight, pixelsPerMinute, constraints),
+                // ส่งความสูงและ padding เข้าไปให้ทั้งสองส่วน เพื่อให้มันสูงและจัดตำแหน่งตรงกันค่ะ
+                _buildTimeline(dayStartTime, containerHeight, pixelsPerMinute, topPadding),
+                _buildContentArea(context, combinedList, dayStartTime, containerHeight, pixelsPerMinute, topPadding, constraints),
               ],
             ),
           ),
@@ -157,11 +161,10 @@ class TimelineView extends StatelessWidget {
     );
   }
   
-  // ✨ [MAJOR FIX v2.4.0] แก้ไขการสร้างเส้นเวลาทั้งหมด ให้สอดคล้องกับเวลาทำการจริง
-  Widget _buildTimeline(DateTime dayStartTime, double totalHeight, double pixelsPerMinute) {
+  Widget _buildTimeline(DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding) {
     List<Widget> children = [];
 
-    // 1. วาดเส้นแนวนอนสำหรับทุกๆ ชั่วโมงตามเวลาทำการ
+    // วาดเส้นแนวนอน
     for (final slot in workingHours.timeSlots) {
       final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
       final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
@@ -170,11 +173,11 @@ class TimelineView extends StatelessWidget {
       final endMinute = slotEnd.hour * 60 + slotEnd.minute;
 
       while (currentMinute <= endMinute) {
-        if (currentMinute % 60 == 0) { // วาดเส้นทุกๆ ชั่วโมงเต็ม
+        if (currentMinute % 60 == 0) {
           final currentTime = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, currentMinute ~/ 60, 0);
           final topPosition = currentTime.difference(dayStartTime).inMinutes * pixelsPerMinute;
           children.add(Positioned(
-            top: topPosition,
+            top: topPosition + topPadding, // ✨ เพิ่ม padding
             left: 0,
             right: 0,
             child: Container(height: 1, color: Colors.purple.shade50),
@@ -184,7 +187,7 @@ class TimelineView extends StatelessWidget {
       }
     }
     
-    // 2. เพิ่มป้ายบอกเวลา (09:00, 09:30, ...) ตามช่วงเวลาทำการ
+    // วาดป้ายบอกเวลา
     for (final slot in workingHours.timeSlots) {
       final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
       final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
@@ -198,7 +201,7 @@ class TimelineView extends StatelessWidget {
 
         children.add(
           Positioned(
-            top: topPosition - 7, // จัดให้อยู่กึ่งกลางเส้น
+            top: topPosition + topPadding - 7, // ✨ เพิ่ม padding และจัดกึ่งกลาง
             right: 8,
             child: Text(
               DateFormat('HH:mm').format(currentTime),
@@ -210,18 +213,18 @@ class TimelineView extends StatelessWidget {
             ),
           ),
         );
-        currentMinute += 30; // เพิ่มทีละครึ่งชั่วโมง
+        currentMinute += 30;
       }
     }
 
     return SizedBox(
       width: 60.0,
-      height: totalHeight,
+      height: containerHeight, // ใช้ความสูงใหม่ที่เพิ่มพื้นที่ว่างแล้ว
       child: Stack(children: children),
     );
   }
 
-  Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, DateTime dayStartTime, double totalHeight, double pixelsPerMinute, BoxConstraints constraints) {
+  Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding, BoxConstraints constraints) {
     final appointmentLayouts = _calculateAppointmentLayouts(appointments);
     final double contentWidth = constraints.maxWidth - 60.0; 
     
@@ -232,7 +235,9 @@ class TimelineView extends StatelessWidget {
       final bool isGap = item['isGap'] == true;
       final DateTime itemStart = isGap ? item['start'] : (item['appointment'] as AppointmentModel).startTime;
       final DateTime itemEnd = isGap ? item['end'] : (item['appointment'] as AppointmentModel).endTime;
-      final top = max(0.0, itemStart.difference(dayStartTime).inMinutes * pixelsPerMinute);
+      
+      // ✨ เพิ่ม padding ให้กับตำแหน่ง top ของทุกชิ้นส่วน
+      final top = max(0.0, itemStart.difference(dayStartTime).inMinutes * pixelsPerMinute) + topPadding;
       final height = max(0.0, itemEnd.difference(itemStart).inMinutes * pixelsPerMinute);
       if (height <= 0.1) continue;
 
@@ -280,6 +285,11 @@ class TimelineView extends StatelessWidget {
         ));
       }
     }
-    return Expanded(child: SizedBox(height: totalHeight, child: Stack(children: positionedItems)));
+    return Expanded(
+      child: SizedBox(
+        height: containerHeight, // ใช้ความสูงใหม่ที่เพิ่มพื้นที่ว่างแล้ว
+        child: Stack(children: positionedItems)
+      )
+    );
   }
 }

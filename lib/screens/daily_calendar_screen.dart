@@ -1,4 +1,4 @@
-// v2.2.0 - ✨ Connected Refresh Signal
+// v2.3.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
 // 📁 lib/screens/daily_calendar_screen.dart
 
 import 'package:flutter/material.dart';
@@ -133,8 +133,15 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                   },
                 ),
                 Text(
-                  DateFormat('d MMMM yyyy', 'th_TH').format(_currentDate),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textSecondary),
+                  // ✨ [พ.ศ. FORMAT] เพิ่ม 543 ปีเข้าไปก่อนจัดรูปแบบ เพื่อแสดงผลเป็น พ.ศ. ค่ะ
+                  DateFormat('d MMMM yyyy', 'th_TH').format(
+                    DateTime(_currentDate.year + 543, _currentDate.month, _currentDate.day)
+                  ),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, color: AppTheme.primary),
@@ -173,7 +180,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         context: context, 
         builder: (context) => AppointmentAddDialog(initialDate: _currentDate)
       ).then((value) {
-        // ✨ [CONNECTED] เชื่อมท่อส่งสัญญาณรีเฟรชที่นี่ค่ะ!
         if (value == true) {
           _handleDataChange();
         }

@@ -1,9 +1,10 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/appointment_add.dart (UPGRADED)
-// v2.4.0 - ✨ Fix Nullable Type Error on Save
+// v3.3.0 - ✨ Implemented Dual-Wheel Custom Time Picker
 // ----------------------------------------------------------------
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; 
 import 'package:intl/intl.dart';
 import '../models/appointment_model.dart';
 import '../models/patient.dart';
@@ -132,24 +133,29 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
+      locale: const Locale('th', 'TH'),
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
       builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppTheme.primary,
-              onPrimary: Colors.white,
-              onSurface: AppTheme.textPrimary,
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: AppTheme.primary,
+        return Localizations.override(
+          context: context,
+          locale: const Locale('th', 'TH'),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: AppTheme.primary,
+                onPrimary: Colors.white,
+                onSurface: AppTheme.textPrimary,
+              ),
+              textButtonTheme: TextButtonThemeData(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.primary,
+                ),
               ),
             ),
+            child: child!,
           ),
-          child: child!,
         );
       },
     );
@@ -160,15 +166,115 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
   }
 
-
+  // ✨ [DUAL-WHEEL TIME PICKER] เปลี่ยนมาใช้วงล้อเลือกเวลาแบบคู่ค่ะ
   Future<void> _pickStartTime() async {
-    final picked = await showTimePicker(
+    final List<int> hours = List<int>.generate(24, (i) => i);
+    final List<int> minutes = [0, 15, 30, 45];
+
+    final initialTime = _startTime ?? const TimeOfDay(hour: 9, minute: 0);
+    
+    // หาค่าเริ่มต้นสำหรับวงล้อชั่วโมง
+    int initialHourIndex = hours.indexOf(initialTime.hour);
+    if(initialHourIndex == -1) initialHourIndex = 9;
+
+    // หาค่าเริ่มต้นสำหรับวงล้อนาที (หาค่าที่ใกล้เคียงที่สุด)
+    int initialMinuteIndex = 0;
+    int minDiff = 60;
+    for(int i=0; i < minutes.length; i++){
+      int diff = (minutes[i] - initialTime.minute).abs();
+      if(diff < minDiff){
+        minDiff = diff;
+        initialMinuteIndex = i;
+      }
+    }
+
+    final hourController = FixedExtentScrollController(initialItem: initialHourIndex);
+    final minuteController = FixedExtentScrollController(initialItem: initialMinuteIndex);
+
+    TimeOfDay? pickedTime;
+
+    await showDialog<void>(
       context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('เลือกเวลาเริ่ม', style: TextStyle(fontFamily: AppTheme.fontFamily)),
+          content: SizedBox(
+            height: 200,
+            width: 200,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // วงล้อเลือกชั่วโมง
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: hourController,
+                    itemExtent: 50,
+                    perspective: 0.005,
+                    diameterRatio: 1.2,
+                    physics: const FixedExtentScrollPhysics(),
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: hours.length,
+                      builder: (context, index) {
+                        return Center(
+                          child: Text(
+                            hours[index].toString().padLeft(2, '0'),
+                            style: const TextStyle(fontSize: 24, fontFamily: AppTheme.fontFamily),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(':', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                ),
+                // วงล้อเลือกนาที
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: minuteController,
+                    itemExtent: 50,
+                    perspective: 0.005,
+                    diameterRatio: 1.2,
+                    physics: const FixedExtentScrollPhysics(),
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: minutes.length,
+                      builder: (context, index) {
+                        return Center(
+                          child: Text(
+                            minutes[index].toString().padLeft(2, '0'),
+                            style: const TextStyle(fontSize: 24, fontFamily: AppTheme.fontFamily),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('ยกเลิก'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('ตกลง'),
+              onPressed: () {
+                final selectedHour = hours[hourController.selectedItem];
+                final selectedMinute = minutes[minuteController.selectedItem];
+                pickedTime = TimeOfDay(hour: selectedHour, minute: selectedMinute);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
-    if (picked != null && mounted) {
+
+    if (pickedTime != null && mounted) {
       setState(() {
-        _startTime = picked;
+        _startTime = pickedTime;
         _calculateEndTime();
       });
     }
@@ -201,7 +307,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
     final appointment = AppointmentModel(
-      // ✨ [FIXED v2.4] ใช้ ?? '' เพื่อให้แน่ใจว่าค่าที่ส่งไปไม่เป็น null
       appointmentId: widget.appointment?.appointmentId ?? '',
       userId: userId,
       patientId: _selectedPatient!.patientId,
@@ -514,7 +619,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           prefixIcon: Image.asset('assets/icons/calendar.png', width: 24, height: 24),
         ),
         child: Text(
-          DateFormat('dd MMMM yyyy', 'th_TH').format(
+          DateFormat('dd MMMM yy', 'th_TH').format(
             DateTime(_selectedDate.year + 543, _selectedDate.month, _selectedDate.day)
           ),
           style: const TextStyle(fontSize: 16),
@@ -524,6 +629,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Widget _buildTimeAndDurationFields() {
+    String formatTimeOfDay(TimeOfDay? tod) {
+      if (tod == null) return 'เลือกเวลา';
+      final now = DateTime.now();
+      final dt = DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
+      return DateFormat('HH:mm').format(dt);
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -536,7 +648,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 prefixIcon: Image.asset('assets/icons/clock.png', width: 24, height: 24),
               ),
               child: Text(
-                _startTime?.format(context) ?? 'เลือกเวลา',
+                formatTimeOfDay(_startTime),
                 style: const TextStyle(fontSize: 16),
               ),
             ),

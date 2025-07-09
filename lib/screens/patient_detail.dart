@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/patient_detail.dart
-// v1.2.0 - ✨ Repaired Version
+// v1.8.0 - ✨ Added Spacing for Image Gallery
 // ----------------------------------------------------------------
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -121,6 +121,33 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     );
   }
   
+  Widget _getGenderIcon(String gender, {double size = 20}) {
+    String iconPath;
+    switch (gender) {
+      case 'หญิง':
+        iconPath = AppTheme.iconPathFemale;
+        break;
+      case 'ชาย':
+        iconPath = AppTheme.iconPathMale;
+        break;
+      default:
+        iconPath = AppTheme.iconPathGender;
+        break;
+    }
+    return Image.asset(iconPath, width: size, height: size);
+  }
+
+  Widget _buildDetailRow({required String iconPath, required Widget child}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Image.asset(iconPath, width: 22, height: 22),
+        const SizedBox(width: 12),
+        Expanded(child: child),
+      ],
+    );
+  }
+
   int _calculateAge(DateTime? birthDate) {
     if (birthDate == null) return 0;
     final today = DateTime.now();
@@ -301,16 +328,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text(
-                          '$prefix $name',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primary,
-                          ),
-                        ),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -325,54 +344,64 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          gender == 'ชาย' ? Icons.male : Icons.female,
-                          color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                        Text('อายุ $age ปี'),
-                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      '$prefix $name',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      iconPath: AppTheme.iconPathAge,
+                      child: Row(
+                        children: [
+                          Text('อายุ $age ปี', style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 8),
+                          _getGenderIcon(gender, size: 22),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('เบอร์โทร: $phone'),
-                              const SizedBox(height: 4),
-                              Text('ที่อยู่: ${patient!.address ?? '-'}'),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.buttonCallBg,
-                            foregroundColor: AppTheme.buttonCallFg,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                    _buildDetailRow(
+                      iconPath: AppTheme.iconPathPhone,
+                      child: Row(
+                        children: [
+                          Expanded(child: Text('เบอร์โทร: $phone', style: const TextStyle(fontSize: 16))),
+                          if (phone != '-')
+                            SizedBox(
+                              height: 40,
+                              width: 40,
+                              child: Material(
+                                color: AppTheme.buttonCallBg,
+                                shape: const CircleBorder(),
+                                clipBehavior: Clip.antiAlias,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  tooltip: 'โทรหา $name',
+                                  icon: Image.asset(
+                                    'assets/icons/phone.png',
+                                    width: 22,
+                                    height: 22,
+                                  ),
+                                  onPressed: () async {
+                                    final uri = Uri.parse('tel:$phone');
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(uri);
+                                    }
+                                  },
+                                ),
+                              ),
                             ),
-                          ),
-                          onPressed: () async {
-                            final uri = Uri.parse('tel:$phone');
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri);
-                            }
-                          },
-                          icon: Image.asset(
-                            'assets/icons/phone.png',
-                            width: 20,
-                            height: 20,
-                          ),
-                          label: const Text('โทร'),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow(
+                      iconPath: AppTheme.iconPathAddress,
+                      child: Text('ที่อยู่: ${patient!.address ?? '-'}', style: const TextStyle(fontSize: 16)),
                     ),
                   ],
                 ),
@@ -445,6 +474,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 ),
               ],
             ),
+            
+            // ✨ [UI-FIX v1.8.0] เพิ่มพื้นที่ว่างระหว่างปุ่มกับแกลเลอรีรูปภาพค่ะ
+            const SizedBox(height: 16),
 
             if (patientId.isNotEmpty)
               MedicalImageGallery(

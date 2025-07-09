@@ -1,4 +1,4 @@
-// v1.5.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
+// v1.6.0 - ✨ Refactored to Use Themed Icons & Fixed Errors
 // 📁 lib/widgets/appointment_detail_dialog.dart
 
 import 'package:flutter/material.dart';
@@ -192,6 +192,23 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       }),
     );
   }
+  
+  // ✨ [THEME-UPDATE] สร้างผู้ช่วยสำหรับเลือกไอคอนเพศจาก AppTheme ค่ะ
+  Widget _getGenderIcon(String gender, {double size = 20}) {
+    String iconPath;
+    switch (gender) {
+      case 'หญิง':
+        iconPath = AppTheme.iconPathFemale;
+        break;
+      case 'ชาย':
+        iconPath = AppTheme.iconPathMale;
+        break;
+      default:
+        iconPath = AppTheme.iconPathGender;
+        break;
+    }
+    return Image.asset(iconPath, width: size, height: size);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +216,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final String patientName = widget.patient.name;
     final int rating = widget.patient.rating;
     final String telephone = widget.patient.telephone ?? '-';
-    final String gender = widget.patient.gender ?? '';
+    final String gender = widget.patient.gender;
     final String medicalHistory = widget.patient.medicalHistory ?? 'ไม่มี';
     final String allergy = widget.patient.allergy ?? 'ไม่มี';
 
@@ -246,7 +263,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Image.asset('assets/icons/user.png', width: 24, height: 24),
+                Image.asset(AppTheme.iconPathUser, width: 24, height: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -266,14 +283,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), 
               const SizedBox(width: 8), 
               if (gender.isNotEmpty) 
-                Icon(
-                  gender == 'ชาย' ? Icons.male : Icons.female, 
-                  color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale, 
-                  size: 20
-                )
+                // ✨ [FIXED] เปลี่ยนมาเรียกใช้ผู้ช่วย _getGenderIcon ค่ะ
+                _getGenderIcon(gender, size: 20)
             ]),
             const SizedBox(height: 4),
-            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: AppTheme.buttonCallBg, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset('assets/icons/phone.png', width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
+            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: AppTheme.buttonCallBg, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset(AppTheme.iconPathPhone, width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
             
             const SizedBox(height: 8),
             _buildInfoRow(text: 'โรคประจำตัว: $medicalHistory'),
@@ -293,8 +307,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                       Text(fullTreatmentText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
                       const SizedBox(height: 4),
                       Text(
-                        // ✨ [พ.ศ. FORMAT] เพิ่ม 543 ปีเข้าไปก่อนจัดรูปแบบ และใช้ yyyy เพื่อความสอดคล้องกันค่ะ
-                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(DateTime(startTime.year + 543, startTime.month, startTime.day))}', 
+                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(startTime)}', 
                         style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
                       ),
                       const SizedBox(height: 4),

@@ -81,6 +81,7 @@ flutter:
       - assets/icons/save.png
       - assets/icons/delete.png
       - assets/icons/phone.png
+      - assets/icons/mobile_phone.png
       - assets/icons/edit.png
       - assets/icons/cake.png
       - assets/icons/house.png

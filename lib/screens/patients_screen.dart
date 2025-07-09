@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/patients_screen.dart
-// v1.3.0 - ✨ Redesign Patient Card Info Layout
+// v1.4.0 - ✨ Refactored to Use Themed Gender Icons
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -260,6 +260,23 @@ class _PatientCard extends StatelessWidget {
     required this.onTap,
   });
 
+  // ✨ [THEME-UPDATE v1.4.0] สร้างผู้ช่วยสำหรับเลือกไอคอนเพศจาก AppTheme ค่ะ
+  Widget _getGenderIcon(String gender, {double size = 16}) {
+    String iconPath;
+    switch (gender) {
+      case 'หญิง':
+        iconPath = AppTheme.iconPathFemale;
+        break;
+      case 'ชาย':
+        iconPath = AppTheme.iconPathMale;
+        break;
+      default:
+        iconPath = AppTheme.iconPathGender;
+        break;
+    }
+    return Image.asset(iconPath, width: size, height: size);
+  }
+
   @override
   Widget build(BuildContext context) {
     final prefix = patient.prefix;
@@ -328,15 +345,12 @@ class _PatientCard extends StatelessWidget {
                                    child: _buildInfoRow(
                                      iconAsset: 'assets/icons/age.png',
                                      text: '$age ปี',
+                                     // ✨ [FIXED v1.4.0] เปลี่ยนมาเรียกใช้ผู้ช่วย _getGenderIcon ค่ะ
                                      trailing: Row(
                                        mainAxisSize: MainAxisSize.min,
                                        children: [
                                          const SizedBox(width: 8),
-                                         Icon(
-                                          gender == 'ชาย' ? Icons.male : Icons.female,
-                                          color: gender == 'ชาย' ? AppTheme.iconMale : AppTheme.iconFemale,
-                                          size: 16,
-                                         ),
+                                         _getGenderIcon(gender),
                                        ],
                                      )
                                    ),

@@ -1,6 +1,7 @@
-// v2.3.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
+// v2.5.3 - 🏗️ Refactored Layout to Reliably Fill Height
 // 📁 lib/screens/daily_calendar_screen.dart
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -44,6 +45,17 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     super.initState();
     _currentDate = widget.selectedDate;
     _fetchDataForSelectedDay(_currentDate);
+  }
+
+  @override
+  void didUpdateWidget(DailyCalendarScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedDate != oldWidget.selectedDate && !isSameDay(widget.selectedDate, _currentDate)) {
+      setState(() {
+        _currentDate = widget.selectedDate;
+      });
+      _fetchDataForSelectedDay(_currentDate);
+    }
   }
 
   void _handleDataChange() {
@@ -107,8 +119,12 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         elevation: 0,
         title: const Text('รายวัน'),
       ),
+      // 💖 [LAYOUT-FIX v2.5.3] ไลลาปรับโครงสร้างตรงนี้นะคะ
+      // เราจะใช้ Column เป็น Body หลัก แล้วใช้ Expanded เพื่อให้ Timeline ยืดเต็มพื้นที่ที่เหลือ
+      // วิธีนี้จะแก้ปัญหาพื้นที่ว่างด้านล่างได้อย่างถาวรเลยค่ะ!
       body: Column(
         children: [
+          // ส่วนหัว (ตัวเลือก View Mode) จะอยู่เหมือนเดิม
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: ViewModeSelector(
@@ -120,6 +136,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               onDailyViewTapped: _handleDataChange,
             ),
           ),
+          // ส่วนหัว (ตัวเลือกวัน) ก็อยู่เหมือนเดิมค่ะ
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
@@ -133,7 +150,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                   },
                 ),
                 Text(
-                  // ✨ [พ.ศ. FORMAT] เพิ่ม 543 ปีเข้าไปก่อนจัดรูปแบบ เพื่อแสดงผลเป็น พ.ศ. ค่ะ
                   DateFormat('d MMMM yyyy', 'th_TH').format(
                     DateTime(_currentDate.year + 543, _currentDate.month, _currentDate.day)
                   ),
@@ -153,18 +169,27 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               ],
             ),
           ),
+          // ✨ Expanded Widget จะเข้ามาทำหน้าที่ขยายส่วนนี้ให้เต็มพื้นที่ที่เหลือในแนวตั้ง
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-                : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
-                    ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
-                    : TimelineView(
-                        selectedDate: _currentDate,
-                        appointments: _appointments,
-                        patients: _patients,
-                        workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: _handleDataChange,
-                      ),
+                // ✨ เราใช้ SingleChildScrollView ห่อเฉพาะส่วนนี้
+                // เพื่อให้ Timeline สามารถเลื่อนได้ในกรณีที่เนื้อหายาวเกินพื้นที่ที่ Expanded จัดให้
+                : SingleChildScrollView(
+                    child: (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
+                        ? Padding(
+                            // เพิ่ม Padding ให้ข้อความ "ปิดทำการ" ไม่ชิดขอบบนเกินไปค่ะ
+                            padding: const EdgeInsets.only(top: 48.0),
+                            child: Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily))),
+                          )
+                        : TimelineView(
+                            selectedDate: _currentDate,
+                            appointments: _appointments,
+                            patients: _patients,
+                            workingHours: _selectedDayWorkingHours!,
+                            onDataChanged: _handleDataChange,
+                          ),
+                  ),
           ),
         ],
       ),

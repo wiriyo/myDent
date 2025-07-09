@@ -1,6 +1,7 @@
-// v2.3.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
+// v2.5.0 - ✨ Implemented Fully Dynamic & Scrollable Layout
 // 📁 lib/screens/calendar_screen.dart
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,6 +103,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✨ [DYNAMIC-HEIGHT v2.5.0] คำนวณความสูงของ TimelineView แบบไดนามิก
+    // โดยอิงจากเวลาทำงานของวันนั้นๆ ค่ะ
+    double timelineHeight = 200; // ความสูงเริ่มต้นเผื่อไว้ในกรณีที่ยังโหลดไม่เสร็จ
+    if (!_isLoading && _selectedDayWorkingHours != null && !_selectedDayWorkingHours!.isClosed && _selectedDayWorkingHours!.timeSlots.isNotEmpty) {
+      final dayStartTime = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, _selectedDayWorkingHours!.timeSlots.first.openTime.hour, _selectedDayWorkingHours!.timeSlots.first.openTime.minute);
+      final dayEndTime = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, _selectedDayWorkingHours!.timeSlots.last.closeTime.hour, _selectedDayWorkingHours!.timeSlots.last.closeTime.minute);
+      
+      const double hourHeight = 120.0; // ค่านี้ต้องตรงกับใน TimelineView
+      final double pixelsPerMinute = hourHeight / 60.0;
+      const double verticalPadding = 28.0; // ค่านี้ต้องตรงกับ padding ใน TimelineView (top: 14, bottom: 14)
+
+      timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -120,7 +135,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ] : null,
       ),
-      body: Column(
+      // ✨ [LANDSCAPE-FIX v2.5.0] เปลี่ยนมาใช้ ListView เพื่อให้หน้าจอเลื่อนได้ทั้งหมด
+      // และจัดการกับเนื้อหาที่มีความสูงไม่แน่นอนได้ดีกว่าค่ะ
+      body: ListView(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -168,7 +185,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   titleCentered: true,
                   titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
                 ),
-                // ✨ [พ.ศ. FORMAT] เพิ่ม builder เพื่อจัดรูปแบบหัวข้อปฏิทินเป็น พ.ศ. ค่ะ
                 calendarBuilders: CalendarBuilders(
                   headerTitleBuilder: (context, date) {
                     final year = date.year + 543;
@@ -203,7 +219,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
           
           const SizedBox(height: 12),
           
-          Expanded(
+          // ✨ [LANDSCAPE-FIX v2.5.0] ใช้ SizedBox ที่คำนวณความสูงแบบไดนามิก
+          // เพื่อให้ Timeline มีขนาดพอดีกับข้อมูลในแต่ละวันค่ะ
+          SizedBox(
+            height: timelineHeight,
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                 : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)

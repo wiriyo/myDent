@@ -36,6 +36,8 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   final List<String> statusOptions = [
     'รอยืนยัน',
     'ยืนยันแล้ว',
+    'เสร็จสิ้น',
+    'ยกเลิก'
     'ติดต่อไม่ได้',
     'ไม่มาตามนัด',
     'ปฏิเสธนัด',

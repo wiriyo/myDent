@@ -1,4 +1,4 @@
-// v2.3.0 - ✨ Display Year in Buddhist Era (พ.ศ.)
+// v2.4.2 - 🐞 Centered Loading Indicator
 // 📁 lib/screens/weekly_calendar_screen.dart
 
 import 'dart:math';
@@ -68,8 +68,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   final double _hourHeight = 120.0; 
   final double _dayColumnWidth = 200.0;
   final double _timeAxisWidth = 60.0;
-  final int _startHour = 9;
-  final int _endHour = 21;
+  
+  int _dynamicStartHour = 9;
+  int _dynamicEndHour = 17;
 
   @override
   void initState() {
@@ -86,6 +87,16 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   }
 
   @override
+  void didUpdateWidget(WeeklyViewScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!isSameDay(widget.focusedDate, oldWidget.focusedDate)) {
+      _focusedDay = widget.focusedDate;
+      _selectedDay = widget.focusedDate;
+      _fetchDataForWeek(_focusedDay);
+    }
+  }
+
+  @override
   void dispose() {
     _headerScrollController.dispose();
     _bodyScrollController.dispose();
@@ -97,6 +108,56 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   void _handleDataChange() {
     debugPrint("📱 [WeeklyViewScreen] Data change detected! Refetching data...");
     _fetchDataForWeek(_focusedDay);
+  }
+
+  void _calculateAndSetWeekHourRange() {
+    if (_weeklyData.isEmpty) {
+      setState(() {
+        _dynamicStartHour = 9;
+        _dynamicEndHour = 17;
+      });
+      return;
+    }
+
+    int minHour = 24;
+    int maxHour = 0;
+    bool hasData = false;
+
+    for (var dayData in _weeklyData.values) {
+      if (dayData.workingHours != null && !dayData.workingHours!.isClosed && dayData.workingHours!.timeSlots.isNotEmpty) {
+        hasData = true;
+        for (var slot in dayData.workingHours!.timeSlots) {
+          minHour = min(minHour, slot.openTime.hour);
+          maxHour = max(maxHour, slot.closeTime.hour + (slot.closeTime.minute > 0 ? 1 : 0));
+        }
+      }
+      if (dayData.appointments.isNotEmpty) {
+        hasData = true;
+        for (var appt in dayData.appointments) {
+          minHour = min(minHour, appt.startTime.hour);
+          maxHour = max(maxHour, appt.endTime.hour + (appt.endTime.minute > 0 ? 1 : 0));
+        }
+      }
+    }
+
+    if (!hasData) {
+      minHour = 9;
+      maxHour = 17;
+    } else {
+      minHour = max(0, minHour - 1); 
+      maxHour = min(24, maxHour + 1);
+    }
+
+    if (maxHour - minHour < 8) {
+      maxHour = min(24, minHour + 8);
+    }
+
+    if (_dynamicStartHour != minHour || _dynamicEndHour != maxHour) {
+      setState(() {
+        _dynamicStartHour = minHour;
+        _dynamicEndHour = maxHour;
+      });
+    }
   }
 
   Future<void> _fetchDataForWeek(DateTime focusedDay) async {
@@ -144,6 +205,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         _weeklyData = weeklyData;
         _isLoading = false;
       });
+      
+      _calculateAndSetWeekHourRange();
 
     } catch (e) {
       debugPrint("เกิดข้อผิดพลาดในการดึงข้อมูลรายสัปดาห์: $e");
@@ -230,54 +293,61 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         elevation: 0,
         title: const Text('ภาพรวมสัปดาห์'),
       ),
+      // 💖 [CENTER-LOADER v2.4.2] ไลลาปรับโครงสร้างตรงนี้นะคะ
+      // เราจะเช็กก่อนว่ากำลังโหลดข้อมูลอยู่หรือไม่
       body: _isLoading
+          // 🎯 ถ้ากำลังโหลด: ให้แสดงตัวโหลดหมุนๆ กลางจอไปเลยค่ะ
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: ViewModeSelector(
-                    calendarFormat: CalendarFormat.week, 
-                    onFormatChanged: (format) { if (format == CalendarFormat.month) { Navigator.pop(context); } },
-                    onDailyViewTapped: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay ?? DateTime.now())),
-                      ).then((_) => _handleDataChange());
-                    },
+          // 🎯 ถ้าโหลดเสร็จแล้ว: ถึงจะแสดงเนื้อหาปฏิทินที่เลื่อนได้ค่ะ
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: ViewModeSelector(
+                      calendarFormat: CalendarFormat.week, 
+                      onFormatChanged: (format) { if (format == CalendarFormat.month) { Navigator.pop(context); } },
+                      onDailyViewTapped: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay ?? DateTime.now())),
+                        ).then((_) => _handleDataChange());
+                      },
+                    ),
                   ),
-                ),
-                _buildCalendar(),
-                const SizedBox(height: 12),
-                _buildWeekDayHeader(), 
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildTimeAxis(), 
-                      Expanded(
-                        child: SingleChildScrollView(
-                          controller: _contentVerticalScrollController,
+                  _buildCalendar(),
+                  const SizedBox(height: 12),
+                  _buildWeekDayHeader(), 
+                  SizedBox(
+                    height: _hourHeight * (_dynamicEndHour - _dynamicStartHour),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTimeAxis(), 
+                        Expanded(
                           child: SingleChildScrollView(
-                            controller: _bodyScrollController,
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: List.generate(7, (index) {
-                                final firstDayOfWeek = _focusedDay.subtract(Duration(days: _focusedDay.weekday - 1));
-                                final day = firstDayOfWeek.add(Duration(days: index));
-                                final dayKey = DateTime(day.year, day.month, day.day);
-                                final dayData = _weeklyData[dayKey];
-                                return _buildDayColumn(day, dayData);
-                              }),
+                            controller: _contentVerticalScrollController,
+                            child: SingleChildScrollView(
+                              controller: _bodyScrollController,
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: List.generate(7, (index) {
+                                  final firstDayOfWeek = _focusedDay.subtract(Duration(days: _focusedDay.weekday - 1));
+                                  final day = firstDayOfWeek.add(Duration(days: index));
+                                  final dayKey = DateTime(day.year, day.month, day.day);
+                                  final dayData = _weeklyData[dayKey];
+                                  return _buildDayColumn(day, dayData);
+                                }),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showDialog(
@@ -317,7 +387,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
             formatButtonVisible: false,
           ),
-          // ✨ [พ.ศ. FORMAT] เพิ่ม builder เพื่อจัดรูปแบบหัวข้อปฏิทินเป็น พ.ศ. ค่ะ
           calendarBuilders: CalendarBuilders(
             headerTitleBuilder: (context, date) {
               final year = date.year + 543;
@@ -381,9 +450,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       width: _timeAxisWidth,
       child: ListView.builder(
         controller: _timeAxisScrollController,
-        itemCount: _endHour - _startHour,
+        itemCount: _dynamicEndHour - _dynamicStartHour,
         itemBuilder: (context, index) {
-          final hour = _startHour + index;
+          final hour = _dynamicStartHour + index;
           return Container(
             height: _hourHeight,
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
@@ -402,7 +471,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
 
   Widget _buildDayColumn(DateTime day, ({List<AppointmentModel> appointments, List<Patient> patients, DayWorkingHours? workingHours})? dayData) {
     final pixelsPerMinute = _hourHeight / 60.0;
-    final dayStartTime = DateTime(day.year, day.month, day.day, _startHour);
+    final dayStartTime = DateTime(day.year, day.month, day.day, _dynamicStartHour);
     
     final appointments = dayData?.appointments ?? [];
     final patients = dayData?.patients ?? [];
@@ -411,7 +480,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     if (workingHours == null || workingHours.isClosed) {
       return Container(
         width: _dayColumnWidth,
-        height: _hourHeight * (_endHour - _startHour),
+        height: _hourHeight * (_dynamicEndHour - _dynamicStartHour),
         decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(right: BorderSide(color: Colors.grey.shade200))),
         child: Center(child: Text('ปิดทำการ', style: TextStyle(color: AppTheme.textDisabled))),
       );
@@ -423,11 +492,11 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
 
     return Container(
       width: _dayColumnWidth,
-      height: _hourHeight * (_endHour - _startHour),
+      height: _hourHeight * (_dynamicEndHour - _dynamicStartHour),
       decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.grey.shade200))),
       child: Stack(
         children: [
-          ...List.generate(_endHour - _startHour, (i) => Positioned(top: i * _hourHeight, left: 0, right: 0, child: Container(height: 1, color: Colors.grey.shade200))),
+          ...List.generate(_dynamicEndHour - _dynamicStartHour, (i) => Positioned(top: i * _hourHeight, left: 0, right: 0, child: Container(height: 1, color: Colors.grey.shade200))),
           ...combinedList.map((item) {
             final bool isGap = item['isGap'] == true;
             final DateTime itemStart = isGap ? item['start'] : (item['appointment'] as AppointmentModel).startTime;

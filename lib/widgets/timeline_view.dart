@@ -1,4 +1,4 @@
-// v2.6.0 - ✨ Fixed Clipping for Both Top and Bottom Timeline Labels
+// v2.7.0 - ✨ Removed Internal Scrolling
 // 📁 lib/widgets/timeline_view.dart
 
 import 'dart:math';
@@ -136,25 +136,22 @@ class TimelineView extends StatelessWidget {
     final dayEndTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.last.closeTime);
     final totalHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute);
     
-    // ✨ [FIX v2.6.0] เพิ่มพื้นที่ว่างทั้งด้านบนและด้านล่าง เพื่อให้ Label ไม่โดนตัดค่ะ
     const double topPadding = 14.0; 
     const double bottomPadding = 14.0; 
     final containerHeight = totalHeight + topPadding + bottomPadding;
 
+    // ✨ [LANDSCAPE-FIX v2.7.0] เอา SingleChildScrollView ออก
+    // เพราะหน้าที่ในการเลื่อนจะถูกจัดการโดย Parent (ListView) แล้วค่ะ
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SingleChildScrollView(
+        return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4.0),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ส่งความสูงและ padding เข้าไปให้ทั้งสองส่วน เพื่อให้มันสูงและจัดตำแหน่งตรงกันค่ะ
-                _buildTimeline(dayStartTime, containerHeight, pixelsPerMinute, topPadding),
-                _buildContentArea(context, combinedList, dayStartTime, containerHeight, pixelsPerMinute, topPadding, constraints),
-              ],
-            ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTimeline(dayStartTime, containerHeight, pixelsPerMinute, topPadding),
+              _buildContentArea(context, combinedList, dayStartTime, containerHeight, pixelsPerMinute, topPadding, constraints),
+            ],
           ),
         );
       },
@@ -164,7 +161,6 @@ class TimelineView extends StatelessWidget {
   Widget _buildTimeline(DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding) {
     List<Widget> children = [];
 
-    // วาดเส้นแนวนอน
     for (final slot in workingHours.timeSlots) {
       final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
       final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
@@ -177,7 +173,7 @@ class TimelineView extends StatelessWidget {
           final currentTime = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, currentMinute ~/ 60, 0);
           final topPosition = currentTime.difference(dayStartTime).inMinutes * pixelsPerMinute;
           children.add(Positioned(
-            top: topPosition + topPadding, // ✨ เพิ่ม padding
+            top: topPosition + topPadding,
             left: 0,
             right: 0,
             child: Container(height: 1, color: Colors.purple.shade50),
@@ -187,7 +183,6 @@ class TimelineView extends StatelessWidget {
       }
     }
     
-    // วาดป้ายบอกเวลา
     for (final slot in workingHours.timeSlots) {
       final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
       final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
@@ -201,7 +196,7 @@ class TimelineView extends StatelessWidget {
 
         children.add(
           Positioned(
-            top: topPosition + topPadding - 7, // ✨ เพิ่ม padding และจัดกึ่งกลาง
+            top: topPosition + topPadding - 7,
             right: 8,
             child: Text(
               DateFormat('HH:mm').format(currentTime),
@@ -219,7 +214,7 @@ class TimelineView extends StatelessWidget {
 
     return SizedBox(
       width: 60.0,
-      height: containerHeight, // ใช้ความสูงใหม่ที่เพิ่มพื้นที่ว่างแล้ว
+      height: containerHeight,
       child: Stack(children: children),
     );
   }
@@ -236,7 +231,6 @@ class TimelineView extends StatelessWidget {
       final DateTime itemStart = isGap ? item['start'] : (item['appointment'] as AppointmentModel).startTime;
       final DateTime itemEnd = isGap ? item['end'] : (item['appointment'] as AppointmentModel).endTime;
       
-      // ✨ เพิ่ม padding ให้กับตำแหน่ง top ของทุกชิ้นส่วน
       final top = max(0.0, itemStart.difference(dayStartTime).inMinutes * pixelsPerMinute) + topPadding;
       final height = max(0.0, itemEnd.difference(itemStart).inMinutes * pixelsPerMinute);
       if (height <= 0.1) continue;
@@ -287,7 +281,7 @@ class TimelineView extends StatelessWidget {
     }
     return Expanded(
       child: SizedBox(
-        height: containerHeight, // ใช้ความสูงใหม่ที่เพิ่มพื้นที่ว่างแล้ว
+        height: containerHeight,
         child: Stack(children: positionedItems)
       )
     );

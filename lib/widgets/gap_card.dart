@@ -1,4 +1,7 @@
+// ----------------------------------------------------------------
 // 📁 lib/widgets/gap_card.dart
+// v1.1.0 - ✨ Made layout adaptive to prevent overflows
+// ----------------------------------------------------------------
 
 import 'package:flutter/material.dart';
 
@@ -18,21 +21,9 @@ class GapCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final durationInMinutes = gapEnd.difference(gapStart).inMinutes;
 
-    // ✨ [FIX] สร้างตัวแปรสำหรับเก็บข้อความแสดงเวลาค่ะ
-    String durationText = '';
-    if (durationInMinutes >= 60) {
-      final double hours = durationInMinutes / 60.0;
-      // แปลงเป็น ชม. และตัด .0 ที่ไม่จำเป็นออก เช่น 1.0 -> 1, 1.5 -> 1.5
-      final formattedHours = hours.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '');
-      durationText = '($formattedHours ชม.)';
-    } else if (durationInMinutes > 30) {
-      durationText = '($durationInMinutes นาที)';
-    }
-
     return InkWell(
       onTap: onTap,
       child: Padding(
-        // ✨ เพิ่ม Padding ให้การ์ดมีระยะห่างที่สวยงามค่ะ
         padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 1.0),
         child: CustomPaint(
           painter: _DashedBorderPainter(
@@ -41,39 +32,54 @@ class GapCard extends StatelessWidget {
             radius: 12,
           ),
           child: Container(
-            // ✨ ทำให้พื้นหลังโปร่งใสน่ารัก
             color: Colors.purple.shade50.withOpacity(0.4),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // ✨ เปลี่ยนไอคอนเป็นเครื่องหมายบวกที่ดูน่ากดค่ะ
-                  Icon(
-                    Icons.add_circle_outline,
-                    color: Colors.purple.shade400,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 4),
-                  // ✨ เปลี่ยนข้อความเป็น "เพิ่มนัดหมาย"
-                  Text(
-                    'เพิ่มนัดหมาย',
-                    style: TextStyle(
-                      color: Colors.purple.shade700,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  // ✨ [FIX] แสดงผลตามเงื่อนไขใหม่ที่เราสร้างขึ้นค่ะ
-                  if (durationText.isNotEmpty)
-                    Text(
-                      durationText,
-                      style: TextStyle(
+            // 💖 [OVERFLOW-FIX v1.1.0] ใช้ LayoutBuilder เพื่อเช็คความสูงที่มี
+            // แล้วปรับการแสดงผลให้เหมาะสมค่ะ
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // ถ้าความสูงน้อยมาก (น้อยกว่า 35) ให้แสดงแค่ไอคอน
+                if (constraints.maxHeight < 35) {
+                  return Icon(
+                    Icons.add,
+                    color: Colors.purple.shade400.withOpacity(0.8),
+                    size: 20,
+                  );
+                }
+                // ถ้าความสูงพอประมาณ ให้แสดงไอคอนและข้อความหลัก
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_circle_outline,
                         color: Colors.purple.shade400,
-                        fontSize: 11,
+                        size: 22,
                       ),
-                    ),
-                ],
-              ),
+                      // ถ้าความสูงมากพอ (มากกว่า 60) ถึงจะแสดงข้อความ "เพิ่มนัดหมาย"
+                      if (constraints.maxHeight > 60) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'เพิ่มนัดหมาย',
+                          style: TextStyle(
+                            color: Colors.purple.shade700,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                      // ถ้าความสูงมากพอ (มากกว่า 80) และมีเวลามากกว่า 30 นาที ถึงจะแสดงระยะเวลา
+                      if (constraints.maxHeight > 80 && durationInMinutes > 30)
+                        Text(
+                          '($durationInMinutes นาที)',
+                          style: TextStyle(
+                            color: Colors.purple.shade400,
+                            fontSize: 11,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -87,8 +93,8 @@ class _DashedBorderPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
   final double radius;
-  final double dashWidth = 5.0; // Initialize dashWidth
-  final double dashSpace = 5.0; // Initialize dashSpace
+  final double dashWidth = 5.0;
+  final double dashSpace = 5.0;
 
   _DashedBorderPainter({
     this.color = Colors.black,
@@ -109,7 +115,6 @@ class _DashedBorderPainter extends CustomPainter {
       Radius.circular(radius),
     );
 
-    // วาดเส้นประตามแนวของ RRect
     final borderPath = Path()..addRRect(rrect);
     for (final metric in borderPath.computeMetrics()) {
       double distance = 0.0;

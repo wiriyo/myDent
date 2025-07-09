@@ -1,7 +1,6 @@
 // v2.5.3 - 🏗️ Refactored Layout to Reliably Fill Height
 // 📁 lib/screens/daily_calendar_screen.dart
 
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';

@@ -20,7 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else if (index == 1) {
       Navigator.pushReplacementNamed(context, '/patients');
     } else if (index == 3) {
-      Navigator.pushReplacementNamed(context, '/reports');
+      Navigator.pushReplacementNamed(context, '/appointment_search');
     } else if (index == 4) {
       // stay on settings
     }
@@ -82,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(width: 40),
               IconButton(
-                icon: const Icon(Icons.bar_chart, size: 30),
+                icon: const Icon(Icons.search_rounded, size: 30),
                 color: _selectedIndex == 3 ? Colors.purple : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(3),
               ),

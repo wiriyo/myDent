@@ -1,9 +1,10 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/patient_add.dart
-// v2.9.0 - ✨ Refactored Padding for Better Layout
+// v2.10.0 - ✨ Integrated Custom Buddhist Date Picker
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/patient.dart';
 import '../models/prefix.dart';
@@ -11,6 +12,9 @@ import '../providers/patient_provider.dart';
 import '../services/prefix_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
+
+// 💖 [DATEPICKER-FIX v2.10.0] Import น้องปฏิทินที่เราสร้างขึ้นมาใหม่ค่ะ
+import '../widgets/custom_date_picker.dart';
 
 class PatientAddScreen extends StatefulWidget {
   final Patient? patient;
@@ -101,14 +105,17 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
             : 0);
   }
 
+  // 💖 [DATEPICKER-FIX v2.10.0] เราจะเปลี่ยนมาเรียกใช้ฟังก์ชันที่เราสร้างเองค่ะ
   void _selectDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    // เรียกใช้ showBuddhistDatePicker ที่เราสร้างไว้ใน custom_date_picker.dart
+    final picked = await showBuddhistDatePicker(
       context: context,
-      initialDate: _birthDate ?? DateTime(now.year - 20),
-      firstDate: DateTime(1900),
-      lastDate: now,
+      initialDate: _birthDate ?? DateTime(now.year - 20, now.month, now.day),
+      firstDate: DateTime(now.year - 120), // ย้อนหลังได้ 120 ปี
+      lastDate: now, // เลือกได้ถึงแค่วันนี้
     );
+
     if (picked != null) {
       setState(() {
         _birthDate = picked;
@@ -244,8 +251,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           builder: (context, provider, child) {
             return AbsorbPointer(
               absorbing: provider.isLoading,
-              // ✨ [UI-FIX v2.9.0] ย้าย Padding เข้าไปใน ListView โดยตรง
-              // เพื่อการคำนวณ Layout ที่แม่นยำและป้องกันขอบถูกตัดค่ะ
               child: Form(
                 key: _formKey,
                 child: ListView(
@@ -271,8 +276,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                       .map((e) => e.name)
                                       .where(
                                         (name) => name.toLowerCase().contains(
-                                          textEditingValue.text.toLowerCase(),
-                                        ),
+                                              textEditingValue.text.toLowerCase(),
+                                            ),
                                       );
                                 },
                                 onSelected: (String selected) {
@@ -430,7 +435,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                           ),
                           label: Text(
                             _birthDate != null
-                                ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
+                                // 💖 [DATEPICKER-FIX v2.10.0] แสดงผลเป็นปี พ.ศ. ให้สวยงาม
+                                ? DateFormat('d MMMM yyyy', 'th_TH').format(DateTime(_birthDate!.year + 543, _birthDate!.month, _birthDate!.day))
                                 : 'เลือกวันเกิด',
                             style: const TextStyle(fontSize: 16),
                           ),
@@ -443,7 +449,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(color: AppTheme.primaryLight),
+                              side: const BorderSide(color: AppTheme.primaryLight),
                             ),
                           ),
                         ),
@@ -511,21 +517,21 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   context: context,
                   builder:
                       (context) => AlertDialog(
-                        title: const Text('ยืนยันการบันทึก'),
-                        content: const Text(
-                          'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('ยกเลิก'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('บันทึก'),
-                          ),
-                        ],
+                    title: const Text('ยืนยันการบันทึก'),
+                    content: const Text(
+                      'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('ยกเลิก'),
                       ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('บันทึก'),
+                      ),
+                    ],
+                  ),
                 );
 
                 if (confirm != true) return;
@@ -582,21 +588,21 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   context: context,
                   builder:
                       (context) => AlertDialog(
-                        title: const Text('ยืนยันการลบ'),
-                        content: const Text(
-                          'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('ยกเลิก'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('ลบ'),
-                          ),
-                        ],
+                    title: const Text('ยืนยันการลบ'),
+                    content: const Text(
+                      'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('ยกเลิก'),
                       ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('ลบ'),
+                      ),
+                    ],
+                  ),
                 );
 
                 if (confirm != true) return;
@@ -605,10 +611,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   final success = await provider.deletePatient(_editingPatient!.patientId);
                   
                   if (success) {
-                     _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
-                     Navigator.of(context).pushNamedAndRemoveUntil('/patients', (Route<dynamic> route) => false);
+                      _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
+                      Navigator.of(context).pushNamedAndRemoveUntil('/patients', (Route<dynamic> route) => false);
                   } else {
-                     _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
+                      _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
                   }
                 } else {
                   _showSnackBar('เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้ที่จะลบ', isError: true);
@@ -657,22 +663,22 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           padding: const EdgeInsets.all(10),
           child: Image.asset(
             label.contains('ชื่อ')
-                ? 'assets/icons/user.png'
-                : label.contains('โทร')
-                ? 'assets/icons/phone.png'
-                : label.contains('HN')
-                ? 'assets/icons/hn_id.png'
-                : label.contains('บัตร')
-                ? 'assets/icons/id_card.png'
-                : label.contains('เกิด')
-                ? 'assets/icons/cake.png'
-                : label.contains('แพ้')
-                ? 'assets/icons/no_drugs.png'
-                : label.contains('โรค')
-                ? 'assets/icons/medical_report.png'
-                : label.contains('ที่อยู่')
-                ? 'assets/icons/house.png'
-                : 'assets/icons/user.png',
+            ? 'assets/icons/user.png'
+            : label.contains('โทร')
+            ? 'assets/icons/phone.png'
+            : label.contains('HN')
+            ? 'assets/icons/hn_id.png'
+            : label.contains('บัตร')
+            ? 'assets/icons/id_card.png'
+            : label.contains('เกิด')
+            ? 'assets/icons/cake.png'
+            : label.contains('แพ้')
+            ? 'assets/icons/no_drugs.png'
+            : label.contains('โรค')
+            ? 'assets/icons/medical_report.png'
+            : label.contains('ที่อยู่')
+            ? 'assets/icons/house.png'
+            : 'assets/icons/user.png',
             width: 24,
             height: 24,
           ),

@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/appointment_add.dart (UPGRADED)
-// v3.3.0 - ✨ Implemented Dual-Wheel Custom Time Picker
+// v3.4.1 - ⌨️ Set Numeric Keyboard for Teeth Input
 // ----------------------------------------------------------------
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +12,10 @@ import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/treatment_master_service.dart';
 import '../styles/app_theme.dart';
+
+// Import น้องปฏิทินที่เราสร้างขึ้นมาใหม่ค่ะ
+import '../widgets/custom_date_picker.dart';
+
 
 class AppointmentAddDialog extends StatefulWidget {
   final AppointmentModel? appointment;
@@ -130,34 +134,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Future<void> _pickDate() async {
-    final DateTime? picked = await showDatePicker(
+    final DateTime? picked = await showBuddhistDatePicker(
       context: context,
-      locale: const Locale('th', 'TH'),
       initialDate: _selectedDate,
-      firstDate: DateTime(1900),
+      firstDate: DateTime(DateTime.now().year - 100),
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-      builder: (context, child) {
-        return Localizations.override(
-          context: context,
-          locale: const Locale('th', 'TH'),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: AppTheme.primary,
-                onPrimary: Colors.white,
-                onSurface: AppTheme.textPrimary,
-              ),
-              textButtonTheme: TextButtonThemeData(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.primary,
-                ),
-              ),
-            ),
-            child: child!,
-          ),
-        );
-      },
     );
+    
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
@@ -165,18 +148,15 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
   }
 
-  // ✨ [DUAL-WHEEL TIME PICKER] เปลี่ยนมาใช้วงล้อเลือกเวลาแบบคู่ค่ะ
   Future<void> _pickStartTime() async {
     final List<int> hours = List<int>.generate(24, (i) => i);
     final List<int> minutes = [0, 15, 30, 45];
 
     final initialTime = _startTime ?? const TimeOfDay(hour: 9, minute: 0);
     
-    // หาค่าเริ่มต้นสำหรับวงล้อชั่วโมง
     int initialHourIndex = hours.indexOf(initialTime.hour);
     if(initialHourIndex == -1) initialHourIndex = 9;
 
-    // หาค่าเริ่มต้นสำหรับวงล้อนาที (หาค่าที่ใกล้เคียงที่สุด)
     int initialMinuteIndex = 0;
     int minDiff = 60;
     for(int i=0; i < minutes.length; i++){
@@ -203,7 +183,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // วงล้อเลือกชั่วโมง
                 Expanded(
                   child: ListWheelScrollView.useDelegate(
                     controller: hourController,
@@ -228,7 +207,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   padding: EdgeInsets.symmetric(horizontal: 8.0),
                   child: Text(':', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 ),
-                // วงล้อเลือกนาที
                 Expanded(
                   child: ListWheelScrollView.useDelegate(
                     controller: minuteController,
@@ -331,13 +309,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨', style: TextStyle(fontFamily: AppTheme.fontFamily))),
+          const SnackBar(content: Text('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨', style: TextStyle(fontFamily: AppTheme.fontFamily))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}', style: TextStyle(fontFamily: AppTheme.fontFamily))),
+          SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}', style: const TextStyle(fontFamily: AppTheme.fontFamily))),
         );
       }
     }
@@ -414,7 +392,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           optionsBuilder: (TextEditingValue textEditingValue) {
             if (textEditingValue.text.isEmpty) {
               setState(() {
-                 _selectedPatient = null;
+                  _selectedPatient = null;
               });
               return const Iterable<Patient>.empty();
             }
@@ -599,6 +577,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           flex: 4,
           child: TextFormField(
             controller: _teethController,
+            // 💖 [KEYBOARD-FIX v3.4.1] ไลลาเพิ่ม keyboardType ตรงนี้ให้นะคะ
+            // เพื่อให้แสดงผลเป็นคีย์บอร์ดตัวเลขค่ะ
+            keyboardType: TextInputType.number,
             decoration: _buildInputDecoration(
               'ซี่ฟัน',
               prefixIcon: Image.asset('assets/icons/tooth.png', width: 24, height: 24),

@@ -1,6 +1,7 @@
-// v1.2.0 - ✨ Fixed RenderFlex Overflow in Short View
+// ----------------------------------------------------------------
 // 📁 lib/widgets/appointment_card.dart
-
+// v1.2.2 - 🐞 Refactored short view layout to prevent overflow
+// ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -107,6 +108,8 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
+  // 💖 [OVERFLOW-FIX v1.2.2] ไลลาปรับโครงสร้างของ Short View ใหม่ทั้งหมด
+  // เพื่อให้ยืดหยุ่นและป้องกันปัญหาข้อความล้นได้อย่างถาวรค่ะ
   Widget _buildShortView(
       BuildContext context,
       String patientName,
@@ -115,58 +118,49 @@ class AppointmentCard extends StatelessWidget {
       String phone,
       String status,
       BoxConstraints constraints) {
-    bool isVeryCompact = constraints.maxWidth < 200;
-
-    if (isVeryCompact) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(patientName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14),
-                  overflow: TextOverflow.ellipsis),
-            ),
-            const SizedBox(width: 4),
-            _buildStatusChip(status, 10),
-            const SizedBox(width: 2),
-            _buildCompactCallButton(context, phone, patientName),
-          ],
-        ),
-      );
-    }
-
+    
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Image.asset('assets/icons/user.png', width: 16, height: 16),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(patientName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                overflow: TextOverflow.ellipsis,
-                softWrap: false),
+          // ใช้ Expanded เพื่อให้ส่วนของข้อความ (ชื่อ, หัตถการ) ยืดขยายเต็มพื้นที่ที่เหลือ
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ชื่อคนไข้
+                Text(
+                  patientName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+                // หัตถการ (จะแสดงก็ต่อเมื่อการ์ดมีความสูงพอ)
+                if (constraints.maxHeight > 38)
+                  Text(
+                    '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.black.withOpacity(0.7)),
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(width: 12),
-          Image.asset('assets/icons/treatment.png', width: 16, height: 16),
-          const SizedBox(width: 6),
-          // ✨ [FIX v1.2.0] เปลี่ยนจาก Expanded เป็น Flexible เพื่อแก้ปัญหา Overflow
-          // Flexible จะยอมหดตัวลงได้เมื่อมีพื้นที่ไม่พอ ต่างจาก Expanded ที่จะพยายามจองพื้นที่ให้ได้มากที่สุด
-          Flexible(
-            flex: 2,
-            child: Text('$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
-                style:
-                    TextStyle(fontSize: 14, color: Colors.black.withOpacity(0.7)),
-                overflow: TextOverflow.ellipsis,
-                softWrap: false),
+          // ส่วนของปุ่มและสถานะจะอยู่อีกฝั่ง และใช้พื้นที่เท่าที่จำเป็น
+          const SizedBox(width: 8), 
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildStatusChip(status, 10),
+              const SizedBox(width: 4),
+              _buildCompactCallButton(context, phone, patientName),
+            ],
           ),
-          const Spacer(),
-          _buildStatusChip(status, 11),
-          const SizedBox(width: 6),
-          _buildCallButton(context, phone, patientName),
         ],
       ),
     );

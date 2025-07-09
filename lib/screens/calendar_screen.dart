@@ -1,10 +1,11 @@
-// v2.5.0 - ✨ Implemented Fully Dynamic & Scrollable Layout
+// v2.6.2 - ✨ Changed Event Markers to Appointment Count Badge
 // 📁 lib/screens/calendar_screen.dart
 
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 // 🌸 Imports from our project
 import '../models/appointment_model.dart';
@@ -20,7 +21,6 @@ import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart'; 
-import 'package:intl/intl.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -35,6 +35,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
   
+  Map<DateTime, List<AppointmentModel>> _events = {};
+
   List<AppointmentModel> _selectedAppointments = [];
   List<Patient> _patientsForAppointments = [];
 
@@ -48,52 +50,68 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _fetchDataForSelectedDay(_selectedDay);
+    _loadDataForMonth(_focusedDay);
   }
 
   void _handleDataChange() {
     debugPrint("📱 [CalendarScreen] Data change detected! Refetching data...");
-    _fetchDataForSelectedDay(_selectedDay);
+    _loadDataForMonth(_focusedDay);
   }
 
-  Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
+  Future<void> _loadDataForMonth(DateTime month) async {
     if (!mounted) return;
     setState(() { _isLoading = true; });
 
-    try {
-      final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
-      final patientIds = appointments.map((appt) => appt.patientId).toSet();
-      
-      List<Patient> patients = [];
-      if (patientIds.isNotEmpty) {
-        for (String id in patientIds) {
-          final patient = await _patientService.getPatientById(id);
-          if (patient != null) {
-            patients.add(patient);
-          }
+    final firstDayOfMonth = DateTime(month.year, month.month, 1);
+    final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
+    
+    final Map<DateTime, List<AppointmentModel>> events = {};
+    for (int i = 0; i < lastDayOfMonth.day; i++) {
+      final day = firstDayOfMonth.add(Duration(days: i));
+      final dailyAppointments = await _appointmentService.getAppointmentsByDate(day);
+      if (dailyAppointments.isNotEmpty) {
+        final dayKey = DateTime.utc(day.year, day.month, day.day);
+        events[dayKey] = dailyAppointments;
+      }
+    }
+    
+    _events = events;
+
+    await _populateTimelineForDay(_selectedDay);
+  }
+
+  Future<void> _populateTimelineForDay(DateTime day) async {
+    final dayKey = DateTime.utc(day.year, day.month, day.day);
+    final appointments = _events[dayKey] ?? [];
+
+    final patientIds = appointments.map((appt) => appt.patientId).toSet();
+    
+    List<Patient> patients = [];
+    if (patientIds.isNotEmpty) {
+      for (String id in patientIds) {
+        final patient = await _patientService.getPatientById(id);
+        if (patient != null) {
+          patients.add(patient);
         }
       }
-
-      DayWorkingHours? dayWorkingHours;
-      try {
-        final allWorkingHours = await _workingHoursService.loadWorkingHours();
-        dayWorkingHours = allWorkingHours.firstWhere((day) => day.dayName == _getThaiDayName(selectedDay.weekday));
-      } catch (e) {
-        dayWorkingHours = null;
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        _selectedAppointments = appointments;
-        _patientsForAppointments = patients;
-        _selectedDayWorkingHours = dayWorkingHours;
-        _isLoading = false;
-      });
-    } catch(e) {
-        debugPrint('Error fetching data for calendar screen: $e');
-        if(mounted) setState(() { _isLoading = false; });
     }
+
+    DayWorkingHours? dayWorkingHours;
+    try {
+      final allWorkingHours = await _workingHoursService.loadWorkingHours();
+      dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
+    } catch (e) {
+      dayWorkingHours = null;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedAppointments = appointments;
+      _patientsForAppointments = patients;
+      _selectedDayWorkingHours = dayWorkingHours;
+      _isLoading = false;
+    });
   }
   
   String _getThaiDayName(int weekday) {
@@ -103,16 +121,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [DYNAMIC-HEIGHT v2.5.0] คำนวณความสูงของ TimelineView แบบไดนามิก
-    // โดยอิงจากเวลาทำงานของวันนั้นๆ ค่ะ
-    double timelineHeight = 200; // ความสูงเริ่มต้นเผื่อไว้ในกรณีที่ยังโหลดไม่เสร็จ
+    double timelineHeight = 200; 
     if (!_isLoading && _selectedDayWorkingHours != null && !_selectedDayWorkingHours!.isClosed && _selectedDayWorkingHours!.timeSlots.isNotEmpty) {
       final dayStartTime = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, _selectedDayWorkingHours!.timeSlots.first.openTime.hour, _selectedDayWorkingHours!.timeSlots.first.openTime.minute);
       final dayEndTime = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, _selectedDayWorkingHours!.timeSlots.last.closeTime.hour, _selectedDayWorkingHours!.timeSlots.last.closeTime.minute);
       
-      const double hourHeight = 120.0; // ค่านี้ต้องตรงกับใน TimelineView
+      const double hourHeight = 120.0;
       final double pixelsPerMinute = hourHeight / 60.0;
-      const double verticalPadding = 28.0; // ค่านี้ต้องตรงกับ padding ใน TimelineView (top: 14, bottom: 14)
+      const double verticalPadding = 28.0;
 
       timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
     }
@@ -135,8 +151,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ] : null,
       ),
-      // ✨ [LANDSCAPE-FIX v2.5.0] เปลี่ยนมาใช้ ListView เพื่อให้หน้าจอเลื่อนได้ทั้งหมด
-      // และจัดการกับเนื้อหาที่มีความสูงไม่แน่นอนได้ดีกว่าค่ะ
       body: ListView(
         children: [
           Padding(
@@ -180,6 +194,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 calendarFormat: _calendarFormat,
+                
+                eventLoader: (day) {
+                  final dayKey = DateTime.utc(day.year, day.month, day.day);
+                  return _events[dayKey] ?? [];
+                },
+
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
@@ -196,22 +216,61 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                     );
                   },
+                  // 💖 [MARKERS v2.6.2] สร้าง Marker เป็นตัวเลขจำนวนนัดหมายค่ะ
+                  markerBuilder: (context, day, events) {
+                    if (events.isNotEmpty) {
+                      return Positioned(
+                        right: 1,
+                        bottom: 1,
+                        child: Container(
+                          padding: const EdgeInsets.all(1.0),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFFF06292), // สีชมพูหวานๆ
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${events.length}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: AppTheme.fontFamily,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return null; // คืนค่า null ถ้าไม่มีนัดหมาย
+                  },
                 ),
                 calendarStyle: CalendarStyle(
                   todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
-                  selectedDecoration: BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
+                  selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
+                  // 💖 [MARKERS v2.6.2] เราใช้ markerBuilder แทนแล้ว เลยไม่ต้องใช้ markerDecoration ค่ะ
                 ),
                 onDaySelected: (selectedDay, focusedDay) {
                   if (!isSameDay(_selectedDay, selectedDay)) {
                     setState(() {
                       _selectedDay = selectedDay;
                       _focusedDay = focusedDay;
+                      _isLoading = true;
                     });
-                    _fetchDataForSelectedDay(selectedDay);
+                    _populateTimelineForDay(selectedDay);
                   }
                 },
                 onPageChanged: (focusedDay) {
-                  _focusedDay = focusedDay;
+                  setState(() {
+                     _focusedDay = focusedDay;
+                     _selectedDay = focusedDay;
+                  });
+                  _loadDataForMonth(focusedDay);
                 },
               ),
             ),
@@ -219,8 +278,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           
           const SizedBox(height: 12),
           
-          // ✨ [LANDSCAPE-FIX v2.5.0] ใช้ SizedBox ที่คำนวณความสูงแบบไดนามิก
-          // เพื่อให้ Timeline มีขนาดพอดีกับข้อมูลในแต่ละวันค่ะ
           SizedBox(
             height: timelineHeight,
             child: _isLoading

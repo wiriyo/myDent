@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------
 // 📁 lib/screens/patient_add.dart
-// v2.2.0 - ✨ ปรับปรุง UI ของช่อง HN
+// v2.9.0 - ✨ Refactored Padding for Better Layout
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,7 +35,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   DateTime? _birthDate;
   int _calculatedAge = 0;
   bool _isEditing = false;
-  String _selectedGender = 'หญิง';
+  String _selectedGender = 'หญิง'; 
   
   Patient? _editingPatient;
   
@@ -67,6 +67,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         _prefixController.text = 'น.ส.';
         _allergyController.text = 'ปฏิเสธ';
         _diseaseController.text = 'ปฏิเสธ';
+        _updateGenderFromPrefix('น.ส.');
       }
       
       _isDataInitialized = true;
@@ -112,6 +113,29 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       setState(() {
         _birthDate = picked;
         _calculateAgeFromBirthdate(picked);
+      });
+    }
+  }
+
+  void _updateGenderFromPrefix(String prefix) {
+    String newGender;
+    switch (prefix) {
+      case 'นาย':
+      case 'ด.ช.':
+        newGender = 'ชาย';
+        break;
+      case 'นาง':
+      case 'น.ส.':
+      case 'ด.ญ.':
+        newGender = 'หญิง';
+        break;
+      default:
+        newGender = 'อื่นๆ';
+        break;
+    }
+    if (newGender != _selectedGender) {
+      setState(() {
+        _selectedGender = newGender;
       });
     }
   }
@@ -188,6 +212,22 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
     );
   }
 
+  Widget _getGenderIcon(String gender, {double size = 36}) {
+    String iconPath;
+    switch(gender) {
+      case 'หญิง':
+        iconPath = 'assets/icons/female.png';
+        break;
+      case 'ชาย':
+        iconPath = 'assets/icons/male.png';
+        break;
+      default:
+        iconPath = 'assets/icons/gender.png';
+        break;
+    }
+    return Image.asset(iconPath, width: size, height: size);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -204,261 +244,252 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           builder: (context, provider, child) {
             return AbsorbPointer(
               absorbing: provider.isLoading,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 20.0, left: 20.0, right: 20.0),
-                child: Form(
-                  key: _formKey,
-                  child: ListView(
-                    children: [
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 60,
-                            child: StreamBuilder<List<Prefix>>(
-                              stream: PrefixService.getAllPrefixes(),
-                              builder: (context, snapshot) {
-                                if (!snapshot.hasData) return const SizedBox.shrink();
-                                final prefixList = snapshot.data!;
-                                return Autocomplete<String>(
-                                  initialValue: TextEditingValue(text: _prefixController.text),
-                                  optionsBuilder: (TextEditingValue textEditingValue) {
-                                    if (textEditingValue.text == '') {
-                                      return const Iterable<String>.empty();
-                                    }
-                                    return prefixList
-                                        .map((e) => e.name)
-                                        .where(
-                                          (name) => name.toLowerCase().contains(
-                                            textEditingValue.text.toLowerCase(),
-                                          ),
-                                        );
-                                  },
-                                  onSelected: (String selected) {
-                                    _prefixController.text = selected;
-                                  },
-                                  fieldViewBuilder: (
-                                    BuildContext context,
-                                    TextEditingController textEditingController,
-                                    FocusNode focusNode,
-                                    VoidCallback onFieldSubmitted,
-                                  ) {
-                                    return TextFormField(
-                                      controller: textEditingController,
-                                      focusNode: focusNode,
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                          horizontal: 12,
+              // ✨ [UI-FIX v2.9.0] ย้าย Padding เข้าไปใน ListView โดยตรง
+              // เพื่อการคำนวณ Layout ที่แม่นยำและป้องกันขอบถูกตัดค่ะ
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 24.0),
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: StreamBuilder<List<Prefix>>(
+                            stream: PrefixService.getAllPrefixes(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) return const SizedBox.shrink();
+                              final prefixList = snapshot.data!;
+                              return Autocomplete<String>(
+                                initialValue: TextEditingValue(text: _prefixController.text),
+                                optionsBuilder: (TextEditingValue textEditingValue) {
+                                  if (textEditingValue.text == '') {
+                                    return prefixList.map((e) => e.name);
+                                  }
+                                  return prefixList
+                                      .map((e) => e.name)
+                                      .where(
+                                        (name) => name.toLowerCase().contains(
+                                          textEditingValue.text.toLowerCase(),
                                         ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFBFA3FF),
-                                            width: 2,
-                                          ),
-                                        ),
+                                      );
+                                },
+                                onSelected: (String selected) {
+                                  _prefixController.text = selected;
+                                  _updateGenderFromPrefix(selected);
+                                },
+                                fieldViewBuilder: (
+                                  BuildContext context,
+                                  TextEditingController textEditingController,
+                                  FocusNode focusNode,
+                                  VoidCallback onFieldSubmitted,
+                                ) {
+                                  return TextFormField(
+                                    controller: textEditingController,
+                                    focusNode: focusNode,
+                                    onChanged: (value) {
+                                      _prefixController.text = value;
+                                      _updateGenderFromPrefix(value);
+                                    },
+                                    textAlign: TextAlign.center,
+                                    decoration: InputDecoration(
+                                      labelText: 'คำนำหน้า',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                        horizontal: 12,
                                       ),
-                                    );
-                                  },
-                                  optionsViewBuilder: (context, onSelected, options) {
-                                    return Align(
-                                      alignment: Alignment.topLeft,
-                                      child: Material(
-                                        elevation: 4,
+                                      border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        color: Colors.white,
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 25,
-                                            maxHeight: 150,
-                                          ),
-                                          child: ListView.builder(
-                                            padding: EdgeInsets.zero,
-                                            itemCount: options.length,
-                                            itemBuilder: (context, index) {
-                                              final option = options.elementAt(index);
-                                              return ListTile(
-                                                title: Text(
-                                                  option,
-                                                  style: const TextStyle(
-                                                    fontFamily: 'Poppins',
-                                                  ),
-                                                ),
-                                                onTap: () => onSelected(option),
-                                              );
-                                            },
-                                          ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFBFA3FF),
+                                          width: 2,
                                         ),
                                       ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 4,
-                            child: _buildTextField(
-                              'ชื่อ - นามสกุล',
-                              _nameController,
-                              validator:
-                                  (value) => value!.isEmpty ? 'กรุณากรอกชื่อ' : null,
-                            ),
-
-                          ),
-                          const SizedBox(width: 12),
-                          DropdownButton<String>(
-                            icon: const SizedBox.shrink(),
-                            value: _selectedGender,
-                            underline: Container(),
-                            selectedItemBuilder: (BuildContext context) {
-                              return ['หญิง', 'ชาย'].map((String value) {
-                                return Align(
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    value == 'หญิง' ? Icons.female : Icons.male,
-                                    color:
-                                        value == 'หญิง'
-                                            ? AppTheme.iconFemale
-                                            : AppTheme.iconMale,
-                                    size: 36,
-                                  ),
-                                );
-                              }).toList();
-                            },
-                            items:
-                                ['หญิง', 'ชาย'].map((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Icon(
-                                      value == 'หญิง' ? Icons.female : Icons.male,
-                                      color:
-                                          value == 'หญิง'
-                                              ? AppTheme.iconFemale
-                                              : AppTheme.iconMale,
-                                      size: 28,
                                     ),
                                   );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedGender = newValue!;
-                              });
+                                },
+                                optionsViewBuilder: (context, onSelected, options) {
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 4,
+                                      borderRadius: BorderRadius.circular(12),
+                                      color: Colors.white,
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 120, 
+                                          maxHeight: 200,
+                                        ),
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: options.length,
+                                          itemBuilder: (context, index) {
+                                            final option = options.elementAt(index);
+                                            return ListTile(
+                                              title: Text(
+                                                option,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                ),
+                                              ),
+                                              onTap: () => onSelected(option),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
                             },
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              'เบอร์โทรศัพท์',
-                              _phoneController,
-                              keyboardType: TextInputType.phone,
+                        ),
+
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 5,
+                          child: _buildTextField(
+                            'ชื่อ - นามสกุล',
+                            _nameController,
+                            validator:
+                                (value) => value!.isEmpty ? 'กรุณากรอกชื่อ' : null,
+                          ),
+
+                        ),
+                        const SizedBox(width: 12),
+                        DropdownButton<String>(
+                          icon: const SizedBox.shrink(),
+                          value: _selectedGender,
+                          underline: Container(),
+                          selectedItemBuilder: (BuildContext context) {
+                            return ['หญิง', 'ชาย', 'อื่นๆ'].map((String value) {
+                              return Align(
+                                alignment: Alignment.center,
+                                child: _getGenderIcon(value, size: 36),
+                              );
+                            }).toList();
+                          },
+                          items:
+                              ['หญิง', 'ชาย', 'อื่นๆ'].map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: _getGenderIcon(value, size: 28),
+                                );
+                              }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedGender = newValue!;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            'เบอร์โทรศัพท์',
+                            _phoneController,
+                            keyboardType: TextInputType.phone,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTextField(
+                            'HN',
+                            _hnController,
+                            readOnly: true,
+                            hintText: _isEditing ? null : 'สร้างอัตโนมัติ',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTextField(
+                      'เลขบัตรประจำตัวประชาชน',
+                      _idCardController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _selectDate,
+                          icon: Image.asset(
+                            'assets/icons/cake.png',
+                            width: 24,
+                            height: 24,
+                          ),
+                          label: Text(
+                            _birthDate != null
+                                ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
+                                : 'เลือกวันเกิด',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppTheme.bottomNav,
+                            foregroundColor: AppTheme.primary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: AppTheme.primaryLight),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          // ✨ [UI-CHANGED v2.2] ปรับปรุงการแสดงผลช่อง HN
-                          Expanded(
-                            child: _buildTextField(
-                              'HN',
-                              _hnController,
-                              readOnly: true, // ทำให้แก้ไขไม่ได้
-                              // ถ้าเป็นการเพิ่มใหม่จะแสดงข้อความ, ถ้าแก้ไขจะแสดง HN เดิม
-                              hintText: _isEditing ? null : 'สร้างอัตโนมัติ',
+                        ),
+                        if (_calculatedAge > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _buildTextField(
-                        'เลขบัตรประจำตัวประชาชน',
-                        _idCardController,
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TextButton.icon(
-                            onPressed: _selectDate,
-                            icon: Image.asset(
-                              'assets/icons/cake.png',
-                              width: 24,
-                              height: 24,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.primaryLight),
                             ),
-                            label: Text(
-                              _birthDate != null
-                                  ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
-                                  : 'เลือกวันเกิด',
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            style: TextButton.styleFrom(
-                              backgroundColor: AppTheme.bottomNav,
-                              foregroundColor: AppTheme.primary,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(color: AppTheme.primaryLight),
-                              ),
-                            ),
-                          ),
-                          if (_calculatedAge > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: AppTheme.primaryLight),
-                              ),
-                              child: Row(
-                                children: [
-                                  Image.asset(
-                                    'assets/icons/age.png',
-                                    width: 20,
-                                    height: 20,
+                            child: Row(
+                              children: [
+                                Image.asset(
+                                  'assets/icons/age.png',
+                                  width: 20,
+                                  height: 20,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$_calculatedAge ปี',
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primary,
                                   ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '$_calculatedAge ปี',
-                                    style: const TextStyle(
-                                      fontFamily: 'Poppins',
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _buildTextField('ที่อยู่', _addressController),
-                      const SizedBox(height: 12),
-                      _buildTextField('ประวัติการแพ้ยา', _allergyController),
-                      const SizedBox(height: 12),
-                      _buildTextField('โรคประจำตัว', _diseaseController),
-                      const SizedBox(height: 16),
-                      _buildRatingDropdown(),
-                      const SizedBox(height: 24),
-                      _buildActionButtons(provider),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTextField('ที่อยู่', _addressController),
+                    const SizedBox(height: 12),
+                    _buildTextField('ประวัติการแพ้ยา', _allergyController),
+                    const SizedBox(height: 12),
+                    _buildTextField('โรคประจำตัว', _diseaseController),
+                    const SizedBox(height: 16),
+                    _buildRatingDropdown(),
+                    const SizedBox(height: 24),
+                    _buildActionButtons(provider),
+                  ],
                 ),
               ),
             );
@@ -508,7 +539,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   patientId: _isEditing ? _editingPatient!.patientId : '',
                   prefix: _prefixController.text.trim(),
                   name: _nameController.text.trim(),
-                  // ✨ [CHANGED v2.2] ส่ง HN จาก controller ไปด้วย (สำหรับโหมดแก้ไข)
                   hnNumber: _hnController.text.trim(),
                   telephone: _phoneController.text.trim(),
                   address: _addressController.text.trim(),
@@ -600,8 +630,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       ],
     );
   }
-
-  // ✨ [UI-CHANGED v2.2] ปรับปรุงเมธอดให้รับ readOnly และ hintText ได้
+  
   Widget _buildTextField(
     String label,
     TextEditingController controller, {
@@ -619,12 +648,11 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       readOnly: readOnly,
       style: TextStyle(
         fontFamily: 'Poppins',
-        // ถ้าเป็น readOnly ให้สีเทาๆ จะได้ดูเหมือนแก้ไขไม่ได้ค่ะ
         color: readOnly ? Colors.grey.shade700 : Colors.black,
       ),
       decoration: InputDecoration(
         labelText: label,
-        hintText: hintText, // แสดงข้อความแนะนำ
+        hintText: hintText,
         prefixIcon: Padding(
           padding: const EdgeInsets.all(10),
           child: Image.asset(
@@ -650,7 +678,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           ),
         ),
         filled: true,
-        // ถ้าเป็น readOnly ให้พื้นหลังเป็นสีเทาอ่อนๆ ค่ะ
         fillColor: readOnly ? Colors.grey.shade200 : Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

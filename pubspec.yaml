@@ -94,6 +94,9 @@ flutter:
       - assets/icons/back.png
       - assets/icons/x_ray.png
       - assets/icons/hn_id.png
+      - assets/icons/gender.png
+      - assets/icons/male.png
+      - assets/icons/female.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

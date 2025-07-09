@@ -6,7 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import '../models/appointment_model.dart'; // ✨ [ADDED] Import โมเดลฉบับเต็ม
+// ✨ [ADDED] Import โมเดลฉบับเต็ม
 import '../models/appointment_search_model.dart';
 import '../models/patient.dart';
 import '../services/appointment_service.dart'; // ✨ [ADDED] Import Service ที่จำเป็น

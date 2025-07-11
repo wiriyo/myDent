@@ -1,4 +1,4 @@
-// v2.6.2 - ✨ Changed Event Markers to Appointment Count Badge
+// v2.6.3 - 🐞 Fixed day-of-week label cropping issue
 // 📁 lib/screens/calendar_screen.dart
 
 import 'dart:math';
@@ -195,6 +195,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 calendarFormat: _calendarFormat,
                 
+                // 💖 [CROP-FIX v2.6.3] เพิ่มความสูงให้แถววันในสัปดาห์
+                // เพื่อแก้ปัญหาตัวอักษรโดนตัดค่ะ
+                daysOfWeekHeight: 22,
+
                 eventLoader: (day) {
                   final dayKey = DateTime.utc(day.year, day.month, day.day);
                   return _events[dayKey] ?? [];
@@ -216,7 +220,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                     );
                   },
-                  // 💖 [MARKERS v2.6.2] สร้าง Marker เป็นตัวเลขจำนวนนัดหมายค่ะ
                   markerBuilder: (context, day, events) {
                     if (events.isNotEmpty) {
                       return Positioned(
@@ -226,7 +229,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           padding: const EdgeInsets.all(1.0),
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Color(0xFFF06292), // สีชมพูหวานๆ
+                            color: Color(0xFFF06292),
                           ),
                           constraints: const BoxConstraints(
                             minWidth: 16,
@@ -247,13 +250,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                       );
                     }
-                    return null; // คืนค่า null ถ้าไม่มีนัดหมาย
+                    return null;
                   },
                 ),
                 calendarStyle: CalendarStyle(
                   todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
                   selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
-                  // 💖 [MARKERS v2.6.2] เราใช้ markerBuilder แทนแล้ว เลยไม่ต้องใช้ markerDecoration ค่ะ
                 ),
                 onDaySelected: (selectedDay, focusedDay) {
                   if (!isSameDay(_selectedDay, selectedDay)) {

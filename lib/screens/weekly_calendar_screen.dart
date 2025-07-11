@@ -1,4 +1,4 @@
-// v2.4.2 - 🐞 Centered Loading Indicator
+// v2.5.0 - ✨ Added Event Counters & Fixed Label Cropping
 // 📁 lib/screens/weekly_calendar_screen.dart
 
 import 'dart:math';
@@ -293,12 +293,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         elevation: 0,
         title: const Text('ภาพรวมสัปดาห์'),
       ),
-      // 💖 [CENTER-LOADER v2.4.2] ไลลาปรับโครงสร้างตรงนี้นะคะ
-      // เราจะเช็กก่อนว่ากำลังโหลดข้อมูลอยู่หรือไม่
       body: _isLoading
-          // 🎯 ถ้ากำลังโหลด: ให้แสดงตัวโหลดหมุนๆ กลางจอไปเลยค่ะ
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-          // 🎯 ถ้าโหลดเสร็จแล้ว: ถึงจะแสดงเนื้อหาปฏิทินที่เลื่อนได้ค่ะ
           : SingleChildScrollView(
               child: Column(
                 children: [
@@ -410,6 +406,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     );
   }
   
+  // 💖 [UPDATE v2.5.0] ไลลาอัปเดต Widget นี้ให้แสดงป้ายนับนัดหมายและแก้ปัญหาตัวอักษรโดนตัดค่ะ
   Widget _buildWeekDayHeader() {
     final firstDayOfWeek = _focusedDay.subtract(Duration(days: _focusedDay.weekday - 1));
     final dayFormatter = DateFormat('E', 'th_TH');
@@ -424,18 +421,57 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           SizedBox(width: _timeAxisWidth), 
           ...List.generate(7, (index) {
             final day = firstDayOfWeek.add(Duration(days: index));
+            final dayKey = DateTime(day.year, day.month, day.day);
+            final eventCount = _weeklyData[dayKey]?.appointments.length ?? 0;
             final isToday = isSameDay(day, DateTime.now());
+            
             return Container(
               width: _dayColumnWidth,
-              padding: const EdgeInsets.all(8.0),
+              // ✨ [CROP-FIX] เพิ่ม Padding ด้านล่างเพื่อให้ตัวอักษรมีพื้นที่หายใจค่ะ
+              padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0), 
               decoration: BoxDecoration(
                 color: isToday ? AppTheme.primaryLight.withOpacity(0.3) : Colors.transparent,
                 border: Border(right: BorderSide(color: Colors.grey.shade200), bottom: BorderSide(color: Colors.grey.shade300, width: 2))
               ),
-              child: Column(
+              // ✨ [EVENT-COUNT] ใช้ Stack เพื่อวางป้ายตัวเลขไว้บนหัวข้อวันค่ะ
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
                 children: [
-                  Text(dayFormatter.format(day), style: TextStyle(fontWeight: FontWeight.bold, color: isToday ? AppTheme.primary : AppTheme.textPrimary)),
-                  Text(dateFormatter.format(day), style: TextStyle(color: isToday ? AppTheme.primary : AppTheme.textSecondary)),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(dayFormatter.format(day), style: TextStyle(fontWeight: FontWeight.bold, color: isToday ? AppTheme.primary : AppTheme.textPrimary)),
+                      Text(dateFormatter.format(day), style: TextStyle(color: isToday ? AppTheme.primary : AppTheme.textSecondary)),
+                    ],
+                  ),
+                  if (eventCount > 0)
+                    Positioned(
+                      top: -6,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFFF06292),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$eventCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );

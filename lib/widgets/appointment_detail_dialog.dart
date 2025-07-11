@@ -289,7 +289,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                 _getGenderIcon(gender, size: 20)
             ]),
             const SizedBox(height: 4),
-            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: AppTheme.buttonCallBg, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset(AppTheme.iconPathPhone, width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
+            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: AppTheme.buttonCallBg, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset(AppTheme.iconPathCall, width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
             
             const SizedBox(height: 8),
             _buildInfoRow(text: 'โรคประจำตัว: $medicalHistory'),

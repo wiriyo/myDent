@@ -48,6 +48,7 @@ class AppTheme {
   static const String iconPathUser = 'assets/icons/user.png';
   static const String iconPathAge = 'assets/icons/age.png';
   static const String iconPathPhone = 'assets/icons/mobile_phone.png';
+  static const String iconPathCall = 'assets/icons/phone.png';
   static const String iconPathAddress = 'assets/icons/house.png';
   static const String iconPathMale = 'assets/icons/male.png';
   static const String iconPathFemale = 'assets/icons/female.png';

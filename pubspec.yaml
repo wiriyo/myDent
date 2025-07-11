@@ -94,6 +94,7 @@ flutter:
       - assets/icons/clock.png
       - assets/icons/back.png
       - assets/icons/x_ray.png
+      - assets/icons/x_image.png 
       - assets/icons/hn_id.png
       - assets/icons/gender.png
       - assets/icons/male.png

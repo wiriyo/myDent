@@ -1,6 +1,4 @@
-// 💖 สวัสดีค่ะพี่ทะเล! นี่คือไฟล์เวอร์ชันที่ 2 นะคะ
-// ไลลาได้ลองเปลี่ยนวิธีเขียนโค้ดตรงที่เลือกสีพื้นหลัง (dialogColor)
-// ให้เป็นแบบที่คลาสสิกมากขึ้น เพื่อดูว่าจะช่วยให้น้อง Analyzer หายงอแงได้ไหมนะคะ 😊
+// 💖 สวัสดีค่ะพี่ทะเล! ไลลาตกแต่ง Dropdown ของช่องสถานะให้โค้งมนสวยงามแล้วนะคะ 😊
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -62,8 +60,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     super.dispose();
   }
 
-  // ✨ [NEW v2] ไลลาสร้างฟังก์ชันผู้ช่วยสำหรับเลือกสีโดยเฉพาะเลยค่ะ
-  // วิธีนี้เป็นวิธีเขียนแบบคลาสสิกที่ Analyzer ทุกเวอร์ชันเข้าใจแน่นอนค่ะ
   Color _getDialogColor(double rating) {
     if (rating >= 4.5) {
       return AppTheme.rating5Star;
@@ -73,8 +69,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       return AppTheme.rating3StarAndBelow;
     }
   }
-
-  // --- (เมธอดอื่น ๆ ทั้งหมดเหมือนเดิมเป๊ะ ๆ เลยนะคะ) ---
 
   void _makePhoneCall() async {
     final String? telephone = widget.patient.telephone;
@@ -271,7 +265,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final String teethString = teethList.join(', ');
     final String fullTreatmentText = '$treatment ${teethString.isNotEmpty ? '(#$teethString)' : ''}';
     
-    // ✨ [UPDATED v2] เรียกใช้ฟังก์ชันผู้ช่วยที่เราสร้างขึ้นมาใหม่ค่ะ
     final dialogColor = _getDialogColor(rating);
 
     return AlertDialog(
@@ -375,18 +368,41 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               ],
             ),
             const SizedBox(height: 16),
+            // ✨ [UI-FIX] ตกแต่ง Dropdown ของเราให้สวยงามโค้งมนค่ะ!
             DropdownButtonFormField<String>(
               value: _currentStatus,
               items: statusOptions.map((status) => DropdownMenuItem(value: status, child: Text(status))).toList(),
               onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
-              decoration: InputDecoration(labelText: 'สถานะ', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+              borderRadius: BorderRadius.circular(16.0), // ทำให้เมนูที่กางออกมามนสวย
+              decoration: InputDecoration(
+                labelText: 'สถานะ',
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                  borderSide: BorderSide(color: Colors.grey.shade400),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                  borderSide: const BorderSide(color: AppTheme.primary, width: 2.0),
+                ),
+              ),
             ),
             if (_currentStatus == 'เลื่อนนัด' || _reasonController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: TextField(
                   controller: _reasonController,
-                  decoration: InputDecoration(labelText: 'บันทึก / เหตุผลการเลื่อนนัด', filled: true, fillColor: Colors.white.withOpacity(0.8), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  decoration: InputDecoration(
+                    labelText: 'บันทึก / เหตุผลการเลื่อนนัด',
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.0))
+                  ),
                   maxLines: 2,
                 ),
               ),

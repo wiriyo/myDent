@@ -1,12 +1,14 @@
-// v1.6.0 - ✨ Refactored to Use Themed Icons & Fixed Errors
-// 📁 lib/widgets/appointment_detail_dialog.dart
+// 💖 สวัสดีค่ะพี่ทะเล! นี่คือไฟล์เวอร์ชันที่ 2 นะคะ
+// ไลลาได้ลองเปลี่ยนวิธีเขียนโค้ดตรงที่เลือกสีพื้นหลัง (dialogColor)
+// ให้เป็นแบบที่คลาสสิกมากขึ้น เพื่อดูว่าจะช่วยให้น้อง Analyzer หายงอแงได้ไหมนะคะ 😊
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../models/patient.dart';
 import '../services/appointment_service.dart';
+import '../services/patient_service.dart';
+import '../services/rating_service.dart';
 import '../screens/appointment_add.dart';
 import '../models/appointment_model.dart';
 import '../styles/app_theme.dart';
@@ -30,14 +32,15 @@ class AppointmentDetailDialog extends StatefulWidget {
 
 class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   final AppointmentService _appointmentService = AppointmentService();
+  final PatientService _patientService = PatientService();
   late String _currentStatus;
   late TextEditingController _reasonController;
 
-  final List<String> statusOptions = [
+  final List<String> statusOptions = const [
     'รอยืนยัน',
     'ยืนยันแล้ว',
     'เสร็จสิ้น',
-    'ยกเลิก'
+    'ยกเลิก',
     'ติดต่อไม่ได้',
     'ไม่มาตามนัด',
     'ปฏิเสธนัด',
@@ -58,6 +61,20 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     _reasonController.dispose();
     super.dispose();
   }
+
+  // ✨ [NEW v2] ไลลาสร้างฟังก์ชันผู้ช่วยสำหรับเลือกสีโดยเฉพาะเลยค่ะ
+  // วิธีนี้เป็นวิธีเขียนแบบคลาสสิกที่ Analyzer ทุกเวอร์ชันเข้าใจแน่นอนค่ะ
+  Color _getDialogColor(double rating) {
+    if (rating >= 4.5) {
+      return AppTheme.rating5Star;
+    } else if (rating >= 3.5) {
+      return AppTheme.rating4Star;
+    } else {
+      return AppTheme.rating3StarAndBelow;
+    }
+  }
+
+  // --- (เมธอดอื่น ๆ ทั้งหมดเหมือนเดิมเป๊ะ ๆ เลยนะคะ) ---
 
   void _makePhoneCall() async {
     final String? telephone = widget.patient.telephone;
@@ -145,11 +162,20 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         status: _currentStatus,
         notes: _reasonController.text.trim().isEmpty ? null : _reasonController.text.trim(),
       );
-
       await _appointmentService.updateAppointment(updatedAppointment);
-      
+
+      final currentRating = widget.patient.rating;
+      final newRating = RatingService.calculateNewRating(
+        currentRating: currentRating,
+        appointmentStatus: _currentStatus,
+      );
+
+      if (newRating != currentRating) {
+        await _patientService.updatePatientRating(widget.patient.patientId, newRating);
+      }
+
       if (mounted) {
-        Navigator.pop(context); 
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),
@@ -166,7 +192,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       }
     }
   }
-  
+
   int _calculateAge(DateTime? birthDate) {
     if (birthDate == null) return 0;
     final today = DateTime.now();
@@ -177,25 +203,42 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     }
     return age > 0 ? age : 0;
   }
-  
-  Widget _buildRatingStars(int rating) {
+
+  Widget _buildRatingStars(double rating) {
+    final int fullStars = rating.floor();
+    final bool hasHalfStar = (rating - fullStars) >= 0.5;
+
     return Row(
       children: List.generate(5, (index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2.0),
-          child: Image.asset(
-            index < rating
-                ? 'assets/icons/tooth_good.png'
-                : 'assets/icons/tooth_broke.png',
+        Widget toothIcon;
+        if (index < fullStars) {
+          toothIcon = Image.asset(
+            'assets/icons/tooth_good.png',
             width: 20,
             height: 20,
-          ),
+          );
+        } else if (index == fullStars && hasHalfStar) {
+          toothIcon = Image.asset(
+            'assets/icons/tooth_good.png',
+            width: 20,
+            height: 20,
+            color: AppTheme.ratingInflamedTooth,
+          );
+        } else {
+          toothIcon = Image.asset(
+            'assets/icons/tooth_broke.png',
+            width: 20,
+            height: 20,
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2.0),
+          child: toothIcon,
         );
       }),
     );
   }
-  
-  // ✨ [THEME-UPDATE] สร้างผู้ช่วยสำหรับเลือกไอคอนเพศจาก AppTheme ค่ะ
+
   Widget _getGenderIcon(String gender, {double size = 20}) {
     String iconPath;
     switch (gender) {
@@ -216,25 +259,20 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   Widget build(BuildContext context) {
     final int age = _calculateAge(widget.patient.birthDate);
     final String patientName = widget.patient.name;
-    final int rating = widget.patient.rating;
+    final double rating = widget.patient.rating;
     final String telephone = widget.patient.telephone ?? '-';
     final String gender = widget.patient.gender;
     final String medicalHistory = widget.patient.medicalHistory ?? 'ไม่มี';
     final String allergy = widget.patient.allergy ?? 'ไม่มี';
-
     final String treatment = widget.appointment.treatment;
     final DateTime startTime = widget.appointment.startTime;
     final DateTime endTime = widget.appointment.endTime;
-    final List<String> teethList = widget.appointment.teeth ?? [];
+    final List<dynamic> teethList = widget.appointment.teeth ?? [];
     final String teethString = teethList.join(', ');
     final String fullTreatmentText = '$treatment ${teethString.isNotEmpty ? '(#$teethString)' : ''}';
-
-
-    final dialogColor = switch (rating) {
-      >= 5 => AppTheme.rating5Star,
-      4    => AppTheme.rating4Star,
-      _    => AppTheme.rating3StarAndBelow,
-    };
+    
+    // ✨ [UPDATED v2] เรียกใช้ฟังก์ชันผู้ช่วยที่เราสร้างขึ้นมาใหม่ค่ะ
+    final dialogColor = _getDialogColor(rating);
 
     return AlertDialog(
       backgroundColor: dialogColor,
@@ -242,7 +280,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      
       title: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -254,7 +291,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             ),
         ],
       ),
-
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -282,21 +318,37 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             ),
             const SizedBox(height: 8),
             Row(children: [
-              Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), 
-              const SizedBox(width: 8), 
-              if (gender.isNotEmpty) 
-                // ✨ [FIXED] เปลี่ยนมาเรียกใช้ผู้ช่วย _getGenderIcon ค่ะ
+              Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)),
+              const SizedBox(width: 8),
+              if (gender.isNotEmpty)
                 _getGenderIcon(gender, size: 20)
             ]),
             const SizedBox(height: 4),
-            Row(children: [Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)), const Spacer(), if (telephone.isNotEmpty && telephone != '-') SizedBox(height: 38, width: 38, child: Material(color: AppTheme.buttonCallBg, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: IconButton(padding: EdgeInsets.zero, icon: Image.asset(AppTheme.iconPathCall, width: 20), onPressed: _makePhoneCall, tooltip: 'โทรหาคนไข้')))]),
-            
+            Row(children: [
+              Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)),
+              const Spacer(),
+              if (telephone.isNotEmpty && telephone != '-')
+                SizedBox(
+                  height: 38,
+                  width: 38,
+                  child: Material(
+                    color: AppTheme.buttonCallBg,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: Image.asset(AppTheme.iconPathCall, width: 20),
+                      onPressed: _makePhoneCall,
+                      tooltip: 'โทรหาคนไข้'
+                    )
+                  )
+                )
+            ]),
             const SizedBox(height: 8),
             _buildInfoRow(text: 'โรคประจำตัว: $medicalHistory'),
             const SizedBox(height: 4),
             _buildInfoRow(text: 'แพ้ยา: $allergy'),
             const SizedBox(height: 16),
-
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -309,12 +361,12 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                       Text(fullTreatmentText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
                       const SizedBox(height: 4),
                       Text(
-                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(startTime)}', 
+                        'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(startTime)}',
                         style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'เวลา: ${DateFormat.Hm('th_TH').format(startTime)} - ${DateFormat.Hm('th_TH').format(endTime)}', 
+                        'เวลา: ${DateFormat.Hm('th_TH').format(startTime)} - ${DateFormat.Hm('th_TH').format(endTime)}',
                         style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
                       ),
                     ],
@@ -329,7 +381,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
               decoration: InputDecoration(labelText: 'สถานะ', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
-            
             if (_currentStatus == 'เลื่อนนัด' || _reasonController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
@@ -342,7 +393,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           ],
         ),
       ),
-
       actions: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

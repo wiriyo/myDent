@@ -1,7 +1,6 @@
-// ----------------------------------------------------------------
-// 📁 lib/services/patient_service.dart
-// v1.3.0 - ✨ เพิ่มความสามารถในการสร้าง HN อัตโนมัติ
-// ----------------------------------------------------------------
+// 💖 สวัสดีค่ะพี่ทะเล ไลลาแก้ไขไฟล์นี้ให้แล้วนะคะ
+// โดยการย้ายฟังก์ชัน updatePatientRating กลับเข้าไปอยู่ในบ้าน PatientService ค่ะ 😊
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/patient.dart';
@@ -11,7 +10,6 @@ class PatientService {
   final CollectionReference _patientsCollection = FirebaseFirestore.instance.collection('patients');
   final MedicalImageService _medicalImageService = MedicalImageService();
 
-  // --- (เมธอด fetchPatientsOnce, getPatientById ยังคงเหมือนเดิม) ---
   Future<List<Patient>> fetchPatientsOnce() async {
     try {
       final snapshot = await _patientsCollection.orderBy('name').get();
@@ -42,65 +40,53 @@ class PatientService {
     }
   }
 
-  // --- ✨ [UPGRADED v1.3] อัปเกรดเมธอดเพิ่มคนไข้ ---
   Future<void> addPatient(Patient patient) async {
     try {
-      // 1. 🤖 สร้าง HN ใหม่โดยอัตโนมัติ
       final newHnNumber = await _generateNewHN();
       
-      // 2. สร้าง object คนไข้ใหม่พร้อมกับ HN ที่ได้รับ
       final patientWithHn = Patient(
-        patientId: '', // Firestore จะสร้าง ID นี้ให้เอง
+        patientId: '',
         name: patient.name,
         prefix: patient.prefix,
-        hnNumber: newHnNumber, // ✨ ใช้ HN ที่สร้างขึ้นใหม่
+        hnNumber: newHnNumber,
         telephone: patient.telephone,
         address: patient.address,
         idCard: patient.idCard,
         birthDate: patient.birthDate,
         medicalHistory: patient.medicalHistory,
         allergy: patient.allergy,
-        rating: patient.rating,
+        rating: patient.rating, // ✨ ตอนนี้เป็น double แล้ว
         gender: patient.gender,
         age: patient.age,
       );
-
-      // 3. 💾 บันทึกข้อมูลลง Firestore
       await _patientsCollection.add(patientWithHn.toMap());
       debugPrint("✅ Added new patient with HN: $newHnNumber");
-
     } catch (e) {
       debugPrint("เกิดข้อผิดพลาดในการเพิ่มคนไข้: $e");
       rethrow;
     }
   }
 
-  // ✨ [NEW v1.3] เมธอดสำหรับสร้าง HN ใหม่
   Future<String> _generateNewHN() async {
-    // 1. หาปี พ.ศ. ปัจจุบัน (เช่น 2567 -> 67)
     final now = DateTime.now();
     final buddhistYear = now.year + 543;
     final yearPrefix = (buddhistYear % 100).toString().padLeft(2, '0');
     final hnPrefix = 'HN-$yearPrefix-';
 
-    // 2. ค้นหา HN ล่าสุดของปีนี้
     final querySnapshot = await _patientsCollection
         .where('hn_number', isGreaterThanOrEqualTo: hnPrefix)
-        .where('hn_number', isLessThan: 'HN-$yearPrefix-z') // ใช้ 'z' เพื่อสร้างช่วงการค้นหา
+        .where('hn_number', isLessThan: 'HN-$yearPrefix-z')
         .orderBy('hn_number', descending: true)
         .limit(1)
         .get();
 
     int nextNumber = 1;
     if (querySnapshot.docs.isNotEmpty) {
-      // 3. ถ้าเจอ HN ของปีนี้, ให้เอาเลขลำดับสุดท้ายมาบวก 1
       final lastHn = querySnapshot.docs.first.get('hn_number') as String;
       final lastNumberStr = lastHn.split('-').last;
       final lastNumber = int.tryParse(lastNumberStr) ?? 0;
       nextNumber = lastNumber + 1;
     }
-
-    // 4. จัดรูปแบบ HN ใหม่ให้สวยงาม (เช่น HN-67-0001)
     return '$hnPrefix${nextNumber.toString().padLeft(4, '0')}';
   }
 
@@ -133,5 +119,17 @@ class PatientService {
       final snapshot = await docRef.collection(subcollectionName).get();
       final futures = snapshot.docs.map((doc) => doc.reference.delete()).toList();
       await Future.wait(futures);
+  }
+
+  // ✨ [FIXED] ย้ายเข้ามาอยู่ในบ้าน PatientService แล้วนะคะ!
+  Future<void> updatePatientRating(String patientId, double newRating) async {
+    if (patientId.isEmpty) return;
+    try {
+      await _patientsCollection.doc(patientId).update({'rating': newRating});
+      debugPrint("✅ Updated rating for patient $patientId to $newRating");
+    } catch (e) {
+      debugPrint("เกิดข้อผิดพลาดในการอัปเดตคะแนนคนไข้: $e");
+      rethrow;
+    }
   }
 }

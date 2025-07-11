@@ -1,7 +1,6 @@
-// ----------------------------------------------------------------
-// 📁 lib/screens/patients_screen.dart
-// v1.4.0 - ✨ Refactored to Use Themed Gender Icons
-// ----------------------------------------------------------------
+// 💖 สวัสดีค่ะพี่ทะเล! ไลลาอัปเกรดหน้าแสดงรายชื่อคนไข้ให้แล้วนะคะ
+// ตอนนี้การ์ดคนไข้ของเราสามารถแสดงผลคะแนนแบบ double และมีฟันสีชมพูได้แล้วค่ะ! 😊
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/patient.dart';
@@ -19,7 +18,7 @@ class PatientsScreen extends StatefulWidget {
 class _PatientsScreenState extends State<PatientsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PatientService _patientService = PatientService();
-  
+
   List<Patient> _allPatients = [];
   List<Patient> _searchResults = [];
   bool _isLoading = true;
@@ -40,7 +39,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   Future<void> _fetchAllPatients() async {
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
     try {
       final result = await _patientService.fetchPatientsOnce();
       setState(() {
@@ -50,7 +51,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() { _isLoading = false; });
+      setState(() {
+        _isLoading = false;
+      });
       debugPrint("Error fetching patients: $e");
     }
   }
@@ -67,23 +70,25 @@ class _PatientsScreenState extends State<PatientsScreen> {
       final phone = patient.telephone?.toLowerCase() ?? '';
       final hn = patient.hnNumber?.toLowerCase() ?? '';
       final queryLower = query.toLowerCase();
-      
-      return name.contains(queryLower) || phone.contains(queryLower) || hn.contains(queryLower);
+
+      return name.contains(queryLower) ||
+          phone.contains(queryLower) ||
+          hn.contains(queryLower);
     }).toList();
 
     setState(() {
       _searchResults = results;
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background, 
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('รายชื่อคนไข้'),
-        backgroundColor: AppTheme.primaryLight, 
+        backgroundColor: AppTheme.primaryLight,
         elevation: 0,
       ),
       body: Column(
@@ -91,13 +96,15 @@ class _PatientsScreenState extends State<PatientsScreen> {
           _buildSearchBar(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppTheme.primary))
                 : _allPatients.isEmpty
                     ? _buildEmptyState()
                     : _searchResults.isEmpty
                         ? _buildNoResultsState()
                         : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), 
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 0, 16, 80),
                             itemCount: _searchResults.length,
                             itemBuilder: (context, index) {
                               final patient = _searchResults[index];
@@ -105,7 +112,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                 patient: patient,
                                 onCall: () => _makeCall(patient.telephone),
                                 onEdit: () => _navigateToEdit(patient),
-                                onDelete: () => _confirmDelete(patient.patientId),
+                                onDelete: () =>
+                                    _confirmDelete(patient.patientId),
                                 onTap: () => _navigateToDetail(patient),
                               );
                             },
@@ -121,7 +129,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), 
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: TextField(
         controller: _searchController,
         style: const TextStyle(fontFamily: AppTheme.fontFamily),
@@ -139,7 +147,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
               : null,
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(30.0),
             borderSide: BorderSide.none,
@@ -154,11 +163,19 @@ class _PatientsScreenState extends State<PatientsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.sentiment_dissatisfied, size: 60, color: Colors.grey.shade400),
+          Icon(Icons.sentiment_dissatisfied,
+              size: 60, color: Colors.grey.shade400),
           const SizedBox(height: 16),
-          const Text('ยังไม่มีข้อมูลคนไข้ในระบบ', style: TextStyle(fontSize: 16, color: AppTheme.textDisabled, fontFamily: AppTheme.fontFamily)),
+          const Text('ยังไม่มีข้อมูลคนไข้ในระบบ',
+              style: TextStyle(
+                  fontSize: 16,
+                  color: AppTheme.textDisabled,
+                  fontFamily: AppTheme.fontFamily)),
           const SizedBox(height: 8),
-          const Text('กดปุ่ม + เพื่อเพิ่มคนไข้ใหม่ได้เลยค่ะ', style: TextStyle(color: AppTheme.textDisabled, fontFamily: AppTheme.fontFamily)),
+          const Text('กดปุ่ม + เพื่อเพิ่มคนไข้ใหม่ได้เลยค่ะ',
+              style: TextStyle(
+                  color: AppTheme.textDisabled,
+                  fontFamily: AppTheme.fontFamily)),
         ],
       ),
     );
@@ -171,12 +188,16 @@ class _PatientsScreenState extends State<PatientsScreen> {
         children: [
           Icon(Icons.search_off, size: 60, color: Colors.grey.shade400),
           const SizedBox(height: 16),
-          const Text('ไม่พบข้อมูลคนไข้ที่ค้นหา', style: TextStyle(fontSize: 16, color: AppTheme.textDisabled, fontFamily: AppTheme.fontFamily)),
+          const Text('ไม่พบข้อมูลคนไข้ที่ค้นหา',
+              style: TextStyle(
+                  fontSize: 16,
+                  color: AppTheme.textDisabled,
+                  fontFamily: AppTheme.fontFamily)),
         ],
       ),
     );
   }
-  
+
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
       onPressed: _navigateToAdd,
@@ -211,7 +232,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   void _makeCall(String? phone) async {
     if (phone == null || phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่มีเบอร์โทรศัพท์ค่ะ', style: TextStyle(fontFamily: AppTheme.fontFamily))));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ไม่มีเบอร์โทรศัพท์ค่ะ',
+              style: TextStyle(fontFamily: AppTheme.fontFamily))));
       return;
     }
     final phoneNumber = phone.replaceAll('-', '');
@@ -219,7 +242,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้ค่ะ', style: TextStyle(fontFamily: AppTheme.fontFamily))));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ไม่สามารถโทรออกได้ค่ะ',
+              style: TextStyle(fontFamily: AppTheme.fontFamily))));
     }
   }
 
@@ -229,11 +254,20 @@ class _PatientsScreenState extends State<PatientsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ยืนยันการลบ', style: TextStyle(fontFamily: AppTheme.fontFamily)),
-        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลคนไข้รายนี้?', style: TextStyle(fontFamily: AppTheme.fontFamily)),
+        title: const Text('ยืนยันการลบ',
+            style: TextStyle(fontFamily: AppTheme.fontFamily)),
+        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลคนไข้รายนี้?',
+            style: TextStyle(fontFamily: AppTheme.fontFamily)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก', style: TextStyle(fontFamily: AppTheme.fontFamily))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ลบ', style: TextStyle(color: Colors.red, fontFamily: AppTheme.fontFamily))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('ยกเลิก',
+                  style: TextStyle(fontFamily: AppTheme.fontFamily))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('ลบ',
+                  style: TextStyle(
+                      color: Colors.red, fontFamily: AppTheme.fontFamily))),
         ],
       ),
     );
@@ -260,7 +294,6 @@ class _PatientCard extends StatelessWidget {
     required this.onTap,
   });
 
-  // ✨ [THEME-UPDATE v1.4.0] สร้างผู้ช่วยสำหรับเลือกไอคอนเพศจาก AppTheme ค่ะ
   Widget _getGenderIcon(String gender, {double size = 16}) {
     String iconPath;
     switch (gender) {
@@ -277,28 +310,79 @@ class _PatientCard extends StatelessWidget {
     return Image.asset(iconPath, width: size, height: size);
   }
 
+  // ✨ [UPGRADED] เพิ่มผู้ช่วยสำหรับแสดงดาวที่รองรับฟันสีชมพูค่ะ!
+  Widget _buildRatingStars(double rating) {
+    final int fullStars = rating.floor();
+    final bool hasHalfStar = (rating - fullStars) >= 0.5;
+
+    return Row(
+      children: List.generate(5, (index) {
+        Widget toothIcon;
+        if (index < fullStars) {
+          // 🦷 ฟันดี
+          toothIcon = Image.asset(
+            'assets/icons/tooth_good.png',
+            width: 24,
+            height: 24,
+          );
+        } else if (index == fullStars && hasHalfStar) {
+          // 💖 ฟันอักเสบ (สีชมพู)
+          toothIcon = Image.asset(
+            'assets/icons/tooth_good.png',
+            width: 24,
+            height: 24,
+            color: AppTheme.ratingInflamedTooth,
+          );
+        } else {
+          // 🦷 ฟันผุ
+          toothIcon = Image.asset(
+            'assets/icons/tooth_broke.png',
+            width: 24,
+            height: 24,
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 1.5),
+          child: toothIcon,
+        );
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prefix = patient.prefix;
     final name = patient.name;
     final phone = patient.telephone ?? '-';
-    final rating = patient.rating;
+    final rating = patient.rating; // ✨ เป็น double แล้ว
     final gender = patient.gender;
     final age = patient.age?.toString() ?? '-';
-    final medicalHistory = (patient.medicalHistory != null && patient.medicalHistory!.isNotEmpty) ? patient.medicalHistory : '-';
-    final allergy = (patient.allergy != null && patient.allergy!.isNotEmpty) ? patient.allergy : '-';
-    
-    final cardColor = switch (rating) {
-      >= 5 => AppTheme.rating5Star,
-      4    => AppTheme.rating4Star,
-      _    => AppTheme.rating3StarAndBelow,
-    };
+    final medicalHistory =
+        (patient.medicalHistory != null && patient.medicalHistory!.isNotEmpty)
+            ? patient.medicalHistory
+            : '-';
+    final allergy = (patient.allergy != null && patient.allergy!.isNotEmpty)
+        ? patient.allergy
+        : '-';
 
-    final borderColor = switch (rating) {
-      >= 5 => AppTheme.rating5StarBorder,
-      4    => AppTheme.rating4StarBorder,
-      _    => AppTheme.rating3StarAndBelowBorder,
-    };
+    // ✨ [FIXED] เปลี่ยนมาใช้ if-else ที่รองรับ double ค่ะ
+    final cardColor;
+    if (rating >= 4.5) {
+      cardColor = AppTheme.rating5Star;
+    } else if (rating >= 3.5) {
+      cardColor = AppTheme.rating4Star;
+    } else {
+      cardColor = AppTheme.rating3StarAndBelow;
+    }
+
+    final borderColor;
+    if (rating >= 4.5) {
+      borderColor = AppTheme.rating5StarBorder;
+    } else if (rating >= 3.5) {
+      borderColor = AppTheme.rating4StarBorder;
+    } else {
+      borderColor = AppTheme.rating3StarAndBelowBorder;
+    }
 
     return Card(
       elevation: 0,
@@ -306,9 +390,8 @@ class _PatientCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: borderColor, width: 1.5)
-      ),
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: borderColor, width: 1.5)),
       child: Stack(
         children: [
           InkWell(
@@ -319,7 +402,7 @@ class _PatientCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 25), 
+                  const SizedBox(height: 25),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -327,38 +410,49 @@ class _PatientCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                             _buildInfoRow(iconAsset: 'assets/icons/user.png', text: '$prefix $name', isTitle: true),
-                             const SizedBox(height: 4),
-                             Row(
-                               crossAxisAlignment: CrossAxisAlignment.start,
-                               children: [
-                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/phone.png', text: phone)),
-                                 const SizedBox(width: 16),
-                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/medical_report.png', text: medicalHistory!)),
-                               ],
-                             ),
-                             const SizedBox(height: 2),
-                             Row(
-                               crossAxisAlignment: CrossAxisAlignment.start,
-                               children: [
-                                 Expanded(
-                                   child: _buildInfoRow(
-                                     iconAsset: 'assets/icons/age.png',
-                                     text: '$age ปี',
-                                     // ✨ [FIXED v1.4.0] เปลี่ยนมาเรียกใช้ผู้ช่วย _getGenderIcon ค่ะ
-                                     trailing: Row(
-                                       mainAxisSize: MainAxisSize.min,
-                                       children: [
-                                         const SizedBox(width: 8),
-                                         _getGenderIcon(gender),
-                                       ],
-                                     )
-                                   ),
-                                 ),
-                                 const SizedBox(width: 16),
-                                 Expanded(child: _buildInfoRow(iconAsset: 'assets/icons/no_drugs.png', text: allergy!)),
-                               ],
-                             ),
+                            _buildInfoRow(
+                                iconAsset: 'assets/icons/user.png',
+                                text: '$prefix $name',
+                                isTitle: true),
+                            const SizedBox(height: 4),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                    child: _buildInfoRow(
+                                        iconAsset: 'assets/icons/phone.png',
+                                        text: phone)),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                    child: _buildInfoRow(
+                                        iconAsset:
+                                            'assets/icons/medical_report.png',
+                                        text: medicalHistory!)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _buildInfoRow(
+                                      iconAsset: 'assets/icons/age.png',
+                                      text: '$age ปี',
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(width: 8),
+                                          _getGenderIcon(gender),
+                                        ],
+                                      )),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                    child: _buildInfoRow(
+                                        iconAsset: 'assets/icons/no_drugs.png',
+                                        text: allergy!)),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -368,18 +462,32 @@ class _PatientCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildActionButton(onPressed: onCall, iconAsset: 'assets/icons/phone.png', text: 'โทร', backgroundColor: AppTheme.buttonCallBg, foregroundColor: AppTheme.buttonCallFg),
+                      _buildActionButton(
+                          onPressed: onCall,
+                          iconAsset: 'assets/icons/phone.png',
+                          text: 'โทร',
+                          backgroundColor: AppTheme.buttonCallBg,
+                          foregroundColor: AppTheme.buttonCallFg),
                       const SizedBox(width: 8),
-                      _buildActionButton(onPressed: onEdit, iconAsset: 'assets/icons/edit.png', text: 'แก้ไข', backgroundColor: AppTheme.buttonEditBg, foregroundColor: AppTheme.buttonEditFg),
+                      _buildActionButton(
+                          onPressed: onEdit,
+                          iconAsset: 'assets/icons/edit.png',
+                          text: 'แก้ไข',
+                          backgroundColor: AppTheme.buttonEditBg,
+                          foregroundColor: AppTheme.buttonEditFg),
                       const SizedBox(width: 8),
-                      _buildActionButton(onPressed: onDelete, iconAsset: 'assets/icons/delete.png', text: 'ลบ', backgroundColor: AppTheme.buttonDeleteBg, foregroundColor: AppTheme.buttonDeleteFg),
+                      _buildActionButton(
+                          onPressed: onDelete,
+                          iconAsset: 'assets/icons/delete.png',
+                          text: 'ลบ',
+                          backgroundColor: AppTheme.buttonDeleteBg,
+                          foregroundColor: AppTheme.buttonDeleteFg),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-          
           Positioned(
             top: 10,
             left: 16,
@@ -388,34 +496,31 @@ class _PatientCard extends StatelessWidget {
               text: patient.hnNumber ?? 'N/A',
             ),
           ),
-
           Positioned(
             top: 8,
             right: 8,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200.withOpacity(0.5))
-              ),
-              child: Row(
-                children: List.generate(5, (index) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                  child: Image.asset(
-                    index < rating ? 'assets/icons/tooth_good.png' : 'assets/icons/tooth_broke.png',
-                    width: 24, height: 24,
-                  ),
-                )),
-              ),
+                  color: Colors.white.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: Colors.grey.shade200.withOpacity(0.5))),
+              // ✨ [UPGRADED] เปลี่ยนมาเรียกใช้ _buildRatingStars ที่เราสร้างขึ้นมาใหม่ค่ะ!
+              child: _buildRatingStars(rating),
             ),
           ),
         ],
       ),
     );
   }
-  
-  Widget _buildInfoRow({String? iconAsset, IconData? icon, required String text, bool isTitle = false, Widget? trailing}) {
+
+  Widget _buildInfoRow(
+      {String? iconAsset,
+      IconData? icon,
+      required String text,
+      bool isTitle = false,
+      Widget? trailing}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -423,7 +528,8 @@ class _PatientCard extends StatelessWidget {
         if (iconAsset != null)
           Padding(
             padding: const EdgeInsets.only(top: 2.0),
-            child: Image.asset(iconAsset, width: isTitle ? 18 : 16, height: isTitle ? 18 : 16),
+            child: Image.asset(iconAsset,
+                width: isTitle ? 18 : 16, height: isTitle ? 18 : 16),
           )
         else if (icon != null)
           Padding(
@@ -434,22 +540,28 @@ class _PatientCard extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: isTitle 
-              ? const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)
-              : const TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontFamily: AppTheme.fontFamily),
+            style: isTitle
+                ? const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    fontFamily: AppTheme.fontFamily,
+                    color: AppTheme.textPrimary)
+                : const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 16,
+                    fontFamily: AppTheme.fontFamily),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
         ),
-        if (trailing != null)
-          trailing,
+        if (trailing != null) trailing,
       ],
     );
   }
 
   Widget _buildActionButton({
-    required VoidCallback onPressed, 
-    required String iconAsset, 
+    required VoidCallback onPressed,
+    required String iconAsset,
     required String text,
     required Color backgroundColor,
     required Color foregroundColor,
@@ -459,14 +571,16 @@ class _PatientCard extends StatelessWidget {
       icon: Image.asset(iconAsset, width: 18, height: 18),
       label: Text(text),
       style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor,
-        foregroundColor: foregroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        elevation: 1,
-        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: AppTheme.fontFamily)
-      ),
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 1,
+          textStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              fontFamily: AppTheme.fontFamily)),
     );
   }
 }

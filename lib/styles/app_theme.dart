@@ -39,6 +39,7 @@ class AppTheme {
   // --- 🎨 สีของไอคอน 🎨 ---
   static const Color iconMaleColor = Color(0xFF64B5F6);
   static const Color iconFemaleColor = Color(0xFFF06292);
+  static const Color ratingInflamedTooth = Color(0xFFFFB6C1); // LightPink
   //static const Color iconDefaultColor = Colors.black54;
 
   // --- 🖋️ ฟอนต์ของแอป 🖋️ ---

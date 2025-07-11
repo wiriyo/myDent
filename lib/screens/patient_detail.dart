@@ -1,7 +1,6 @@
-// ----------------------------------------------------------------
-// 📁 lib/screens/patient_detail.dart
-// v1.8.0 - ✨ Added Spacing for Image Gallery
-// ----------------------------------------------------------------
+// 💖 สวัสดีค่ะพี่ทะเล! ไลลาอัปเกรดหน้ารายละเอียดคนไข้ให้แล้วนะคะ
+// นี่คือไฟล์สุดท้ายที่เราจะแก้ไขกันสำหรับฟีเจอร์นี้ค่ะ! 😊
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/patient.dart';
@@ -104,18 +103,40 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     }
   }
 
-  Widget _buildRatingStars(int rating) {
+  // ✨ [UPGRADED] อัปเกรดให้แสดงผลฟันสีชมพูได้แล้วค่ะ!
+  Widget _buildRatingStars(double rating) {
+    final int fullStars = rating.floor();
+    final bool hasHalfStar = (rating - fullStars) >= 0.5;
+
     return Row(
       children: List.generate(5, (index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2.0),
-          child: Image.asset(
-            index < rating
-                ? 'assets/icons/tooth_good.png'
-                : 'assets/icons/tooth_broke.png',
+        Widget toothIcon;
+        if (index < fullStars) {
+          // 🦷 ฟันดี
+          toothIcon = Image.asset(
+            'assets/icons/tooth_good.png',
             width: 20,
             height: 20,
-          ),
+          );
+        } else if (index == fullStars && hasHalfStar) {
+          // 💖 ฟันอักเสบ (สีชมพู)
+          toothIcon = Image.asset(
+            'assets/icons/tooth_good.png',
+            width: 20,
+            height: 20,
+            color: AppTheme.ratingInflamedTooth,
+          );
+        } else {
+          // 🦷 ฟันผุ
+          toothIcon = Image.asset(
+            'assets/icons/tooth_broke.png',
+            width: 20,
+            height: 20,
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2.0),
+          child: toothIcon,
         );
       }),
     );
@@ -278,13 +299,17 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     final String gender = patient!.gender;
     final int age = _calculateAge(patient!.birthDate);
     final String phone = patient!.telephone ?? '-';
-    final int rating = patient!.rating;
+    final double rating = patient!.rating; // ✨ [FIXED] เปลี่ยนเป็น double
 
-    final cardColor = switch (rating) {
-      >= 5 => AppTheme.rating5Star,
-      4    => AppTheme.rating4Star,
-      _    => AppTheme.rating3StarAndBelow,
-    };
+    // ✨ [FIXED] เปลี่ยนมาใช้ if-else ที่รองรับ double ค่ะ
+    final cardColor;
+    if (rating >= 4.5) {
+      cardColor = AppTheme.rating5Star;
+    } else if (rating >= 3.5) {
+      cardColor = AppTheme.rating4Star;
+    } else {
+      cardColor = AppTheme.rating3StarAndBelow;
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -340,7 +365,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppTheme.primaryLight),
                           ),
-                          child: _buildRatingStars(rating),
+                          child: _buildRatingStars(rating), // ✨ ส่ง double เข้าไปได้เลย
                         ),
                       ],
                     ),
@@ -475,7 +500,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               ],
             ),
             
-            // ✨ [UI-FIX v1.8.0] เพิ่มพื้นที่ว่างระหว่างปุ่มกับแกลเลอรีรูปภาพค่ะ
             const SizedBox(height: 16),
 
             if (patientId.isNotEmpty)
@@ -535,6 +559,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                     Image.asset(
                                       'assets/icons/report.png',
                                       width: 24,
+                                      height: 24,
                                     ),
                                     const SizedBox(width: 8),
                                     Column(

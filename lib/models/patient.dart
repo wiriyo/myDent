@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------
-// 📁 lib/models/patient.dart
-// v1.2.0 - ✨ Robust fromMap Factory
+// 📁 lib/models/patient.dart (v1.3.0)
+// ✨ ไลลาเปลี่ยน rating จาก int เป็น double แล้วนะคะ
 // ----------------------------------------------------------------
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -15,7 +15,7 @@ class Patient {
   final DateTime? birthDate;
   final String? medicalHistory;
   final String? allergy;
-  final int rating;
+  final double rating; // ✨ [UPDATED] เปลี่ยนเป็น double เพื่อรองรับทศนิยมค่ะ
   final String gender;
   final int? age;
 
@@ -30,7 +30,7 @@ class Patient {
     this.birthDate,
     this.medicalHistory = 'ปฏิเสธ',
     this.allergy = 'ปฏิเสธ',
-    this.rating = 3,
+    this.rating = 5.0, // ✨ [UPDATED] เปลี่ยนค่าเริ่มต้นเป็น double
     this.gender = 'หญิง',
     this.age,
   });
@@ -46,40 +46,35 @@ class Patient {
       'birthDate': birthDate != null ? Timestamp.fromDate(birthDate!) : null,
       'medicalHistory': medicalHistory,
       'allergy': allergy,
-      'rating': rating,
+      'rating': rating, // ✨ ตอนนี้ rating เป็น double แล้วค่ะ
       'gender': gender,
       'age': age,
     };
   }
 
   factory Patient.fromMap(Map<String, dynamic> map) {
-    // ✨ [FIXED v1.2] ทำให้การดึง ID แข็งแรงและฉลาดขึ้น
-    // เพื่อจัดการกับข้อมูลเก่าที่อาจมี field 'patientId' ที่เป็นค่าว่างบันทึกอยู่
     String id = '';
-    
-    // 1. ให้ความสำคัญกับ docId ที่ส่งมาจาก Service ก่อนเสมอ เพราะนี่คือ ID ที่แท้จริง
     if (map['docId'] != null && (map['docId'] as String).isNotEmpty) {
       id = map['docId'];
-    } 
-    // 2. ถ้าไม่มี docId (อาจเป็นกรณีเก่ามากๆ) ให้ลองหาจาก patientId แต่ต้องไม่ใช่ค่าว่าง
-    else if (map['patientId'] != null && (map['patientId'] as String).isNotEmpty) {
+    } else if (map['patientId'] != null && (map['patientId'] as String).isNotEmpty) {
       id = map['patientId'];
     }
 
     return Patient(
-      patientId: id, 
+      patientId: id,
       name: map['name'] ?? '',
       prefix: map['prefix'] ?? '',
       hnNumber: map['hn_number'],
       telephone: map['telephone'],
       address: map['address'],
       idCard: map['idCard'],
-      birthDate: map['birthDate'] is Timestamp 
-                 ? (map['birthDate'] as Timestamp).toDate()
-                 : (map['birthDate'] is String ? DateTime.tryParse(map['birthDate']) : null),
+      birthDate: map['birthDate'] is Timestamp
+          ? (map['birthDate'] as Timestamp).toDate()
+          : (map['birthDate'] is String ? DateTime.tryParse(map['birthDate']) : null),
       medicalHistory: map['medicalHistory'],
       allergy: map['allergy'],
-      rating: map['rating'] ?? 3,
+      // ✨ [UPDATED] ทำให้รองรับทั้ง int และ double จาก Firestore เพื่อความเข้ากันได้กับข้อมูลเก่าค่ะ
+      rating: (map['rating'] ?? 5.0).toDouble(),
       gender: map['gender'] ?? 'หญิง',
       age: map['age'],
     );

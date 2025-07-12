@@ -1,4 +1,4 @@
-// v1.3.0 - 🗑️ เพิ่มเมนูสำหรับลบรูปภาพเดี่ยวๆ ของการรักษา
+// v1.3.0 - 📝 อัปเกรดให้รองรับการจัดการ Treatment Notes
 // v1.2.0 - 🖼️ อัปเกรดให้รองรับการบันทึกรูปภาพ
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -24,7 +24,9 @@ class TreatmentProvider with ChangeNotifier {
     _error = message;
   }
 
-  /// เมธอดสำหรับ "บันทึกการรักษา"
+  /// [UPGRADED v1.3.0] เมธอดสำหรับ "บันทึกการรักษา"
+  /// ตอนนี้จะรับ Treatment object ทั้งก้อน ซึ่งมีข้อมูล notes อยู่ข้างในแล้ว
+  /// และยังรองรับการแนบไฟล์รูปภาพ (images) ไปพร้อมกันด้วย
   Future<bool> saveTreatment({
     required String patientId,
     required Treatment treatment,
@@ -33,10 +35,16 @@ class TreatmentProvider with ChangeNotifier {
   }) async {
     _setLoading(true);
     _setError(null);
+
     try {
+      // 1. เช็คและเพิ่มหัตถการลงใน Master Data (ถ้ายังไม่มี)
       final masterId = await TreatmentMasterService.addIfNotExist(treatment.procedure, treatment.price);
+      
+      // 2. สร้าง object การรักษาใหม่พร้อมกับ Master ID ที่ถูกต้อง
+      // ข้อมูล notes ที่มาจากฟอร์มจะอยู่ใน treatment object นี้เรียบร้อยแล้ว
       final treatmentToSave = treatment.copyWith(treatmentMasterId: masterId);
 
+      // 3. เรียกใช้ Service ให้จัดการบันทึกข้อมูล
       if (isEditing) {
         await _treatmentService.updateTreatment(
           patientId,
@@ -50,18 +58,18 @@ class TreatmentProvider with ChangeNotifier {
           images: images,
         );
       }
+
       _setLoading(false);
-      return true;
+      return true; // สำเร็จ!
     } catch (e) {
       debugPrint('🧑‍🍳❌ พ่อครัวทำพลาด: $e');
       _setError('เกิดข้อผิดพลาดในการบันทึกข้อมูลค่ะ: $e');
       _setLoading(false);
-      return false;
+      return false; // ล้มเหลว
     }
   }
   
-  /// ✨ [NEW v1.3.0] เมนูใหม่สำหรับ "ลบรูปภาพของการรักษา"
-  /// เมนูนี้จะรับคำสั่งมาจาก UI (เช่น ปุ่มกากบาทบน Thumbnail)
+  /// เมนูสำหรับ "ลบรูปภาพของการรักษา"
   Future<bool> deleteTreatmentImage({
     required String patientId,
     required String treatmentId,
@@ -70,7 +78,6 @@ class TreatmentProvider with ChangeNotifier {
     _setLoading(true);
     _setError(null);
     try {
-      // เรียกใช้เครื่องมือลบรูปภาพที่ทรงพลังจาก Service ของเรา
       await _treatmentService.deleteTreatmentImage(
         patientId: patientId,
         treatmentId: treatmentId,
@@ -85,7 +92,6 @@ class TreatmentProvider with ChangeNotifier {
       return false; // ลบล้มเหลว
     }
   }
-
 
   /// เมธอดสำหรับ "ลบการรักษา" ทั้งก้อน
   Future<bool> deleteTreatment(String patientId, String treatmentId) async {

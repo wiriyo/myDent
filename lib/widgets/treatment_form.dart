@@ -1,5 +1,5 @@
-// v1.5.0 - ✨ ทำให้การลบรูปภาพสมบูรณ์แบบ ลบจากทุกที่ในระบบ
-// v1.4.2 - 📸 เพิ่มตัวเลือกสำหรับถ่ายภาพจากกล้อง
+// v1.5.1 - 🎨 อัปเดต UI ปุ่มเพิ่มรูปภาพ และซ่อนแกลเลอรีเมื่อไม่มีรูป
+// v1.5.0 - 📝 เพิ่มช่องสำหรับบันทึกการรักษา (Treatment Notes)
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -25,6 +25,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
   final TextEditingController _procedureController = TextEditingController();
   final TextEditingController _toothNumberController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
   DateTime? _selectedDate;
   String? _selectedTreatmentMasterId;
 
@@ -43,6 +44,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       _priceController.text = t.price.toStringAsFixed(0);
       _selectedDate = t.date;
       _existingImageUrls = List.from(t.imageUrls);
+      _notesController.text = t.notes ?? '';
     }
   }
 
@@ -51,6 +53,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     _procedureController.dispose();
     _toothNumberController.dispose();
     _priceController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -141,6 +144,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       price: double.tryParse(_priceController.text) ?? 0.0,
       date: _selectedDate ?? DateTime.now(),
       imageUrls: _existingImageUrls,
+      notes: _notesController.text.trim(),
     );
 
     final success = await provider.saveTreatment(
@@ -157,9 +161,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     }
   }
 
-  // ✨ [NEW v1.5.0] ฟังก์ชันสำหรับจัดการการลบรูปภาพที่มีอยู่ (Existing Image)
   void _handleDeleteExistingImage(TreatmentProvider provider, String imageUrl) async {
-    // 1. ถามเพื่อยืนยันการลบก่อน
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -174,16 +176,13 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
     if (confirm != true) return;
 
-    // 2. ถ้าผู้ใช้ยืนยัน, ก็จะเรียกใช้ Provider เพื่อลบรูปภาพ
     final success = await provider.deleteTreatmentImage(
       patientId: widget.patientId,
       treatmentId: widget.treatment!.id,
       imageUrl: imageUrl,
     );
 
-    // 3. จัดการผลลัพธ์
     if (success && context.mounted) {
-      // ถ้าลบสำเร็จ, ให้อัปเดต UI โดยการลบ URL ออกจาก State
       setState(() {
         _existingImageUrls.remove(imageUrl);
       });
@@ -198,7 +197,6 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [CHANGED v1.5.0] อ่าน Provider มาเก็บไว้ใช้ เพื่อให้เรียกใช้ง่ายขึ้น
     final treatmentProvider = context.watch<TreatmentProvider>();
 
     return Form(
@@ -341,6 +339,21 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _notesController,
+              decoration: InputDecoration(
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Image.asset('assets/icons/notes.png', width: 24),
+                ),
+                hintText: 'บันทึกการรักษา (ถ้ามี)',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              maxLines: 3,
+            ),
             const SizedBox(height: 16),
             _buildImageSection(treatmentProvider),
             const SizedBox(height: 24),
@@ -404,30 +417,40 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
+  // ✨ [UI-FIX v1.5.1] อัปเดต UI ปุ่มและซ่อนแกลเลอรีเมื่อไม่มีรูป
   Widget _buildImageSection(TreatmentProvider provider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text("รูปภาพประกอบ", style: TextStyle(fontWeight: FontWeight.bold)),
-            IconButton(
-              icon: const Icon(Icons.add_photo_alternate_rounded, color: AppTheme.primary),
-              tooltip: "เพิ่มรูปภาพ",
-              onPressed: () => _showImageSourcePicker(context),
+            const Text("รูปภาพประกอบ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Container(
+              decoration: BoxDecoration(
+                color: AppTheme.buttonEditBg,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.3),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: Image.asset('assets/icons/x_ray.png', width: 28, height: 28),
+                tooltip: 'เพิ่มรูปภาพ',
+                onPressed: () => _showImageSourcePicker(context),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        if (_existingImageUrls.isEmpty && _newImages.isEmpty)
-          Container(
-            height: 100,
-            width: double.infinity,
-            decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
-            child: const Center(child: Text("ยังไม่มีรูปภาพ", style: TextStyle(color: Colors.grey))),
-          )
-        else
+        // ✨ ถ้ามีรูปภาพอย่างน้อย 1 รูป (ทั้งรูปเก่าและรูปใหม่) ถึงจะแสดงส่วนนี้
+        if (_existingImageUrls.isNotEmpty || _newImages.isNotEmpty) ...[
+          const SizedBox(height: 8),
           SizedBox(
             height: 100,
             child: GridView.builder(
@@ -435,30 +458,26 @@ class _TreatmentFormState extends State<TreatmentForm> {
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 1, mainAxisSpacing: 8, crossAxisSpacing: 8),
               itemCount: _existingImageUrls.length + _newImages.length,
               itemBuilder: (context, index) {
-                // ✨ [UPGRADED v1.5.0] แยก Logic การแสดงผลและการลบรูปภาพ
                 if (index < _existingImageUrls.length) {
-                  // --- ส่วนของรูปภาพเดิม (Existing Image) ---
                   final imageUrl = _existingImageUrls[index];
                   return _buildImageThumbnail(
                     imageProvider: NetworkImage(imageUrl),
-                    // ถ้าเป็นการแก้ไขเท่านั้น ถึงจะสามารถลบรูปเดิมได้
                     onRemove: _isEditing
                         ? () => _handleDeleteExistingImage(provider, imageUrl)
                         : null,
                   );
                 } else {
-                  // --- ส่วนของรูปภาพใหม่ (New Image) ---
                   final imageIndex = index - _existingImageUrls.length;
                   final imageFile = _newImages[imageIndex];
                   return _buildImageThumbnail(
                     imageProvider: FileImage(imageFile),
-                    // รูปใหม่สามารถลบออกจาก List ได้เลย
                     onRemove: () => setState(() => _newImages.removeAt(imageIndex)),
                   );
                 }
               },
             ),
           ),
+        ],
       ],
     );
   }
@@ -480,7 +499,6 @@ class _TreatmentFormState extends State<TreatmentForm> {
               child: const Icon(Icons.broken_image, color: Colors.white),
             ),
           ),
-          // ✨ [CHANGED v1.5.0] จะแสดงปุ่มลบก็ต่อเมื่อ onRemove ไม่ใช่ null เท่านั้น
           if (onRemove != null)
             Positioned(
               top: 4,

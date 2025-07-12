@@ -1,5 +1,5 @@
+// v1.9.11 - 🎨 ไม่ย้อมสีไอคอน notes และ x_ray
 // v1.9.10 - 🎨 เพิ่ม HN ที่การ์ดข้อมูลคนไข้
-// v1.9.9 - 🐞 แก้ไขข้อผิดพลาดจากการอัปโหลดรูปภาพและไอคอน
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -303,7 +303,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ✨ [UI-FIX v1.9.10] เพิ่ม HN ที่แถวบนสุด
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -326,7 +325,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8), // เพิ่มระยะห่างเล็กน้อย
+                    const SizedBox(height: 8),
                     _buildDetailRow(
                       iconPath: AppTheme.iconPathUser,
                       child: Text(
@@ -569,6 +568,23 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                           ),
                                         ],
                                       ),
+                                      if (treatment.notes != null && treatment.notes!.isNotEmpty) ...[
+                                        const Divider(height: 20, thickness: 1),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            // ✨ [UI-FIX v1.9.11] นำสีออกจากไอคอน
+                                            Image.asset('assets/icons/notes.png', width: 16, height: 16),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                treatment.notes!,
+                                                style: TextStyle(color: Colors.grey.shade800, fontStyle: FontStyle.italic),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                       if (treatment.imageUrls.isNotEmpty) ...[
                                         const Divider(height: 20, thickness: 1),
                                         InkWell(
@@ -585,7 +601,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                           },
                                           child: Row(
                                             children: [
-                                              Image.asset('assets/icons/x_ray.png', width: 20, height: 20, color: AppTheme.primary),
+                                              // ✨ [UI-FIX v1.9.11] นำสีออกจากไอคอน
+                                              Image.asset('assets/icons/x_ray.png', width: 20, height: 20),
                                               const SizedBox(width: 8),
                                               Text(
                                                 '${treatment.imageUrls.length} รูปภาพ',

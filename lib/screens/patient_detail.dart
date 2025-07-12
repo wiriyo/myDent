@@ -1,5 +1,5 @@
-// v1.9.9 - 🎨 ตกแต่งปุ่มเพิ่มรูปภาพในแกลเลอรีให้สวยงาม
-// v1.9.8 - 📸 เพิ่มปุ่มสำหรับอัปโหลดรูปภาพในแกลเลอรี
+// v1.9.10 - 🎨 เพิ่ม HN ที่การ์ดข้อมูลคนไข้
+// v1.9.9 - 🐞 แก้ไขข้อผิดพลาดจากการอัปโหลดรูปภาพและไอคอน
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -248,6 +248,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     
     final String prefix = patient!.prefix;
     final String name = patient!.name;
+    final String hnNumber = patient!.hnNumber ?? 'N/A';
     final String gender = patient!.gender;
     final int age = _calculateAge(patient!.birthDate);
     final String phone = patient!.telephone ?? '-';
@@ -302,9 +303,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ✨ [UI-FIX v1.9.10] เพิ่ม HN ที่แถวบนสุด
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        Row(
+                          children: [
+                            Image.asset(AppTheme.iconPathHn, width: 22, height: 22),
+                            const SizedBox(width: 8),
+                            Text(hnNumber, style: const TextStyle(fontSize: 16)),
+                          ],
+                        ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
@@ -316,7 +326,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8), // เพิ่มระยะห่างเล็กน้อย
                     _buildDetailRow(
                       iconPath: AppTheme.iconPathUser,
                       child: Text(
@@ -391,7 +401,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         color: AppTheme.primary,
                       ),
                     ),
-                    // ✨ [UI-FIX v1.9.9] เพิ่มพื้นหลังทรงกลมน่ารักๆ ให้ปุ่ม
                     Container(
                       decoration: BoxDecoration(
                         color: AppTheme.buttonEditBg,

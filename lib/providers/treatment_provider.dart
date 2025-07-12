@@ -1,7 +1,5 @@
-// ================================================================
-// 📁 4. lib/providers/treatment_provider.dart
+// v1.3.0 - 🗑️ เพิ่มเมนูสำหรับลบรูปภาพเดี่ยวๆ ของการรักษา
 // v1.2.0 - 🖼️ อัปเกรดให้รองรับการบันทึกรูปภาพ
-// ================================================================
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/treatment.dart';
@@ -26,6 +24,7 @@ class TreatmentProvider with ChangeNotifier {
     _error = message;
   }
 
+  /// เมธอดสำหรับ "บันทึกการรักษา"
   Future<bool> saveTreatment({
     required String patientId,
     required Treatment treatment,
@@ -60,7 +59,35 @@ class TreatmentProvider with ChangeNotifier {
       return false;
     }
   }
+  
+  /// ✨ [NEW v1.3.0] เมนูใหม่สำหรับ "ลบรูปภาพของการรักษา"
+  /// เมนูนี้จะรับคำสั่งมาจาก UI (เช่น ปุ่มกากบาทบน Thumbnail)
+  Future<bool> deleteTreatmentImage({
+    required String patientId,
+    required String treatmentId,
+    required String imageUrl,
+  }) async {
+    _setLoading(true);
+    _setError(null);
+    try {
+      // เรียกใช้เครื่องมือลบรูปภาพที่ทรงพลังจาก Service ของเรา
+      await _treatmentService.deleteTreatmentImage(
+        patientId: patientId,
+        treatmentId: treatmentId,
+        imageUrl: imageUrl,
+      );
+      _setLoading(false);
+      return true; // ลบสำเร็จ!
+    } catch (e) {
+      debugPrint('🧑‍🍳❌ พ่อครัวทำพลาดตอนลบรูปภาพ: $e');
+      _setError('เกิดข้อผิดพลาดในการลบรูปภาพค่ะ: $e');
+      _setLoading(false);
+      return false; // ลบล้มเหลว
+    }
+  }
 
+
+  /// เมธอดสำหรับ "ลบการรักษา" ทั้งก้อน
   Future<bool> deleteTreatment(String patientId, String treatmentId) async {
     _setLoading(true);
     _setError(null);

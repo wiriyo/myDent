@@ -366,7 +366,7 @@ class _PatientCard extends StatelessWidget {
         : '-';
 
     // ✨ [FIXED] เปลี่ยนมาใช้ if-else ที่รองรับ double ค่ะ
-    final cardColor;
+    final Color cardColor;
     if (rating >= 4.5) {
       cardColor = AppTheme.rating5Star;
     } else if (rating >= 3.5) {
@@ -375,7 +375,7 @@ class _PatientCard extends StatelessWidget {
       cardColor = AppTheme.rating3StarAndBelow;
     }
 
-    final borderColor;
+    final Color borderColor;
     if (rating >= 4.5) {
       borderColor = AppTheme.rating5StarBorder;
     } else if (rating >= 3.5) {

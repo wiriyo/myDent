@@ -1,22 +1,25 @@
-// 💖 สวัสดีค่ะพี่ทะเล! ไลลาอัปเกรดหน้ารายละเอียดคนไข้ให้แล้วนะคะ
-// นี่คือไฟล์สุดท้ายที่เราจะแก้ไขกันสำหรับฟีเจอร์นี้ค่ะ! 😊
-
-import 'dart:io';
+// v1.9.9 - 🎨 ตกแต่งปุ่มเพิ่มรูปภาพในแกลเลอรีให้สวยงาม
+// v1.9.8 - 📸 เพิ่มปุ่มสำหรับอัปโหลดรูปภาพในแกลเลอรี
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../models/patient.dart';
-import '../services/treatment_service.dart';
-import '../services/patient_service.dart';
-import '../models/treatment.dart';
-import 'treatment_add.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+
+import '../models/patient.dart';
+import '../models/treatment.dart';
+import '../services/patient_service.dart';
+import '../services/treatment_service.dart';
 import '../services/medical_image_service.dart';
-import 'package:permission_handler/permission_handler.dart';
-import '../main.dart';
-import 'medical_image_viewer.dart';
-import 'medical_image_gallery.dart';
-import '../styles/app_theme.dart';
+import '../providers/treatment_provider.dart';
+
 import '../widgets/custom_bottom_nav_bar.dart';
+import '../widgets/treatment_form.dart';
+import '../screens/medical_image_gallery.dart';
+import '../screens/medical_image_viewer.dart';
+import '../styles/app_theme.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
@@ -25,6 +28,7 @@ class PatientDetailScreen extends StatefulWidget {
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
 }
 
+/// ฟังก์ชันสำหรับเปิดหน้าดูรูปภาพแบบเต็มจอ
 void openImageViewer({
   required BuildContext context,
   required List<Map<String, dynamic>> images,
@@ -34,12 +38,11 @@ void openImageViewer({
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder:
-          (_) => MedicalImageViewer(
-            images: images,
-            initialIndex: startIndex,
-            patientId: patientId,
-          ),
+      builder: (_) => MedicalImageViewer(
+        images: images,
+        initialIndex: startIndex,
+        patientId: patientId,
+      ),
     ),
   );
 }
@@ -47,6 +50,7 @@ void openImageViewer({
 class _PatientDetailScreenState extends State<PatientDetailScreen>
     with WidgetsBindingObserver {
   final PatientService _patientService = PatientService();
+  final MedicalImageService _medicalImageService = MedicalImageService();
   Patient? patient;
   String patientId = '';
 
@@ -65,12 +69,12 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && patientId.isNotEmpty) {
-      _reloadPatientData(patientId);
+      _reloadPatientData();
     }
   }
 
-  Future<void> _reloadPatientData(String docId) async {
-    final fetchedPatient = await _patientService.getPatientById(docId);
+  Future<void> _reloadPatientData() async {
+    final fetchedPatient = await _patientService.getPatientById(patientId);
     if (mounted && fetchedPatient != null) {
       setState(() {
         patient = fetchedPatient;
@@ -83,27 +87,96 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     super.didChangeDependencies();
     if (patient == null) {
       final args = ModalRoute.of(context)?.settings.arguments;
-      
       Patient? initialPatient;
       if (args is Patient) {
         initialPatient = args;
       } else if (args is Map<String, dynamic>) {
         initialPatient = Patient.fromMap(args);
       }
-
       if (initialPatient != null) {
         setState(() {
           patient = initialPatient;
           patientId = initialPatient!.patientId;
         });
         if (patientId.isNotEmpty) {
-          _reloadPatientData(patientId);
+          _reloadPatientData();
         }
       }
     }
   }
 
-  // ✨ [UPGRADED] อัปเกรดให้แสดงผลฟันสีชมพูได้แล้วค่ะ!
+  Future<void> _pickAndUploadImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1080,
+    );
+
+    if (pickedFile != null && mounted) {
+      try {
+        final downloadUrl = await _medicalImageService.uploadImageAndGetUrl(
+          file: File(pickedFile.path),
+          patientId: patientId,
+        );
+
+        await FirebaseFirestore.instance
+            .collection('patients')
+            .doc(patientId)
+            .collection('medical_images')
+            .add({
+          'url': downloadUrl,
+          'createdAt': Timestamp.now(),
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('อัปโหลดรูปภาพสำเร็จแล้วค่ะ! 💜')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาดในการอัปโหลด: $e')),
+        );
+      }
+    }
+  }
+
+  void _showImageSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Wrap(
+              runSpacing: 10,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library_rounded, color: Colors.teal),
+                  title: const Text("เลือกจากคลังภาพ"),
+                  onTap: () async {
+                    Navigator.pop(bottomSheetContext);
+                    await _pickAndUploadImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_rounded, color: Colors.deepOrange),
+                  title: const Text("ถ่ายรูปด้วยกล้อง"),
+                  onTap: () async {
+                    Navigator.pop(bottomSheetContext);
+                    await _pickAndUploadImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildRatingStars(double rating) {
     final int fullStars = rating.floor();
     final bool hasHalfStar = (rating - fullStars) >= 0.5;
@@ -112,27 +185,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       children: List.generate(5, (index) {
         Widget toothIcon;
         if (index < fullStars) {
-          // 🦷 ฟันดี
-          toothIcon = Image.asset(
-            'assets/icons/tooth_good.png',
-            width: 20,
-            height: 20,
-          );
+          toothIcon = Image.asset('assets/icons/tooth_good.png', width: 20, height: 20);
         } else if (index == fullStars && hasHalfStar) {
-          // 💖 ฟันอักเสบ (สีชมพู)
-          toothIcon = Image.asset(
-            'assets/icons/tooth_good.png',
-            width: 20,
-            height: 20,
-            color: AppTheme.ratingInflamedTooth,
-          );
+          toothIcon = Image.asset('assets/icons/tooth_good.png', width: 20, height: 20, color: AppTheme.ratingInflamedTooth);
         } else {
-          // 🦷 ฟันผุ
-          toothIcon = Image.asset(
-            'assets/icons/tooth_broke.png',
-            width: 20,
-            height: 20,
-          );
+          toothIcon = Image.asset('assets/icons/tooth_broke.png', width: 20, height: 20);
         }
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -180,117 +237,12 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     return age > 0 ? age : 0;
   }
 
-  Future<void> requestPermissions() async {
-    if (await Permission.photos.request().isGranted ||
-        await Permission.storage.request().isGranted ||
-        await Permission.camera.request().isGranted) {
-    } else {
-    }
-  }
-
-  Future<File?> pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: source,
-      imageQuality: 75,
-      maxWidth: 1080,
-    );
-
-    if (pickedFile != null) {
-      return File(pickedFile.path);
-    } else {
-      return null;
-    }
-  }
-
-  void _showImageSourcePicker(BuildContext context) {
-    final rootContext = scaffoldMessengerKey.currentContext;
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Wrap(
-            runSpacing: 10,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo, color: Colors.teal),
-                title: const Text("เลือกจากคลังภาพ"),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final image = await pickImage(ImageSource.gallery);
-                  if (image != null) {
-                    try {
-                      await MedicalImageService().uploadMedicalImage(
-                        file: image,
-                        patientId: patientId,
-                      );
-
-                      if (!mounted || rootContext == null) return;
-                      Future.delayed(const Duration(milliseconds: 100), () {
-                        ScaffoldMessenger.of(rootContext).showSnackBar(
-                          const SnackBar(content: Text('อัปโหลดสำเร็จแล้ว 💜')),
-                        );
-                      });
-                    } catch (e) {
-                      if (!mounted || rootContext == null) return;
-                      ScaffoldMessenger.of(rootContext).showSnackBar(
-                        SnackBar(content: Text("เกิดข้อผิดพลาด: $e")),
-                      );
-                    }
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: Colors.deepOrange),
-                title: const Text("ถ่ายรูปด้วยกล้อง"),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final image = await pickImage(ImageSource.camera);
-                  if (image != null) {
-                    try {
-                      await MedicalImageService().uploadMedicalImage(
-                        file: image,
-                        patientId: patientId,
-                      );
-
-                      if (!mounted || rootContext == null) return;
-                      Future.delayed(const Duration(milliseconds: 100), () {
-                        ScaffoldMessenger.of(rootContext).showSnackBar(
-                          const SnackBar(
-                            content: Text('อัปโหลดจากกล้องสำเร็จแล้ว 🎉'),
-                          ),
-                        );
-                      });
-                    } catch (e) {
-                      if (!mounted || rootContext == null) return;
-                      ScaffoldMessenger.of(rootContext).showSnackBar(
-                        SnackBar(content: Text("เกิดข้อผิดพลาด: $e")),
-                      );
-                    }
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (patient == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('รายละเอียดคนไข้'),
-          backgroundColor: AppTheme.primaryLight,
-        ),
-        body: const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+        appBar: AppBar(title: const Text('รายละเอียดคนไข้')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
     
@@ -299,9 +251,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     final String gender = patient!.gender;
     final int age = _calculateAge(patient!.birthDate);
     final String phone = patient!.telephone ?? '-';
-    final double rating = patient!.rating; // ✨ [FIXED] เปลี่ยนเป็น double
+    final double rating = patient!.rating;
 
-    // ✨ [FIXED] เปลี่ยนมาใช้ if-else ที่รองรับ double ค่ะ
     final cardColor;
     if (rating >= 4.5) {
       cardColor = AppTheme.rating5Star;
@@ -325,14 +276,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           children: [
             GestureDetector(
               onTap: () async {
-                final updated = await Navigator.pushNamed(
+                final result = await Navigator.pushNamed(
                   context,
                   '/add_patient',
                   arguments: patient,
                 );
-                if (updated == true && patientId.isNotEmpty) {
-                  await Future.delayed(const Duration(milliseconds: 300));
-                  await _reloadPatientData(patientId);
+                if (result == true) {
+                  _reloadPatientData();
                 }
               },
               child: Container(
@@ -356,26 +306,22 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.8),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppTheme.primaryLight),
                           ),
-                          child: _buildRatingStars(rating), // ✨ ส่ง double เข้าไปได้เลย
+                          child: _buildRatingStars(rating),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '$prefix $name',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primary,
+                    _buildDetailRow(
+                      iconPath: AppTheme.iconPathUser,
+                      child: Text(
+                        '$prefix $name',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primary),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -406,11 +352,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                 child: IconButton(
                                   padding: EdgeInsets.zero,
                                   tooltip: 'โทรหา $name',
-                                  icon: Image.asset(
-                                    'assets/icons/phone.png',
-                                    width: 22,
-                                    height: 22,
-                                  ),
+                                  icon: Image.asset('assets/icons/phone.png', width: 22, height: 22),
                                   onPressed: () async {
                                     final uri = Uri.parse('tel:$phone');
                                     if (await canLaunchUrl(uri)) {
@@ -434,82 +376,55 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
             ),
 
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            
+            Column(
               children: [
-                const Text(
-                  'ประวัติการรักษา',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primary,
-                  ),
-                ),
-                
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (patientId.isNotEmpty)
-                      StreamBuilder<List<Treatment>>(
-                        stream: TreatmentService().getTreatments(patientId),
-                        builder: (context, snapshot) {
-                          final total =
-                              snapshot.data?.fold<double>(
-                                    0,
-                                    (prev, e) => prev + e.price,
-                                  ) ??
-                                  0.0;
-                          return Text(
-                            '🧾 ${total.toStringAsFixed(0)} บาท',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primary,
-                            ),
-                          );
-                        },
+                    const Text(
+                      'แกลเลอรีรูปภาพ',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primary,
                       ),
-                    const SizedBox(width: 12),
+                    ),
+                    // ✨ [UI-FIX v1.9.9] เพิ่มพื้นหลังทรงกลมน่ารักๆ ให้ปุ่ม
                     Container(
-                      width: 64,
-                      height: 64,
                       decoration: BoxDecoration(
                         color: AppTheme.buttonEditBg,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryLight.withOpacity(0.5),
-                            blurRadius: 4,
-                            offset: const Offset(2, 2),
+                            color: Colors.grey.withOpacity(0.3),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
                       child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Image.asset(
-                          'assets/icons/x_ray.png',
-                          width: 48,
-                          height: 48,
-                        ),
-                        onPressed: () {
-                          _showImageSourcePicker(context);
-                        },
+                        icon: Image.asset('assets/icons/x_ray.png', width: 28, height: 28),
+                        tooltip: 'เพิ่มรูปภาพในแกลเลอรี',
+                        onPressed: _showImageSourcePicker,
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                if (patientId.isNotEmpty)
+                  MedicalImageGallery(
+                    imageStream: _medicalImageService.getMedicalImages(patientId),
+                    patientId: patientId,
+                    onImageTap: openImageViewer,
+                  ),
               ],
             ),
-            
-            const SizedBox(height: 16),
 
-            if (patientId.isNotEmpty)
-              MedicalImageGallery(
-                imageStream: MedicalImageService().getMedicalImages(patientId),
-                patientId: patientId,
-                onImageTap: openImageViewer,
-              ),
+            const SizedBox(height: 24),
 
-            const SizedBox(height: 12),
             if (patientId.isNotEmpty)
               StreamBuilder<List<Treatment>>(
                 stream: TreatmentService().getTreatments(patientId),
@@ -517,117 +432,200 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('ยังไม่มีประวัติการรักษา'),
-                    );
-                  }
 
-                  final treatments = snapshot.data!;
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: treatments.length,
-                    itemBuilder: (context, index) {
-                      final treatment = treatments[index];
-                      return GestureDetector(
-                        onTap: () {
-                          showTreatmentDialog(
-                            context,
-                            patientId: patientId,
-                            treatment: treatment,
-                          );
-                        },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 2,
-                          color: Colors.white,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                              vertical: 12.0,
+                  final treatments = snapshot.data ?? [];
+                  final double totalCost = treatments.fold(0.0, (sum, item) => sum + item.price);
+
+                  return Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text('ประวัติการรักษา', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Image.asset(
-                                      'assets/icons/report.png',
-                                      width: 24,
-                                      height: 24,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(treatment.procedure),
-                                        Row(
-                                          children: [
-                                            Image.asset(
-                                              'assets/icons/tooth.png',
-                                              width: 16,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(treatment.toothNumber),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Image.asset(
-                                          'assets/icons/money.png',
-                                          width: 16,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${treatment.price.toStringAsFixed(0)} บาท',
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      children: [
-                                        Image.asset(
-                                          'assets/icons/calendar.png',
-                                          width: 16,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${treatment.date.day}/${treatment.date.month}/${treatment.date.year}',
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                Image.asset(AppTheme.iconPathMoney, width: 20, height: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${totalCost.toStringAsFixed(0)} บาท',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primary),
                                 ),
                               ],
                             ),
-                          ),
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      if (treatments.isEmpty)
+                        const Padding(padding: EdgeInsets.all(16.0), child: Text('ยังไม่มีประวัติการรักษา'))
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: treatments.length,
+                          itemBuilder: (context, index) {
+                            final treatment = treatments[index];
+                            return GestureDetector(
+                              onTap: () async {
+                                final result = await showDialog<bool>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (BuildContext context) {
+                                    return ChangeNotifierProvider(
+                                      create: (_) => TreatmentProvider(),
+                                      child: Dialog(
+                                        insetPadding: const EdgeInsets.all(16),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                        backgroundColor: const Color(0xFFFBEAFF),
+                                        child: SingleChildScrollView(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: TreatmentForm(
+                                            patientId: patientId,
+                                            treatment: treatment,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                                if (result == true) {
+                                  _reloadPatientData();
+                                }
+                              },
+                              child: Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 2,
+                                color: Colors.white,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Image.asset(AppTheme.iconPathTreatment, width: 16, height: 16),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(child: Text(treatment.procedure, style: const TextStyle(fontWeight: FontWeight.bold))),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                if (treatment.toothNumber.isNotEmpty)
+                                                  Row(
+                                                    children: [
+                                                      Image.asset(AppTheme.iconPathTooth, width: 16, height: 16),
+                                                      const SizedBox(width: 8),
+                                                      Text(treatment.toothNumber),
+                                                    ],
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Image.asset(AppTheme.iconPathMoney, width: 16, height: 16),
+                                                  const SizedBox(width: 4),
+                                                  Text('${treatment.price.toStringAsFixed(0)} บาท'),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Image.asset(AppTheme.iconPathCalendar, width: 16, height: 16),
+                                                  const SizedBox(width: 4),
+                                                  Text(DateFormat('dd/MM/yy').format(treatment.date)),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      if (treatment.imageUrls.isNotEmpty) ...[
+                                        const Divider(height: 20, thickness: 1),
+                                        InkWell(
+                                          onTap: () {
+                                            final imageMaps = treatment.imageUrls.map((url) {
+                                              return {'url': url, 'createdAt': Timestamp.now(), 'id': url};
+                                            }).toList();
+                                            openImageViewer(
+                                              context: context,
+                                              images: imageMaps,
+                                              startIndex: 0,
+                                              patientId: patientId,
+                                            );
+                                          },
+                                          child: Row(
+                                            children: [
+                                              Image.asset('assets/icons/x_ray.png', width: 20, height: 20, color: AppTheme.primary),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                '${treatment.imageUrls.length} รูปภาพ',
+                                                style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ]
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                    ],
                   );
                 },
               ),
           ],
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          if (patientId.isNotEmpty) {
-            showTreatmentDialog(context, patientId: patientId);
-          }
+          showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return ChangeNotifierProvider(
+                create: (_) => TreatmentProvider(),
+                child: Dialog(
+                  insetPadding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  backgroundColor: const Color(0xFFFBEAFF),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: TreatmentForm(
+                      patientId: patientId,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ).then((result) {
+            if (result == true) {
+              _reloadPatientData();
+            }
+          });
         },
         backgroundColor: AppTheme.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

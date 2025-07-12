@@ -54,6 +54,18 @@ class AppTheme {
   static const String iconPathMale = 'assets/icons/male.png';
   static const String iconPathFemale = 'assets/icons/female.png';
   static const String iconPathGender = 'assets/icons/gender.png';
+  static const String iconPathEdit = 'assets/icons/edit.png';
+  static const String iconPathDelete = 'assets/icons/delete.png';
+  static const String iconPathTreatment = 'assets/icons/report.png';
+  static const String iconPathTooth = 'assets/icons/tooth.png';
+  static const String iconPathMoney = 'assets/icons/money.png';
+  static const String iconPathCalendar = 'assets/icons/calendar.png';
+  static const String iconPathXRay = 'assets/icons/x_ray.png';
+
+
+
+
+
 
   // --- ✨ สร้าง ThemeData ของเราเลยค่ะ! ✨ ---
   static ThemeData get themeData {

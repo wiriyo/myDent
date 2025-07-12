@@ -1,21 +1,21 @@
-// ----- ‼️ FILE: lib/screens/treatment_add.dart -----
-// เวอร์ชัน 1.3: ✨ ขัดเงา!
-// เปลี่ยนให้รับ Treatment model แทน Map
-
+// ================================================================
+// � 5. lib/screens/treatment_add.dart
+// v1.4.0 - ✨ อัปเกรดให้เรียกใช้ TreatmentProvider
+// ================================================================
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/treatment_provider.dart';
 import '../widgets/treatment_form.dart';
-import '../models/treatment.dart'; // ✨ [CHANGED v1.3] import Treatment model
+import '../models/treatment.dart';
 
 void showTreatmentDialog(
   BuildContext context, {
   required String patientId,
-  // ✨ [CHANGED v1.3] เปลี่ยนจาก Map มาเป็น Treatment model
   Treatment? treatment,
 }) {
   showDialog(
     context: context,
+    barrierDismissible: false,
     builder: (BuildContext context) {
       return ChangeNotifierProvider(
         create: (_) => TreatmentProvider(),
@@ -29,7 +29,6 @@ void showTreatmentDialog(
             padding: const EdgeInsets.all(16.0),
             child: TreatmentForm(
               patientId: patientId,
-              // ✨ [CHANGED v1.3] ส่ง object ไปทั้งก้อนเลย!
               treatment: treatment,
             ),
           ),

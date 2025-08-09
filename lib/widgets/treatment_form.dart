@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/treatment_provider.dart';
 import '../models/treatment_master.dart';
 import '../models/treatment.dart';
+import '../models/patient.dart';
 import '../services/treatment_master_service.dart';
 import '../styles/app_theme.dart';
 
@@ -176,7 +177,39 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
 
     if (success && context.mounted) {
-      Navigator.pop(context, true);
+      if (!_isEditing) {
+        final shouldSchedule = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('นัดหมายครั้งต่อไป'),
+            content: const Text('ต้องการนัดหมายครั้งต่อไปไม่?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('ยกเลิก')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('ตกลง')),
+            ],
+          ),
+        );
+
+        final nav = Navigator.of(context);
+        nav.pop(true);
+        if (shouldSchedule == true) {
+          final patient = Patient(
+            patientId: widget.patientId,
+            name: widget.patientName ?? '',
+            prefix: '',
+          );
+          nav.pushNamed('/calendar', arguments: {'initialPatient': patient});
+        } else {
+          nav.pushNamed('/calendar');
+        }
+      } else {
+        Navigator.pop(context, true);
+      }
     } else if (!success && context.mounted) {
       _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
     }

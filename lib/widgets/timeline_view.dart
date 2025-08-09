@@ -38,6 +38,7 @@ class TimelineView extends StatelessWidget {
   final DayWorkingHours workingHours;
   final double hourHeight;
   final VoidCallback onDataChanged;
+  final Patient? initialPatient;
 
   const TimelineView({
     super.key,
@@ -47,6 +48,7 @@ class TimelineView extends StatelessWidget {
     required this.workingHours,
     required this.onDataChanged,
     this.hourHeight = 120.0,
+    this.initialPatient,
   });
   
   DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
@@ -241,8 +243,11 @@ class TimelineView extends StatelessWidget {
           child: GapCard(
             gapStart: itemStart, gapEnd: itemEnd, 
             onTap: () => showDialog(
-              context: context, 
-              builder: (_) => AppointmentAddDialog(initialDate: selectedDate, initialStartTime: itemStart)
+              context: context,
+              builder: (_) => AppointmentAddDialog(
+                  initialDate: selectedDate,
+                  initialStartTime: itemStart,
+                  initialPatient: initialPatient),
             ).then((value) { if (value == true) { onDataChanged(); } })
           )
         ));

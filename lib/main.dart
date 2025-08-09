@@ -20,6 +20,7 @@ import 'screens/setting_screen.dart';
 import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
 import 'screens/appointment_search_screen.dart';
+import 'models/patient.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -90,7 +91,12 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
-        '/calendar': (context) => const CalendarScreen(),
+        '/calendar': (context) {
+          final args =
+              ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final patient = args != null ? args['initialPatient'] as Patient? : null;
+          return CalendarScreen(initialPatient: patient);
+        },
         '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),
         '/add_patient': (context) => const PatientAddScreen(),

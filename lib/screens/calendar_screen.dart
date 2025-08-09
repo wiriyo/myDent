@@ -20,7 +20,7 @@ import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
-import 'weekly_calendar_screen.dart'; 
+import 'weekly_calendar_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -34,7 +34,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final AppointmentService _appointmentService = AppointmentService();
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
-  
+
   Map<DateTime, List<AppointmentModel>> _events = {};
 
   List<AppointmentModel> _selectedAppointments = [];
@@ -43,7 +43,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedDay = DateTime.now();
   late DateTime _selectedDay;
   DayWorkingHours? _selectedDayWorkingHours;
-  CalendarFormat _calendarFormat = CalendarFormat.month; 
+  CalendarFormat _calendarFormat = CalendarFormat.month;
   bool _isLoading = true;
 
   @override
@@ -60,21 +60,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Future<void> _loadDataForMonth(DateTime month) async {
     if (!mounted) return;
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
 
     final firstDayOfMonth = DateTime(month.year, month.month, 1);
     final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
-    
+
+    final List<Future> fetchTasks = [];
     final Map<DateTime, List<AppointmentModel>> events = {};
+
     for (int i = 0; i < lastDayOfMonth.day; i++) {
       final day = firstDayOfMonth.add(Duration(days: i));
-      final dailyAppointments = await _appointmentService.getAppointmentsByDate(day);
-      if (dailyAppointments.isNotEmpty) {
-        final dayKey = DateTime.utc(day.year, day.month, day.day);
-        events[dayKey] = dailyAppointments;
-      }
+      fetchTasks.add(
+        _appointmentService.getAppointmentsByDate(day).then((
+          dailyAppointments,
+        ) {
+          if (dailyAppointments.isNotEmpty) {
+            final dayKey = DateTime.utc(day.year, day.month, day.day);
+            events[dayKey] = dailyAppointments;
+          }
+        }),
+      );
     }
-    
+
+    await Future.wait(fetchTasks);
     _events = events;
 
     await _populateTimelineForDay(_selectedDay);
@@ -85,7 +95,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final appointments = _events[dayKey] ?? [];
 
     final patientIds = appointments.map((appt) => appt.patientId).toSet();
-    
+
     List<Patient> patients = [];
     if (patientIds.isNotEmpty) {
       for (String id in patientIds) {
@@ -99,7 +109,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     DayWorkingHours? dayWorkingHours;
     try {
       final allWorkingHours = await _workingHoursService.loadWorkingHours();
-      dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
+      dayWorkingHours = allWorkingHours.firstWhere(
+        (d) => d.dayName == _getThaiDayName(day.weekday),
+      );
     } catch (e) {
       dayWorkingHours = null;
     }
@@ -113,24 +125,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _isLoading = false;
     });
   }
-  
+
   String _getThaiDayName(int weekday) {
-    const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+    const days = [
+      'จันทร์',
+      'อังคาร',
+      'พุธ',
+      'พฤหัสบดี',
+      'ศุกร์',
+      'เสาร์',
+      'อาทิตย์',
+    ];
     return days[weekday - 1];
   }
 
   @override
   Widget build(BuildContext context) {
-    double timelineHeight = 200; 
-    if (!_isLoading && _selectedDayWorkingHours != null && !_selectedDayWorkingHours!.isClosed && _selectedDayWorkingHours!.timeSlots.isNotEmpty) {
-      final dayStartTime = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, _selectedDayWorkingHours!.timeSlots.first.openTime.hour, _selectedDayWorkingHours!.timeSlots.first.openTime.minute);
-      final dayEndTime = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, _selectedDayWorkingHours!.timeSlots.last.closeTime.hour, _selectedDayWorkingHours!.timeSlots.last.closeTime.minute);
-      
+    double timelineHeight = 200;
+    if (!_isLoading &&
+        _selectedDayWorkingHours != null &&
+        !_selectedDayWorkingHours!.isClosed &&
+        _selectedDayWorkingHours!.timeSlots.isNotEmpty) {
+      final dayStartTime = DateTime(
+        _selectedDay.year,
+        _selectedDay.month,
+        _selectedDay.day,
+        _selectedDayWorkingHours!.timeSlots.first.openTime.hour,
+        _selectedDayWorkingHours!.timeSlots.first.openTime.minute,
+      );
+      final dayEndTime = DateTime(
+        _selectedDay.year,
+        _selectedDay.month,
+        _selectedDay.day,
+        _selectedDayWorkingHours!.timeSlots.last.closeTime.hour,
+        _selectedDayWorkingHours!.timeSlots.last.closeTime.minute,
+      );
+
       const double hourHeight = 120.0;
       final double pixelsPerMinute = hourHeight / 60.0;
       const double verticalPadding = 28.0;
 
-      timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
+      timelineHeight =
+          max(
+            0.0,
+            dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute,
+          ) +
+          verticalPadding;
     }
 
     return Scaffold(
@@ -140,16 +180,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
         backgroundColor: AppTheme.primaryLight,
         elevation: 0,
         title: const Text('ปฏิทินนัดหมาย'),
-        actions: widget.showReset ? [
-          IconButton(
-            icon: const Icon(Icons.developer_mode, color: AppTheme.textSecondary),
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('skipLogin');
-              if (mounted) Navigator.pushReplacementNamed(context, '/login');
-            },
-          ),
-        ] : null,
+        actions:
+            widget.showReset
+                ? [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.developer_mode,
+                      color: AppTheme.textSecondary,
+                    ),
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('skipLogin');
+                      if (mounted)
+                        Navigator.pushReplacementNamed(context, '/login');
+                    },
+                  ),
+                ]
+                : null,
       ),
       body: ListView(
         children: [
@@ -161,23 +208,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 if (format == CalendarFormat.week) {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => WeeklyViewScreen(focusedDate: _focusedDay)),
+                    MaterialPageRoute(
+                      builder:
+                          (context) =>
+                              WeeklyViewScreen(focusedDate: _focusedDay),
+                    ),
                   ).then((_) => _handleDataChange());
                 } else {
                   if (_calendarFormat != format) {
-                    setState(() { _calendarFormat = format; });
+                    setState(() {
+                      _calendarFormat = format;
+                    });
                   }
                 }
               },
               onDailyViewTapped: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => DailyCalendarScreen(selectedDate: _selectedDay)),
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            DailyCalendarScreen(selectedDate: _selectedDay),
+                  ),
                 ).then((_) => _handleDataChange());
               },
             ),
           ),
-          
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             child: Container(
@@ -185,7 +242,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: TableCalendar(
                 locale: 'th_TH',
@@ -194,7 +257,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 calendarFormat: _calendarFormat,
-                
+
                 // 💖 [CROP-FIX v2.6.3] เพิ่มความสูงให้แถววันในสัปดาห์
                 // เพื่อแก้ปัญหาตัวอักษรโดนตัดค่ะ
                 daysOfWeekHeight: 22,
@@ -207,7 +270,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
-                  titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
+                  titleTextStyle: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: AppTheme.fontFamily,
+                  ),
                 ),
                 calendarBuilders: CalendarBuilders(
                   headerTitleBuilder: (context, date) {
@@ -216,7 +283,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     return Center(
                       child: Text(
                         '$month $year',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: AppTheme.fontFamily,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                     );
                   },
@@ -254,8 +326,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   },
                 ),
                 calendarStyle: CalendarStyle(
-                  todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
-                  selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
+                  todayDecoration: BoxDecoration(
+                    color: AppTheme.primaryLight.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  selectedDecoration: const BoxDecoration(
+                    color: AppTheme.primary,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 onDaySelected: (selectedDay, focusedDay) {
                   if (!isSameDay(_selectedDay, selectedDay)) {
@@ -269,42 +347,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 },
                 onPageChanged: (focusedDay) {
                   setState(() {
-                     _focusedDay = focusedDay;
-                     _selectedDay = focusedDay;
+                    _focusedDay = focusedDay;
+                    _selectedDay = focusedDay;
                   });
                   _loadDataForMonth(focusedDay);
                 },
               ),
             ),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           SizedBox(
             height: timelineHeight,
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-                : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
-                    ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
-                    : TimelineView(
-                        selectedDate: _selectedDay,
-                        appointments: _selectedAppointments,
-                        patients: _patientsForAppointments,
-                        workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: _handleDataChange,
+            child:
+                _isLoading
+                    ? const Center(
+                      child: CircularProgressIndicator(color: AppTheme.primary),
+                    )
+                    : (_selectedDayWorkingHours == null ||
+                        _selectedDayWorkingHours!.isClosed)
+                    ? Center(
+                      child: Text(
+                        'คลินิกปิดทำการ',
+                        style: TextStyle(
+                          color: AppTheme.textDisabled,
+                          fontSize: 16,
+                          fontFamily: AppTheme.fontFamily,
+                        ),
                       ),
+                    )
+                    : TimelineView(
+                      selectedDate: _selectedDay,
+                      appointments: _selectedAppointments,
+                      patients: _patientsForAppointments,
+                      workingHours: _selectedDayWorkingHours!,
+                      onDataChanged: _handleDataChange,
+                    ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showDialog(
-          context: context, 
-          builder: (_) => AppointmentAddDialog(initialDate: _selectedDay)
-        ).then((value) {
-          if (value == true) {
-            _handleDataChange();
-          }
-        }),
+        onPressed:
+            () => showDialog(
+              context: context,
+              builder: (_) => AppointmentAddDialog(initialDate: _selectedDay),
+            ).then((value) {
+              if (value == true) {
+                _handleDataChange();
+              }
+            }),
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

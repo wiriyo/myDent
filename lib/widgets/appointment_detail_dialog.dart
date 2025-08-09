@@ -7,6 +7,7 @@ import '../models/patient.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/rating_service.dart';
+import '../services/treatment_master_service.dart';
 import '../screens/appointment_add.dart';
 import '../screens/treatment_add.dart';
 import '../models/appointment_model.dart';
@@ -168,6 +169,12 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       if (newRating != currentRating) {
         await _patientService.updatePatientRating(widget.patient.patientId, newRating);
       }
+      double? initialPrice;
+      if (_currentStatus == 'เสร็จสิ้น') {
+        final master =
+            await TreatmentMasterService.getTreatmentByName(widget.appointment.treatment);
+        initialPrice = master?.price;
+      }
 
       if (mounted) {
         Navigator.pop(context);
@@ -178,6 +185,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             patientName: widget.patient.name,
             initialProcedure: widget.appointment.treatment,
             initialDate: widget.appointment.startTime,
+            initialToothNumber:
+                widget.appointment.teeth?.join(', '),
+            initialPrice: initialPrice,
           );
         }
         ScaffoldMessenger.of(context).showSnackBar(

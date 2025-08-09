@@ -19,6 +19,7 @@ class TreatmentForm extends StatefulWidget {
   final String? initialToothNumber;
   final double? initialPrice;
 
+
   const TreatmentForm({
     super.key,
     required this.patientId,
@@ -26,6 +27,7 @@ class TreatmentForm extends StatefulWidget {
     this.patientName,
     this.initialProcedure,
     this.initialDate,
+
     this.initialToothNumber,
     this.initialPrice,
   });
@@ -61,10 +63,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
       _notesController.text = t.notes ?? '';
     } else {
       _procedureController.text = widget.initialProcedure ?? '';
+
       _toothNumberController.text = widget.initialToothNumber ?? '';
       if (widget.initialPrice != null) {
         _priceController.text = widget.initialPrice!.toStringAsFixed(0);
       }
+
       _selectedDate = widget.initialDate;
     }
   }

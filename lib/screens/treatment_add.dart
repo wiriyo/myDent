@@ -37,7 +37,6 @@ void showTreatmentDialog(
               patientName: patientName,
               initialProcedure: initialProcedure,
               initialToothNumber: initialToothNumber,
-              initialPrice: initialPrice,
               initialDate: initialDate,
               treatment: treatment,
             ),

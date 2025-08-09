@@ -191,8 +191,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     onPressed: () async {
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.remove('skipLogin');
-                      if (mounted)
+                      if (mounted) {
                         Navigator.pushReplacementNamed(context, '/login');
+                      }
                     },
                   ),
                 ]

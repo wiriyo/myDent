@@ -8,6 +8,7 @@ import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/rating_service.dart';
 import '../screens/appointment_add.dart';
+import '../screens/treatment_add.dart';
 import '../models/appointment_model.dart';
 import '../styles/app_theme.dart';
 
@@ -170,6 +171,15 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
       if (mounted) {
         Navigator.pop(context);
+        if (_currentStatus == 'เสร็จสิ้น') {
+          showTreatmentDialog(
+            context,
+            patientId: widget.patient.patientId,
+            patientName: widget.patient.name,
+            initialProcedure: widget.appointment.treatment,
+            initialDate: widget.appointment.startTime,
+          );
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),

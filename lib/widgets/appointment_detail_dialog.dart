@@ -8,8 +8,10 @@ import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/rating_service.dart';
 import '../screens/appointment_add.dart';
+import '../screens/treatment_add.dart';
 import '../models/appointment_model.dart';
 import '../styles/app_theme.dart';
+import '../services/treatment_master_service.dart';
 
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
@@ -167,9 +169,29 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       if (newRating != currentRating) {
         await _patientService.updatePatientRating(widget.patient.patientId, newRating);
       }
+      double? initialPrice;
+      if (_currentStatus == 'เสร็จสิ้น') {
+        try {
+          final masters = await TreatmentMasterService.getAllTreatments().first;
+          initialPrice = masters
+              .firstWhere((m) => m.name == widget.appointment.treatment)
+              .price;
+        } catch (_) {}
+      }
 
       if (mounted) {
         Navigator.pop(context);
+        if (_currentStatus == 'เสร็จสิ้น') {
+          showTreatmentDialog(
+            context,
+            patientId: widget.patient.patientId,
+            patientName: widget.patient.name,
+            initialProcedure: widget.appointment.treatment,
+            initialToothNumber: widget.appointment.teeth?.join(', '),
+            initialPrice: initialPrice,
+            initialDate: widget.appointment.startTime,
+          );
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),

@@ -13,8 +13,22 @@ import '../styles/app_theme.dart';
 class TreatmentForm extends StatefulWidget {
   final String patientId;
   final Treatment? treatment;
+  final String? patientName;
+  final String? initialProcedure;
+  final DateTime? initialDate;
+  final String? initialToothNumber;
+  final double? initialPrice;
 
-  const TreatmentForm({super.key, required this.patientId, this.treatment});
+  const TreatmentForm({
+    super.key,
+    required this.patientId,
+    this.treatment,
+    this.patientName,
+    this.initialProcedure,
+    this.initialDate,
+    this.initialToothNumber,
+    this.initialPrice,
+  });
 
   @override
   State<TreatmentForm> createState() => _TreatmentFormState();
@@ -45,6 +59,13 @@ class _TreatmentFormState extends State<TreatmentForm> {
       _selectedDate = t.date;
       _existingImageUrls = List.from(t.imageUrls);
       _notesController.text = t.notes ?? '';
+    } else {
+      _procedureController.text = widget.initialProcedure ?? '';
+      _toothNumberController.text = widget.initialToothNumber ?? '';
+      if (widget.initialPrice != null) {
+        _priceController.text = widget.initialPrice!.toStringAsFixed(0);
+      }
+      _selectedDate = widget.initialDate;
     }
   }
 
@@ -216,6 +237,21 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 ),
               ],
             ),
+            if (widget.patientName != null && widget.patientName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    widget.patientName!,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton.icon(

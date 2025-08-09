@@ -11,6 +11,11 @@ import '../models/treatment.dart';
 void showTreatmentDialog(
   BuildContext context, {
   required String patientId,
+  String? patientName,
+  String? initialProcedure,
+  String? initialToothNumber,
+  double? initialPrice,
+  DateTime? initialDate,
   Treatment? treatment,
 }) {
   showDialog(
@@ -29,6 +34,11 @@ void showTreatmentDialog(
             padding: const EdgeInsets.all(16.0),
             child: TreatmentForm(
               patientId: patientId,
+              patientName: patientName,
+              initialProcedure: initialProcedure,
+              initialToothNumber: initialToothNumber,
+              initialPrice: initialPrice,
+              initialDate: initialDate,
               treatment: treatment,
             ),
           ),

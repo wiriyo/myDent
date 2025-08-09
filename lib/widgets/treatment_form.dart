@@ -16,6 +16,8 @@ class TreatmentForm extends StatefulWidget {
   final String? patientName;
   final String? initialProcedure;
   final DateTime? initialDate;
+  final String? initialToothNumber;
+  final double? initialPrice;
 
   const TreatmentForm({
     super.key,
@@ -24,6 +26,8 @@ class TreatmentForm extends StatefulWidget {
     this.patientName,
     this.initialProcedure,
     this.initialDate,
+    this.initialToothNumber,
+    this.initialPrice,
   });
 
   @override
@@ -58,6 +62,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
     } else {
       _procedureController.text = widget.initialProcedure ?? '';
       _selectedDate = widget.initialDate;
+      _toothNumberController.text = widget.initialToothNumber ?? '';
+      _priceController.text = widget.initialPrice != null
+          ? widget.initialPrice!.toStringAsFixed(0)
+          : '';
     }
   }
 

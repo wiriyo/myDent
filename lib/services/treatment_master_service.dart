@@ -34,6 +34,15 @@ class TreatmentMasterService {
     await _collection.doc(treatmentId).delete();
   }
 
+  // 📌 ดึงข้อมูลหัตถการตามชื่อ เพื่อใช้เติมราคาอัตโนมัติ
+  static Future<TreatmentMaster?> getTreatmentByName(String name) async {
+    final snapshot =
+        await _collection.where('name', isEqualTo: name).limit(1).get();
+    if (snapshot.docs.isEmpty) return null;
+    final doc = snapshot.docs.first;
+    return TreatmentMaster.fromMap(doc.data(), doc.id);
+  }
+
   // 🧵✨ [CHANGED v1.1] ปรับปรุงเมธอดนี้ให้คืนค่า ID ของ Master กลับมาด้วย
   // ไม่ว่าจะเป็น ID ของรายการที่มีอยู่แล้ว หรือ ID ของรายการที่เพิ่งสร้างใหม่
   static Future<String> addIfNotExist(String name, double price) async {

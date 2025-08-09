@@ -14,6 +14,8 @@ void showTreatmentDialog(
   String? patientName,
   String? initialProcedure,
   DateTime? initialDate,
+  String? initialToothNumber,
+  double? initialPrice,
   Treatment? treatment,
 }) {
   showDialog(
@@ -35,6 +37,8 @@ void showTreatmentDialog(
               patientName: patientName,
               initialProcedure: initialProcedure,
               initialDate: initialDate,
+              initialToothNumber: initialToothNumber,
+              initialPrice: initialPrice,
               treatment: treatment,
             ),
           ),

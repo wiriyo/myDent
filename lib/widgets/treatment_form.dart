@@ -29,7 +29,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
   DateTime? _selectedDate;
   String? _selectedTreatmentMasterId;
 
-  List<File> _newImages = [];
+  final List<File> _newImages = [];
   List<String> _existingImageUrls = [];
   bool get _isEditing => widget.treatment != null;
 

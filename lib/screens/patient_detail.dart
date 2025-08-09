@@ -254,7 +254,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     final String phone = patient!.telephone ?? '-';
     final double rating = patient!.rating;
 
-    final cardColor;
+    final Color cardColor;
     if (rating >= 4.5) {
       cardColor = AppTheme.rating5Star;
     } else if (rating >= 3.5) {

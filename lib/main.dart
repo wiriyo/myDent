@@ -1,21 +1,22 @@
 // v1.1.0 - ✨ Fully Enabled Thai Localization
 // 📁 lib/main.dart
 
+// Dart & Flutter Packages
 import 'package:flutter/material.dart';
-// ✨ [พ.ศ. FIX] เพิ่ม import ที่จำเป็นสำหรับ localization ค่ะ
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+// Project Files
+import 'firebase_options.dart';
 import 'auth/login_screen.dart';
 import 'screens/calendar_screen.dart';
-import 'screens/patients_screen.dart';
 import 'screens/patient_add.dart';
+import 'screens/patient_detail.dart';
+import 'screens/patients_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/setting_screen.dart';
-import 'screens/patient_detail.dart';
 import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
 import 'screens/appointment_search_screen.dart';

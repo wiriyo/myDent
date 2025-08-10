@@ -1,0 +1,574 @@
+diff --git a/lib/main.dart b/lib/main.dart
+index e3d90282c63b26abfb3ab96db37f6bd99e93db7a..aa6597c509a8a5c67d1b121f04c27366a10eac07 100644
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -1,47 +1,48 @@
+ // v1.1.0 - ✨ Fully Enabled Thai Localization
+ // 📁 lib/main.dart
+ 
+ // Dart & Flutter Packages
+ import 'package:flutter/material.dart';
+ import 'package:flutter_localizations/flutter_localizations.dart';
+ import 'package:firebase_core/firebase_core.dart';
+ import 'package:firebase_auth/firebase_auth.dart';
+ import 'package:shared_preferences/shared_preferences.dart';
+ 
+ // Project Files
+ import 'firebase_options.dart';
+ import 'auth/login_screen.dart';
+ import 'screens/calendar_screen.dart';
+ import 'screens/patient_add.dart';
+ import 'screens/patient_detail.dart';
+ import 'screens/patients_screen.dart';
+ import 'screens/reports_screen.dart';
+ import 'screens/setting_screen.dart';
+ import 'screens/treatment_list.dart';
+ import 'screens/working_hours_screen.dart';
+ import 'screens/appointment_search_screen.dart';
++import 'models/patient.dart';
+ 
+ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+ 
+ void main() async {
+   WidgetsFlutterBinding.ensureInitialized();
+   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+   final prefs = await SharedPreferences.getInstance();
+   final skipLogin = prefs.getBool('skipLogin') ?? false;
+ 
+   if (FirebaseAuth.instance.currentUser == null) {
+     try {
+       await FirebaseAuth.instance.signInAnonymously();
+       print('🎉 Anonymous sign-in success!');
+     } catch (e) {
+       print('❌ Failed to sign in anonymously: $e');
+     }
+   }
+ 
+   runApp(MyApp(skipLogin: skipLogin));
+ }
+ 
+ class MyApp extends StatelessWidget {
+   final bool skipLogin;
+   const MyApp({super.key, required this.skipLogin});
+ 
+@@ -68,40 +69,45 @@ class MyApp extends StatelessWidget {
+ 
+       theme: ThemeData(
+         primaryColor: const Color(0xFFE0BBFF),
+         scaffoldBackgroundColor: const Color(0xFFFFF5FC),
+         fontFamily: 'Poppins',
+         appBarTheme: const AppBarTheme(
+           backgroundColor: Color(0xFFFFF5FC),
+           elevation: 0,
+           iconTheme: IconThemeData(color: Colors.black),
+           titleTextStyle: TextStyle(
+             color: Colors.black,
+             fontSize: 20,
+             fontWeight: FontWeight.bold,
+           ),
+         ),
+         colorScheme: ColorScheme.fromSwatch(
+           primarySwatch: Colors.purple,
+         ).copyWith(secondary: const Color(0xFFB2F2FF)),
+         textTheme: const TextTheme(
+           bodyMedium: TextStyle(color: Colors.black87),
+         ),
+       ),
+       initialRoute: '/',
+       routes: {
+         '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
+-        '/calendar': (context) => const CalendarScreen(),
++        '/calendar': (context) {
++          final args =
++              ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
++          final patient = args != null ? args['initialPatient'] as Patient? : null;
++          return CalendarScreen(initialPatient: patient);
++        },
+         '/login': (context) => const LoginScreen(),
+         '/patients': (context) => const PatientsScreen(),
+         '/add_patient': (context) => const PatientAddScreen(),
+         '/reports': (context) => const ReportsScreen(),
+         '/settings': (context) => const SettingsScreen(),
+         '/patient_detail': (context) => const PatientDetailScreen(),
+         '/treatment_list': (context) => const TreatmentListScreen(),
+         '/working_hours': (context) => const WorkingHoursScreen(),
+         '/appointment_search': (context) => const AppointmentSearchScreen(),
+       },
+       
+     );
+   }
+ }
+diff --git a/lib/screens/appointment_add.dart b/lib/screens/appointment_add.dart
+index 6688de9afc8da3720e4cece963a013b6369de044..da6e5e0866252a5323c53cd7e75db58a768f73c8 100644
+--- a/lib/screens/appointment_add.dart
++++ b/lib/screens/appointment_add.dart
+@@ -1,101 +1,106 @@
+ // ----------------------------------------------------------------
+ // 📁 lib/screens/appointment_add.dart (UPGRADED)
+ // v3.4.1 - ⌨️ Set Numeric Keyboard for Teeth Input
+ // ----------------------------------------------------------------
+ import 'package:firebase_auth/firebase_auth.dart';
+ import 'package:flutter/material.dart';
+ import 'package:intl/intl.dart';
+ import '../models/appointment_model.dart';
+ import '../models/patient.dart';
+ import '../models/treatment_master.dart';
+ import '../services/appointment_service.dart';
+ import '../services/patient_service.dart';
+ import '../services/treatment_master_service.dart';
+ import '../styles/app_theme.dart';
+ 
+ // Import น้องปฏิทินที่เราสร้างขึ้นมาใหม่ค่ะ
+ import '../widgets/custom_date_picker.dart';
+ 
+ 
+ class AppointmentAddDialog extends StatefulWidget {
+   final AppointmentModel? appointment;
+   final DateTime? initialDate;
+   final DateTime? initialStartTime;
++  final Patient? initialPatient;
+ 
+   const AppointmentAddDialog({
+     super.key,
+     this.appointment,
+     this.initialDate,
+     this.initialStartTime,
++    this.initialPatient,
+   });
+ 
+   @override
+   State<AppointmentAddDialog> createState() => _AppointmentAddDialogState();
+ }
+ 
+ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
+   final _formKey = GlobalKey<FormState>();
+   final AppointmentService _appointmentService = AppointmentService();
+   final PatientService _patientService = PatientService();
+ 
+   List<Patient> _allPatients = [];
+   List<TreatmentMaster> _allTreatmentsMaster = [];
+ 
+   Patient? _selectedPatient;
+   
+   late TextEditingController _patientController;
+   late TextEditingController _treatmentController;
+   late TextEditingController _durationController;
+   late TextEditingController _notesController;
+   late TextEditingController _teethController;
+ 
+   late DateTime _selectedDate;
+   TimeOfDay? _startTime;
+   TimeOfDay? _endTime;
+   String _status = 'รอยืนยัน';
+ 
+   bool _isEditing = false;
+ 
+   @override
+   void initState() {
+     super.initState();
+     _loadInitialData();
+ 
+     _isEditing = widget.appointment != null;
+     final initialAppointment = widget.appointment;
+ 
+-    _patientController = TextEditingController(text: initialAppointment?.patientName ?? '');
+-    
++    _patientController = TextEditingController(
++        text: widget.initialPatient?.name ?? initialAppointment?.patientName ?? '');
++
+     if (initialAppointment != null) {
+       _selectedPatient = Patient(
+         patientId: initialAppointment.patientId,
+         name: initialAppointment.patientName,
+         prefix: '',
+         hnNumber: initialAppointment.hnNumber,
+         telephone: initialAppointment.patientPhone,
+       );
++    } else if (widget.initialPatient != null) {
++      _selectedPatient = widget.initialPatient;
+     }
+ 
+     _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? '');
+     _durationController = TextEditingController(text: initialAppointment?.duration.toString() ?? '30');
+     _notesController = TextEditingController(text: initialAppointment?.notes ?? '');
+     _teethController = TextEditingController(text: initialAppointment?.teeth?.join(', ') ?? '');
+ 
+     _status = initialAppointment?.status ?? 'รอยืนยัน';
+     _selectedDate = initialAppointment?.startTime ?? widget.initialDate ?? DateTime.now();
+     
+     _startTime = initialAppointment != null
+         ? TimeOfDay.fromDateTime(initialAppointment.startTime)
+         : widget.initialStartTime != null
+             ? TimeOfDay.fromDateTime(widget.initialStartTime!)
+             : const TimeOfDay(hour: 9, minute: 0);
+ 
+     _calculateEndTime();
+     _durationController.addListener(_calculateEndTime);
+   }
+ 
+   Future<void> _loadInitialData() async {
+     final patientsFuture = _patientService.fetchPatientsOnce();
+     final treatmentsFuture = TreatmentMasterService.getAllTreatments().first;
+ 
+     final results = await Future.wait([patientsFuture, treatmentsFuture]);
+diff --git a/lib/screens/calendar_screen.dart b/lib/screens/calendar_screen.dart
+index 18777d73845e17918e6b8088ccf3bf5dd94662b1..328df48f54f2516252e2a0b1bdbdf3523688e290 100644
+--- a/lib/screens/calendar_screen.dart
++++ b/lib/screens/calendar_screen.dart
+@@ -2,51 +2,52 @@
+ // 📁 lib/screens/calendar_screen.dart
+ 
+ import 'dart:math';
+ import 'package:flutter/material.dart';
+ import 'package:table_calendar/table_calendar.dart';
+ import 'package:shared_preferences/shared_preferences.dart';
+ import 'package:intl/intl.dart';
+ 
+ // 🌸 Imports from our project
+ import '../models/appointment_model.dart';
+ import '../models/patient.dart';
+ import '../services/appointment_service.dart';
+ import '../services/working_hours_service.dart';
+ import '../services/patient_service.dart';
+ import '../models/working_hours_model.dart';
+ import '../widgets/timeline_view.dart';
+ import '../widgets/view_mode_selector.dart';
+ import '../widgets/custom_bottom_nav_bar.dart';
+ import '../styles/app_theme.dart';
+ import 'appointment_add.dart';
+ import 'daily_calendar_screen.dart';
+ import 'weekly_calendar_screen.dart';
+ 
+ class CalendarScreen extends StatefulWidget {
+   final bool showReset;
+-  const CalendarScreen({super.key, this.showReset = false});
++  final Patient? initialPatient;
++  const CalendarScreen({super.key, this.showReset = false, this.initialPatient});
+ 
+   @override
+   State<CalendarScreen> createState() => _CalendarScreenState();
+ }
+ 
+ class _CalendarScreenState extends State<CalendarScreen> {
+   final AppointmentService _appointmentService = AppointmentService();
+   final PatientService _patientService = PatientService();
+   final WorkingHoursService _workingHoursService = WorkingHoursService();
+ 
+   Map<DateTime, List<AppointmentModel>> _events = {};
+ 
+   List<AppointmentModel> _selectedAppointments = [];
+   List<Patient> _patientsForAppointments = [];
+ 
+   DateTime _focusedDay = DateTime.now();
+   late DateTime _selectedDay;
+   DayWorkingHours? _selectedDayWorkingHours;
+   CalendarFormat _calendarFormat = CalendarFormat.month;
+   bool _isLoading = true;
+ 
+   @override
+   void initState() {
+     super.initState();
+     _selectedDay = _focusedDay;
+@@ -362,49 +363,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
+           SizedBox(
+             height: timelineHeight,
+             child:
+                 _isLoading
+                     ? const Center(
+                       child: CircularProgressIndicator(color: AppTheme.primary),
+                     )
+                     : (_selectedDayWorkingHours == null ||
+                         _selectedDayWorkingHours!.isClosed)
+                     ? Center(
+                       child: Text(
+                         'คลินิกปิดทำการ',
+                         style: TextStyle(
+                           color: AppTheme.textDisabled,
+                           fontSize: 16,
+                           fontFamily: AppTheme.fontFamily,
+                         ),
+                       ),
+                     )
+                     : TimelineView(
+                       selectedDate: _selectedDay,
+                       appointments: _selectedAppointments,
+                       patients: _patientsForAppointments,
+                       workingHours: _selectedDayWorkingHours!,
+                       onDataChanged: _handleDataChange,
++                      initialPatient: widget.initialPatient,
+                     ),
+           ),
+         ],
+       ),
+       floatingActionButton: FloatingActionButton(
+         onPressed:
+             () => showDialog(
+               context: context,
+-              builder: (_) => AppointmentAddDialog(initialDate: _selectedDay),
++              builder: (_) => AppointmentAddDialog(
++                  initialDate: _selectedDay,
++                  initialPatient: widget.initialPatient),
+             ).then((value) {
+               if (value == true) {
+                 _handleDataChange();
+               }
+             }),
+         backgroundColor: AppTheme.primary,
+         tooltip: 'เพิ่มนัดหมายใหม่',
+         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+         child: const Icon(Icons.add, color: Colors.white, size: 36),
+       ),
+       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
+     );
+   }
+ }
+diff --git a/lib/widgets/timeline_view.dart b/lib/widgets/timeline_view.dart
+index f1fc76be5035837567150ed6f8477e7fdb616516..1bf4e5ce5169dde5c22e66c85ea0e7ca1d2a9596 100644
+--- a/lib/widgets/timeline_view.dart
++++ b/lib/widgets/timeline_view.dart
+@@ -16,59 +16,61 @@ import 'appointment_detail_dialog.dart';
+ class _AppointmentLayoutInfo {
+   final AppointmentModel appointment;
+   final DateTime startTime;
+   final DateTime endTime;
+   int maxOverlaps = 1;
+   int columnIndex = 0;
+ 
+   _AppointmentLayoutInfo({
+     required this.appointment,
+     required this.startTime,
+     required this.endTime,
+   });
+ 
+   bool overlaps(_AppointmentLayoutInfo other) {
+     return startTime.isBefore(other.endTime) && endTime.isAfter(other.startTime);
+   }
+ }
+ 
+ class TimelineView extends StatelessWidget {
+   final DateTime selectedDate;
+   final List<AppointmentModel> appointments;
+   final List<Patient> patients;
+   final DayWorkingHours workingHours;
+   final double hourHeight;
+   final VoidCallback onDataChanged;
++  final Patient? initialPatient;
+ 
+   const TimelineView({
+     super.key,
+     required this.selectedDate,
+     required this.appointments,
+     required this.patients,
+     required this.workingHours,
+     required this.onDataChanged,
+     this.hourHeight = 120.0,
++    this.initialPatient,
+   });
+   
+   DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
+     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+   }
+   
+   List<Map<String, dynamic>> _getCombinedList() {
+     if (workingHours.isClosed || workingHours.timeSlots.isEmpty) {
+       return appointments.map((appt) => {'isGap': false, 'appointment': appt}).toList();
+     }
+ 
+     appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
+     
+     List<Map<String, dynamic>> finalCombinedList = [];
+     int appointmentIndex = 0;
+ 
+     for (final slot in workingHours.timeSlots) {
+       DateTime slotStart = _combineDateAndTime(selectedDate, slot.openTime);
+       DateTime slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
+       DateTime timelineCursor = slotStart;
+ 
+       while (appointmentIndex < appointments.length) {
+         final appt = appointments[appointmentIndex];
+         if (appt.startTime.isAfter(slotEnd) || appt.startTime.isAtSameMomentAs(slotEnd)) {
+             break; 
+@@ -219,52 +221,55 @@ class TimelineView extends StatelessWidget {
+     );
+   }
+ 
+   Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding, BoxConstraints constraints) {
+     final appointmentLayouts = _calculateAppointmentLayouts(appointments);
+     final double contentWidth = constraints.maxWidth - 60.0; 
+     
+     List<Widget> positionedItems = [];
+     final patientMap = {for (var p in patients) p.patientId: p};
+ 
+     for (var item in combinedList) {
+       final bool isGap = item['isGap'] == true;
+       final DateTime itemStart = isGap ? item['start'] : (item['appointment'] as AppointmentModel).startTime;
+       final DateTime itemEnd = isGap ? item['end'] : (item['appointment'] as AppointmentModel).endTime;
+       
+       final top = max(0.0, itemStart.difference(dayStartTime).inMinutes * pixelsPerMinute) + topPadding;
+       final height = max(0.0, itemEnd.difference(itemStart).inMinutes * pixelsPerMinute);
+       if (height <= 0.1) continue;
+ 
+       if (isGap) {
+         positionedItems.add(Positioned(
+           top: top, left: 0, right: 0, height: height, 
+           child: GapCard(
+             gapStart: itemStart, gapEnd: itemEnd, 
+             onTap: () => showDialog(
+-              context: context, 
+-              builder: (_) => AppointmentAddDialog(initialDate: selectedDate, initialStartTime: itemStart)
++              context: context,
++              builder: (_) => AppointmentAddDialog(
++                  initialDate: selectedDate,
++                  initialStartTime: itemStart,
++                  initialPatient: initialPatient),
+             ).then((value) { if (value == true) { onDataChanged(); } })
+           )
+         ));
+       } else {
+         final appointmentModel = item['appointment'] as AppointmentModel;
+         final patientModel = patientMap[appointmentModel.patientId];
+         if (patientModel == null) {
+           debugPrint('Warning: Patient not found for appointment ${appointmentModel.appointmentId}');
+           continue;
+         }
+ 
+         final layoutInfo = appointmentLayouts.firstWhere((l) => l.appointment.appointmentId == appointmentModel.appointmentId, orElse: () => _AppointmentLayoutInfo(appointment: appointmentModel, startTime: itemStart, endTime: itemEnd));
+         final cardWidth = (contentWidth / layoutInfo.maxOverlaps) - 4;
+         final left = layoutInfo.columnIndex * (cardWidth + 4);
+         
+         final durationInMinutes = itemEnd.difference(itemStart).inMinutes;
+         final bool isShortAppointment = durationInMinutes <= 30;
+         
+         positionedItems.add(Positioned(
+           top: top, left: left, width: cardWidth, height: height, 
+           child: AppointmentCard(
+             appointment: appointmentModel, 
+             patient: patientModel,
+             onTap: () {
+               showDialog(context: context, builder: (_) => AppointmentDetailDialog(
+diff --git a/lib/widgets/treatment_form.dart b/lib/widgets/treatment_form.dart
+index 0302da93367ec9b2869b44c3f8959a4d99f3d2c2..8993fc6096a6a15fd3431d43fa22512f36c49eef 100644
+--- a/lib/widgets/treatment_form.dart
++++ b/lib/widgets/treatment_form.dart
+@@ -1,34 +1,35 @@
+ // v1.5.1 - 🎨 อัปเดต UI ปุ่มเพิ่มรูปภาพ และซ่อนแกลเลอรีเมื่อไม่มีรูป
+ // v1.5.0 - 📝 เพิ่มช่องสำหรับบันทึกการรักษา (Treatment Notes)
+ import 'dart:io';
+ import 'package:flutter/material.dart';
+ import 'package:image_picker/image_picker.dart';
+ import 'package:provider/provider.dart';
+ import '../providers/treatment_provider.dart';
+ import '../models/treatment_master.dart';
+ import '../models/treatment.dart';
++import '../models/patient.dart';
+ import '../services/treatment_master_service.dart';
+ import '../styles/app_theme.dart';
+ 
+ class TreatmentForm extends StatefulWidget {
+   final String patientId;
+   final Treatment? treatment;
+   final String? patientName;
+   final String? initialProcedure;
+   final DateTime? initialDate;
+   final String? initialToothNumber;
+   final double? initialPrice;
+ 
+   const TreatmentForm({
+     super.key,
+     required this.patientId,
+     this.treatment,
+     this.patientName,
+     this.initialProcedure,
+     this.initialDate,
+     this.initialToothNumber,
+     this.initialPrice,
+   });
+ 
+   @override
+   State<TreatmentForm> createState() => _TreatmentFormState();
+@@ -154,51 +155,83 @@ class _TreatmentFormState extends State<TreatmentForm> {
+ 
+   void _handleSave(TreatmentProvider provider) async {
+     if (!_formKey.currentState!.validate()) {
+       return;
+     }
+     final treatmentData = Treatment(
+       id: widget.treatment?.id ?? '',
+       patientId: widget.patientId,
+       treatmentMasterId: _selectedTreatmentMasterId ?? '',
+       procedure: _procedureController.text.trim(),
+       toothNumber: _toothNumberController.text.trim(),
+       price: double.tryParse(_priceController.text) ?? 0.0,
+       date: _selectedDate ?? DateTime.now(),
+       imageUrls: _existingImageUrls,
+       notes: _notesController.text.trim(),
+     );
+ 
+     final success = await provider.saveTreatment(
+       patientId: widget.patientId,
+       treatment: treatmentData,
+       isEditing: _isEditing,
+       images: _newImages,
+     );
+ 
+     if (success && context.mounted) {
+-      Navigator.pop(context, true);
++      if (!_isEditing) {
++        final shouldSchedule = await showDialog<bool>(
++          context: context,
++          barrierDismissible: false,
++          builder: (context) => AlertDialog(
++            title: const Text('นัดหมายครั้งต่อไป'),
++            content: const Text('ต้องการนัดหมายครั้งต่อไปไม่?'),
++            actions: [
++              TextButton(
++                  onPressed: () => Navigator.pop(context, false),
++                  child: const Text('ยกเลิก')),
++              TextButton(
++                  onPressed: () => Navigator.pop(context, true),
++                  child: const Text('ตกลง')),
++            ],
++          ),
++        );
++
++        final nav = Navigator.of(context);
++        nav.pop(true);
++        if (shouldSchedule == true) {
++          final patient = Patient(
++            patientId: widget.patientId,
++            name: widget.patientName ?? '',
++            prefix: '',
++          );
++          nav.pushNamed('/calendar', arguments: {'initialPatient': patient});
++        } else {
++          nav.pushNamed('/calendar');
++        }
++      } else {
++        Navigator.pop(context, true);
++      }
+     } else if (!success && context.mounted) {
+       _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
+     }
+   }
+ 
+   void _handleDeleteExistingImage(TreatmentProvider provider, String imageUrl) async {
+     final confirm = await showDialog<bool>(
+       context: context,
+       builder: (context) => AlertDialog(
+         title: const Text('ยืนยันการลบ'),
+         content: const Text('คุณต้องการลบรูปภาพนี้ออกจากระบบใช่หรือไม่?'),
+         actions: [
+           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
+           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ลบ', style: TextStyle(color: Colors.red))),
+         ],
+       ),
+     );
+ 
+     if (confirm != true) return;
+ 
+     final success = await provider.deleteTreatmentImage(
+       patientId: widget.patientId,
+       treatmentId: widget.treatment!.id,
+       imageUrl: imageUrl,
+     );

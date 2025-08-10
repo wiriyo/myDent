@@ -21,12 +21,14 @@ class AppointmentAddDialog extends StatefulWidget {
   final AppointmentModel? appointment;
   final DateTime? initialDate;
   final DateTime? initialStartTime;
+  final Patient? initialPatient;
 
   const AppointmentAddDialog({
     super.key,
     this.appointment,
     this.initialDate,
     this.initialStartTime,
+    this.initialPatient,
   });
 
   @override
@@ -64,8 +66,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     _isEditing = widget.appointment != null;
     final initialAppointment = widget.appointment;
 
-    _patientController = TextEditingController(text: initialAppointment?.patientName ?? '');
-    
+    _patientController = TextEditingController(
+        text: widget.initialPatient?.name ?? initialAppointment?.patientName ?? '');
+
     if (initialAppointment != null) {
       _selectedPatient = Patient(
         patientId: initialAppointment.patientId,
@@ -74,6 +77,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         hnNumber: initialAppointment.hnNumber,
         telephone: initialAppointment.patientPhone,
       );
+    } else if (widget.initialPatient != null) {
+      _selectedPatient = widget.initialPatient;
     }
 
     _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? '');

@@ -24,7 +24,8 @@ import 'weekly_calendar_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
-  const CalendarScreen({super.key, this.showReset = false});
+  final Patient? initialPatient;
+  const CalendarScreen({super.key, this.showReset = false, this.initialPatient});
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -384,6 +385,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       patients: _patientsForAppointments,
                       workingHours: _selectedDayWorkingHours!,
                       onDataChanged: _handleDataChange,
+                      initialPatient: widget.initialPatient,
                     ),
           ),
         ],
@@ -392,7 +394,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         onPressed:
             () => showDialog(
               context: context,
-              builder: (_) => AppointmentAddDialog(initialDate: _selectedDay),
+              builder: (_) => AppointmentAddDialog(
+                  initialDate: _selectedDay,
+                  initialPatient: widget.initialPatient),
             ).then((value) {
               if (value == true) {
                 _handleDataChange();

@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 // Project Files
 import 'firebase_options.dart';
@@ -21,6 +22,7 @@ import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
 import 'screens/appointment_search_screen.dart';
 import 'models/patient.dart';
+import 'dev/dev_entry.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -106,6 +108,8 @@ class MyApp extends StatelessWidget {
         '/treatment_list': (context) => const TreatmentListScreen(),
         '/working_hours': (context) => const WorkingHoursScreen(),
         '/appointment_search': (context) => const AppointmentSearchScreen(),
+        if (kDebugMode) '/dev/preview': (_) => const DevEntry(),
+  
       },
       
     );

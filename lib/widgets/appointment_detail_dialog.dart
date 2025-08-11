@@ -13,6 +13,12 @@ import '../screens/treatment_add.dart';
 import '../models/appointment_model.dart';
 import '../styles/app_theme.dart';
 
+// dev mode
+import 'package:flutter/foundation.dart' show kDebugMode; // ซ่อนปุ่มในโปรดักชัน
+import '../features/printing/printing.dart';
+import '../features/printing/render/receipt_mapper.dart';
+import '../features/printing/render/preview_pages.dart';
+
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
   final Patient patient;
@@ -91,6 +97,28 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       }
     }
   }
+
+  // ========= NEW: ตัวช่วยสร้างใบนัดจากสถานะปัจจุบัน เพื่อพรีวิว =========
+  AppointmentSlipModel _buildSlipFromState() {
+    final patientName = widget.patient.name;
+    final String hn = ''; // ยังไม่มี HN ในโมเดล patient ของโปรเจกต์นี้
+    final DateTime startAt = widget.appointment.startTime;
+    final String? note = _reasonController.text.trim().isEmpty
+        ? null
+        : _reasonController.text.trim();
+
+    // TODO: เปลี่ยนเป็นข้อมูลจริงจาก Clinic settings เมื่อพร้อมต่อ state
+    return buildAppointmentSlip(
+      clinicName: 'MyDent คลินิก',
+      clinicAddress: '123 ถนนสุขใจ เขตบางกะปิ กทม.',
+      clinicPhone: '02-123-4567',
+      patientName: patientName,
+      hn: hn,
+      startAt: startAt,
+      note: note,
+    );
+  }
+  // ======================================================================
 
   void _editAppointment() {
     Navigator.pop(context);
@@ -438,6 +466,28 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                 _buildIconActionButton(iconPath: 'assets/icons/save.png', backgroundColor: AppTheme.buttonCallBg, tooltip: 'บันทึกการเปลี่ยนแปลง', onPressed: _saveChanges),
                 const SizedBox(width: 12),
                 _buildIconActionButton(iconPath: 'assets/icons/edit.png', backgroundColor: AppTheme.buttonEditBg, tooltip: 'แก้ไขนัดหมาย', onPressed: _editAppointment),
+                // ========= NEW: ปุ่มพรีวิวใบนัด (DEV เท่านั้น) =========
+                if (kDebugMode) ...[
+                  const SizedBox(width: 12),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.95),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.print, color: AppTheme.primary),
+                    label: const Text('พรีวิวใบนัด', style: TextStyle(color: AppTheme.primary)),
+                    onPressed: () async {
+                      final slip = _buildSlipFromState();
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AppointmentSlipPreviewPage(slip: slip),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+                // ======================================================
               ],
             ),
             _buildIconActionButton(iconPath: 'assets/icons/delete.png', backgroundColor: AppTheme.buttonDeleteBg, tooltip: 'ลบนัดหมาย', onPressed: _deleteAppointment),

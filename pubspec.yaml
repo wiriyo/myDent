@@ -97,7 +97,7 @@ flutter:
       - assets/icons/x_ray.png
       - assets/icons/x_image.png 
       - assets/icons/hn_id.png
-      - assets/icons/gender.png
+      - assets/icons/gender.png 
       - assets/icons/male.png
       - assets/icons/female.png
       - assets/icons/notes.png

@@ -1,120 +1,209 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart'; // ใช้ TextPainter / Colors
-import 'package:image/image.dart' as img;
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
-import '../domain/receipt_model.dart';
 
+import '../domain/receipt_model.dart';
+import '../domain/appointment_slip_model.dart' show AppointmentInfo; // เผื่อใช้ในอนาคตสำหรับบล็อกใบนัด
+
+/// เรนเดอร์ใบเสร็จ 80 มม. ตามแบบที่พี่ทะเลกำหนด (ไม่มี VAT)
+/// โครง: โลโก้(ออปชัน) → ชื่อ/ที่อยู่/โทรคลินิก → เส้นคั่น "********" → เลขที่ (ขวา) + วันที่ (ขวา ใต้เลขที่)
+/// → ผู้รับบริการ → การรักษา → ซี่ฟัน → ค่าบริการ → เส้นคั่น → (บล็อกนัดต่อไปออปชัน) → ขอบคุณ
 class ReceiptRenderer {
-  /// ความกว้าง pixel สำหรับกระดาษ 80mm ส่วนใหญ่ ~576px
+  /// ความกว้างพิกเซลสำหรับ 80mm @ ~203dpi (บางรุ่น 576px)
   final int widthPx;
   ReceiptRenderer({this.widthPx = 576});
 
-  final _money = NumberFormat('#,##0.00');
-  String _thb(num n) => '฿${_money.format(n)}';
-  String _dt(DateTime t) => DateFormat('dd/MM/yyyy HH:mm').format(t);
-
-  Future<ui.Image> render(ReceiptModel r) async {
+  Future<ui.Image> render(
+    ReceiptModel receipt, {
+    String? logoAssetPath,
+    bool showNextAppointment = false,
+    AppointmentInfo? nextAppointment,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final paintBg = Paint()..color = const Color(0xFFFFFFFF);
-    // สูงเผื่อก่อน 3000px เดี๋ยวตัดจริงท้ายสุด
-    canvas.drawRect(Rect.fromLTWH(0, 0, widthPx.toDouble(), 3000), paintBg);
+    final paint = Paint()..color = Colors.black;
+    final double margin = 24;
+    double y = margin;
 
-    double y = 16;
+    // พื้นหลังสีขาว (ความสูงเผื่อไว้ จะตัดตอนจบด้วย y จริง)
+    canvas.drawRect(Rect.fromLTWH(0, 0, widthPx.toDouble(), 2300), Paint()..color = Colors.white);
 
-    // หัวบิล (พาสเทลเบา ๆ)
-    y += _text(canvas, r.clinic.name, y, size: 28, bold: true, center: true);
-    y += _text(canvas, r.clinic.address, y, size: 20, center: true);
-    y += _text(canvas, 'โทร: ${r.clinic.phone}', y, size: 20, center: true);
-    y += _hr(canvas, y);
-
-    // ข้อมูลบิล + คนไข้
-    y += _text(canvas, 'เลขที่บิล: ${r.bill.billNo}    วันที่: ${_dt(r.bill.issuedAt)}', y, size: 20);
-    y += _text(canvas, 'ผู้ป่วย: ${r.patient.name}${r.patient.hn.isNotEmpty ? "  (HN: ${r.patient.hn})" : ""}', y, size: 22);
-
-    y += _hr(canvas, y);
-
-    // รายการ: ชื่อซ้าย, qty+ราคารวมขวา
-    for (final line in r.lines) {
-      y += _rowItem(canvas,
-          left: line.name,
-          right: 'x${line.qty}  ${_thb(line.lineTotal)}',
-          y: y,
-          size: 22);
+    // 0) โลโก้ (ออปชัน)
+    if (logoAssetPath != null) {
+      try {
+        final img = await _loadAssetImage(logoAssetPath, maxWidth: (widthPx * 0.5).round());
+        final dx = (widthPx - img.width) / 2;
+        canvas.drawImage(img, Offset(dx, y), paint);
+        y += img.height + 12;
+      } catch (_) {/* ข้ามโลโก้หากโหลดไม่สำเร็จ */}
     }
 
-    y += _hr(canvas, y);
+    // 1) ส่วนหัวคลินิก (จัดกึ่งกลาง)
+    y = _drawCenter(canvas, y, receipt.clinic.name,
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700));
+    y = _drawCenter(canvas, y, receipt.clinic.address,
+        style: const TextStyle(fontSize: 16));
+    y = _drawCenter(canvas, y, 'โทร.  ${receipt.clinic.phone}',
+        style: const TextStyle(fontSize: 16));
 
-    // รวมยอด
-    y += _rowItem(canvas, left: 'รวม', right: _thb(r.totals.subTotal), y: y, size: 22);
-    if (r.totals.discount > 0) {
-      y += _rowItem(canvas, left: 'ส่วนลด', right: '-${_thb(r.totals.discount)}', y: y, size: 22);
+    // 2) เส้นคั่นดาว
+    y += 6;
+    y = _drawCenter(canvas, y, _repeatChar('*', count: 32),
+        style: const TextStyle(letterSpacing: 1.0));
+
+    // 3) เลขที่ (ขวา) + วันที่ (ขวา ใต้เลขที่)
+    y += 4;
+    y = _drawRight(canvas, y, 'เลขที่  ${receipt.bill.billNo}',
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600));
+    y = _drawRight(canvas, y, _formatThaiBuddhistDate(receipt.bill.issuedAt),
+        style: const TextStyle(fontSize: 16));
+
+    y += 8;
+
+    // 4) ผู้รับบริการ / รายการรักษา / ซี่ฟัน / ค่าบริการ
+    y = _drawLeft(canvas, y, 'ผู้รับบริการ:', style: const TextStyle(fontSize: 16));
+    final patientName = receipt.patient.name.trim();
+    y = _drawLeft(canvas, y, '   ${patientName.isEmpty ? '(ไม่ระบุ)' : patientName}',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600));
+
+    // ใช้บรรทัดแรกเป็นชื่อหัตถการหลัก และดึงซี่ฟันจาก (#...)
+    final mainLine = receipt.lines.isNotEmpty ? receipt.lines.first : null;
+    String treatmentName = mainLine?.name ?? '';
+    String toothText = '';
+    final m = RegExp(r"\s*\(#([^\)]+)\)\s*\$").firstMatch(treatmentName);
+    if (m != null) {
+      toothText = m.group(1) ?? '';
+      treatmentName = treatmentName.replaceAll(RegExp(r"\s*\(#([^\)]+)\)\s*\$"), '').trim();
     }
-    y += _rowItem(canvas, left: 'VAT', right: _thb(r.totals.vat), y: y, size: 22);
-    y += _rowItem(canvas, left: 'สุทธิ', right: _thb(r.totals.grandTotal), y: y, size: 24, bold: true);
 
-    y += 24;
+    if (treatmentName.isNotEmpty) {
+      y = _drawLeft(canvas, y, 'การรักษา:  $treatmentName', style: const TextStyle(fontSize: 16));
+    }
+    if (toothText.isNotEmpty) {
+      y = _drawLeft(canvas, y, 'ซี่ฟัน:  #$toothText', style: const TextStyle(fontSize: 16));
+    }
 
-    // ปิดรูปด้วยความสูงพอดี
+    final num total = receipt.lines.fold<num>(0, (p, e) => p + e.qty * e.price);
+    y = _drawLeft(canvas, y, 'ค่าบริการ:  ${_formatBaht(total)} บาท',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700));
+
+    // 5) เส้นคั่น
+    y += 8;
+    y = _drawCenter(canvas, y, _repeatChar('_', count: 34));
+
+    // 6) บล็อกนัดต่อไป (ออปชัน)
+    if (showNextAppointment && nextAppointment != null) {
+      y = _drawCenter(canvas, y, 'นัดต่อไป', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600));
+      final nextDate = _formatThaiBuddhistDate(nextAppointment.startAt);
+      final nextTime = DateFormat.Hm('th_TH').format(nextAppointment.startAt);
+      y = _drawLeft(canvas, y, nextDate, style: const TextStyle(fontSize: 16));
+      y = _drawLeft(canvas, y, 'เวลา:  $nextTime น.', style: const TextStyle(fontSize: 16));
+      if (treatmentName.isNotEmpty) {
+        y = _drawLeft(canvas, y, 'การรักษา:  $treatmentName', style: const TextStyle(fontSize: 16));
+      }
+      if (toothText.isNotEmpty) {
+        y = _drawLeft(canvas, y, 'ซี่ฟัน:  #$toothText', style: const TextStyle(fontSize: 16));
+      }
+
+      y += 4;
+      y = _drawCenter(canvas, y, _repeatChar('_', count: 30));
+      y = _drawCenter(canvas, y, 'กรุณามาก่อนนัดหมาย 10–15 นาที');
+    }
+
+    // 7) Footer
+    y += 6;
+    y = _drawCenter(canvas, y, 'ขอบคุณที่ใช้บริการ');
+
+    // ปิดภาพ
     final picture = recorder.endRecording();
-    final imgResult = await picture.toImage(widthPx, y.ceil() + 24);
-    return imgResult;
+    final img = await picture.toImage(widthPx, y.ceil() + 24);
+    return img;
   }
 
-  /// แปลง ui.Image -> PNG bytes (เผื่อ export/preview)
   Future<Uint8List> toPngBytes(ui.Image image) async {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
 
-  // ---------- helpers ----------
-  double _text(Canvas c, String text, double y,
-      {double size = 22, bool bold = false, bool center = false}) {
+  // ---------- Helpers ----------
+  Future<ui.Image> _loadAssetImage(String assetPath, {int? maxWidth}) async {
+    final data = await rootBundle.load(assetPath);
+    final codec = await ui.instantiateImageCodec(
+      data.buffer.asUint8List(),
+      targetWidth: maxWidth,
+    );
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
+  String _formatThaiBuddhistDate(DateTime d) {
+    // ตัวอย่าง: "อังคาร 12 สิงหาคม 2568"
+    final dowFull = DateFormat('EEEE', 'th_TH').format(d); // เช่น "วันอังคาร"
+    final dow = dowFull.replaceFirst('วัน', '').trim();
+    final dmy = DateFormat('d MMMM ', 'th_TH').format(d);
+    final buddhistYear = d.year + 543;
+    return '$dow $dmy$buddhistYear';
+  }
+
+  String _formatBaht(num n) => NumberFormat('#,##0.##', 'th_TH').format(n);
+  String _repeatChar(String ch, {required int count}) => List.filled(count, ch).join();
+
+  double _drawCenter(Canvas canvas, double y, String text, {TextStyle? style}) {
     final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          fontSize: size,
-          fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-          color: Colors.black,
-        ),
-      ),
-      textAlign: center ? TextAlign.center : TextAlign.left,
+      text: TextSpan(text: text, style: (style ?? const TextStyle()).copyWith(color: Colors.black)),
+      textAlign: TextAlign.center,
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: widthPx.toDouble());
-
-    final dx = center ? (widthPx - tp.width) / 2 : 0.0;
-    tp.paint(c, Offset(dx, y));
-    return tp.height + 6;
+    tp.paint(canvas, Offset((widthPx - tp.width) / 2, y));
+    return y + tp.height + 4;
   }
 
-  double _hr(Canvas c, double y) {
-    return _text(c, '----------------------------------------', y, size: 20, center: true);
+  double _drawLeft(Canvas canvas, double y, String text, {TextStyle? style}) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: (style ?? const TextStyle()).copyWith(color: Colors.black)),
+      textAlign: TextAlign.left,
+      textDirection: ui.TextDirection.ltr,
+    )..layout(maxWidth: (widthPx - 48).toDouble());
+    tp.paint(canvas, Offset(24, y));
+    return y + tp.height + 2;
   }
 
-  double _rowItem(Canvas c, {required String left, required String right, required double y, double size = 22, bool bold = false}) {
-    // วาดซ้าย
-    final leftPaint = TextPainter(
-      text: TextSpan(
-        text: left,
-        style: TextStyle(fontSize: size, fontWeight: bold ? FontWeight.w700 : FontWeight.w400, color: Colors.black),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    )..layout(maxWidth: (widthPx * 0.6)); // ชื่อจุ ~60%
-    leftPaint.paint(c, Offset(0, y));
-
-    // วาดขวา (ชิดขอบขวา)
-    final rightPaint = TextPainter(
-      text: TextSpan(
-        text: right,
-        style: TextStyle(fontSize: size, fontWeight: bold ? FontWeight.w700 : FontWeight.w400, color: Colors.black),
-      ),
-      textDirection: ui.TextDirection.ltr,
+  double _drawRight(Canvas canvas, double y, String text, {TextStyle? style}) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: (style ?? const TextStyle()).copyWith(color: Colors.black)),
       textAlign: TextAlign.right,
-    )..layout(maxWidth: (widthPx * 0.38)); // ช่องขวา ~38%
-    rightPaint.paint(c, Offset(widthPx - rightPaint.width, y));
+      textDirection: ui.TextDirection.ltr,
+    )..layout(maxWidth: widthPx.toDouble());
+    tp.paint(canvas, Offset(widthPx - tp.width - 24, y));
+    return y + tp.height + 2;
+  }
 
-    return (leftPaint.height > rightPaint.height ? leftPaint.height : rightPaint.height) + 6;
+  double _drawTwoColumns(
+    Canvas canvas,
+    double y, {
+    required String left,
+    required String right,
+    TextStyle? leftStyle,
+    TextStyle? rightStyle,
+  }) {
+    final leftTp = TextPainter(
+      text: TextSpan(text: left, style: (leftStyle ?? const TextStyle()).copyWith(color: Colors.black)),
+      textAlign: TextAlign.left,
+      textDirection: ui.TextDirection.ltr,
+    )..layout(maxWidth: widthPx.toDouble() * 0.6);
+
+    final rightTp = TextPainter(
+      text: TextSpan(text: right, style: (rightStyle ?? const TextStyle()).copyWith(color: Colors.black)),
+      textAlign: TextAlign.right,
+      textDirection: ui.TextDirection.ltr,
+    )..layout(maxWidth: widthPx.toDouble() * 0.35);
+
+    leftTp.paint(canvas, Offset(24, y));
+    rightTp.paint(canvas, Offset(widthPx - rightTp.width - 24, y));
+
+    return y + math.max(leftTp.height, rightTp.height) + 2;
   }
 }

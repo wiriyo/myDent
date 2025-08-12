@@ -1,3 +1,4 @@
+/////////////////////////////////////////////////////////////////
 // v1.5.1 - 🎨 อัปเดต UI ปุ่มเพิ่มรูปภาพ และซ่อนแกลเลอรีเมื่อไม่มีรูป
 // v1.5.0 - 📝 เพิ่มช่องสำหรับบันทึกการรักษา (Treatment Notes)
 import 'dart:io';
@@ -10,6 +11,14 @@ import '../models/treatment.dart';
 import '../models/patient.dart';
 import '../services/treatment_master_service.dart';
 import '../styles/app_theme.dart';
+
+// === NEW: สำหรับใบเสร็จ/พรีวิว ===
+import '../features/printing/printing.dart';
+import '../features/printing/render/receipt_mapper.dart';
+import '../features/printing/render/preview_pages.dart';
+import '../services/patient_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class TreatmentForm extends StatefulWidget {
   final String patientId;
@@ -64,9 +73,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
       _procedureController.text = widget.initialProcedure ?? '';
       _selectedDate = widget.initialDate;
       _toothNumberController.text = widget.initialToothNumber ?? '';
-      _priceController.text = widget.initialPrice != null
-          ? widget.initialPrice!.toStringAsFixed(0)
-          : '';
+      _priceController.text =
+          widget.initialPrice != null
+              ? widget.initialPrice!.toStringAsFixed(0)
+              : '';
     }
   }
 
@@ -78,6 +88,47 @@ class _TreatmentFormState extends State<TreatmentForm> {
     _notesController.dispose();
     super.dispose();
   }
+
+  Future<String> _nextBillNo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final beYY = (now.year + 543) % 100; // ปี พ.ศ. 2 หลัก
+
+    final lastYyKey = 'bill_last_be_yy';
+    final seqKey = 'bill_seq';
+
+    final lastYy = prefs.getInt(lastYyKey);
+    int seq = prefs.getInt(seqKey) ?? 0;
+
+    if (lastYy == null || lastYy != beYY) {
+      seq = 0; // เปลี่ยนปี → รีเซ็ตเลขรัน
+    }
+
+    seq += 1;
+    await prefs.setInt(seqKey, seq);
+    await prefs.setInt(lastYyKey, beYY);
+
+    final yy = beYY.toString().padLeft(2, '0');
+    final nn = seq.toString().padLeft(3, '0');
+    return '$yy-$nn'; // ตัวอย่าง: 68-001
+  }
+
+  // 3) (ออปชันแต่อยากแนะนำ) fallback หาชื่อผู้ป่วยอย่างสุภาพ
+ Future<String> _resolvePatientName() async {
+  // 1.1 ใช้ค่าที่ถูกส่งมาใน widget ก่อน
+  final fromWidget = (widget.patientName ?? '').trim();
+  if (fromWidget.isNotEmpty) return fromWidget;
+
+  // 1.2 ดึงจากฐานด้วย patientId ให้ชัวร์
+  try {
+    final svc = PatientService();
+    final name = await svc.getPatientNameById(widget.patientId);
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+  } catch (_) {}
+
+  // 1.3 สุดท้าย ถ้าไม่เจอจริง ๆ ปล่อยว่าง (renderer จะขึ้น "(ไม่ระบุ)")
+  return '';
+}
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -121,7 +172,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
               runSpacing: 10,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.photo_library_rounded, color: Colors.teal),
+                  leading: const Icon(
+                    Icons.photo_library_rounded,
+                    color: Colors.teal,
+                  ),
                   title: const Text("เลือกจากคลังภาพ"),
                   onTap: () async {
                     Navigator.pop(bottomSheetContext);
@@ -129,7 +183,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt_rounded, color: Colors.deepOrange),
+                  leading: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: Colors.deepOrange,
+                  ),
                   title: const Text("ถ่ายรูปด้วยกล้อง"),
                   onTap: () async {
                     Navigator.pop(bottomSheetContext);
@@ -153,79 +210,135 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
-  void _handleSave(TreatmentProvider provider) async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    final treatmentData = Treatment(
-      id: widget.treatment?.id ?? '',
-      patientId: widget.patientId,
-      treatmentMasterId: _selectedTreatmentMasterId ?? '',
-      procedure: _procedureController.text.trim(),
-      toothNumber: _toothNumberController.text.trim(),
-      price: double.tryParse(_priceController.text) ?? 0.0,
-      date: _selectedDate ?? DateTime.now(),
-      imageUrls: _existingImageUrls,
-      notes: _notesController.text.trim(),
+  // === NEW: สร้าง ReceiptModel จากข้อมูลที่เพิ่งบันทึกในฟอร์ม ===
+  Future<ReceiptModel> _buildReceiptFromForm() async {
+    final patientName = await _resolvePatientName();
+    final proc = _procedureController.text.trim();
+    final tooth = _toothNumberController.text.trim();
+    final price =
+        double.tryParse(_priceController.text.replaceAll(',', '')) ?? 0.0;
+
+    // ชื่อรายการ: แทรก #ซี่ฟัน ถ้ามี
+    final lineName = tooth.isEmpty ? proc : '$proc (#$tooth)';
+
+    // ✅ ใช้รูปแบบ YY-XXX
+    final billNo = await _nextBillNo();
+    final now = DateTime.now();
+
+    // TODO: ดึงจาก Clinic settings/state จริงเมื่อพร้อม
+    const clinicName = 'คลินิกทันตกรรมหมอกุสุมาภรณ์';
+    const clinicAddress = '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด';
+    const clinicPhone = '094-5639334';
+
+    return buildReceiptModel(
+      clinicName: clinicName,
+      clinicAddress: clinicAddress,
+      clinicPhone: clinicPhone,
+      billNo: billNo,
+      issuedAt: now,
+      patientName: patientName, // ✅ ส่งชื่อเข้ารุ่นใบเสร็จโดยตรง
+      items: [ReceiptLineInput(name: lineName, qty: 1, price: price)],
+      subTotal: price,
+      discount: 0,
+      vat: 0,
+      grandTotal: price,
     );
-
-    final success = await provider.saveTreatment(
-      patientId: widget.patientId,
-      treatment: treatmentData,
-      isEditing: _isEditing,
-      images: _newImages,
-    );
-
-    if (success && context.mounted) {
-      if (!_isEditing) {
-        final shouldSchedule = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text('นัดหมายครั้งต่อไป'),
-            content: const Text('ต้องการนัดหมายครั้งต่อไปไม่?'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('ยกเลิก')),
-              TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('ตกลง')),
-            ],
-          ),
-        );
-
-        final nav = Navigator.of(context);
-        nav.pop(true);
-        if (shouldSchedule == true) {
-          final patient = Patient(
-            patientId: widget.patientId,
-            name: widget.patientName ?? '',
-            prefix: '',
-          );
-          nav.pushNamed('/calendar', arguments: {'initialPatient': patient});
-        } else {
-          nav.pushNamed('/calendar');
-        }
-      } else {
-        Navigator.pop(context, true);
-      }
-    } else if (!success && context.mounted) {
-      _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
-    }
   }
 
-  void _handleDeleteExistingImage(TreatmentProvider provider, String imageUrl) async {
-    final confirm = await showDialog<bool>(
+  void _handleSave(TreatmentProvider provider) async {
+  if (!_formKey.currentState!.validate()) return;
+
+  final treatmentData = Treatment(
+    id: widget.treatment?.id ?? '',
+    patientId: widget.patientId,
+    treatmentMasterId: _selectedTreatmentMasterId ?? '',
+    procedure: _procedureController.text.trim(),
+    toothNumber: _toothNumberController.text.trim(),
+    price: double.tryParse(_priceController.text) ?? 0.0,
+    date: _selectedDate ?? DateTime.now(),
+    imageUrls: _existingImageUrls,
+    notes: _notesController.text.trim(),
+  );
+
+  final success = await provider.saveTreatment(
+    patientId: widget.patientId,
+    treatment: treatmentData,
+    isEditing: _isEditing,
+    images: _newImages,
+  );
+
+  if (!mounted) return; // กัน state ถูกถอด
+
+  if (success) {
+    if (_isEditing) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    // 👉 กรณีเพิ่มใหม่: ถามก่อนว่าจะนัดต่อหรือไม่
+    final shouldSchedule = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('ยืนยันการลบ'),
-        content: const Text('คุณต้องการลบรูปภาพนี้ออกจากระบบใช่หรือไม่?'),
+        title: const Text('นัดหมายครั้งต่อไป'),
+        content: const Text('ต้องการนัดหมายครั้งต่อไปไม่?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ลบ', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ไม่มีนัดหมาย')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('นัดหมายครั้งต่อไป')),
         ],
       ),
+    );
+
+    if (!mounted) return;
+
+    // ✅ จับ navigator ให้ได้ state ก่อน pop
+    final nav = Navigator.of(context);
+
+    if (shouldSchedule == true) {
+      // ปิดฟอร์มก่อน แล้วค่อยเปิด Calendar ด้วย nav ที่จับไว้
+      nav.pop(true);
+      final patient = Patient(patientId: widget.patientId, name: widget.patientName ?? '', prefix: '');
+      await nav.pushNamed('/calendar', arguments: {'initialPatient': patient});
+      return;
+    } else {
+      // ✅ สร้าง receipt ให้เรียบร้อยก่อน pop (ไม่แตะ context ภายใน)
+      final receipt = await _buildReceiptFromForm();
+      // ปิดฟอร์ม แล้วค่อย push หน้า Preview โดยไม่ใช้ context ของ state นี้อีก
+      nav.pop(true);
+      await nav.push(
+        MaterialPageRoute(
+          builder: (_) => ReceiptPreviewPage(receipt: receipt),
+        ),
+      );
+      return;
+    }
+  } else {
+    // แสดง error ได้เพราะยัง mounted อยู่ (เราเช็คไว้แล้วด้านบน)
+    _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
+  }
+}
+
+  void _handleDeleteExistingImage(
+    TreatmentProvider provider,
+    String imageUrl,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('ยืนยันการลบ'),
+            content: const Text('คุณต้องการลบรูปภาพนี้ออกจากระบบใช่หรือไม่?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('ยกเลิก'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('ลบ', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
     );
 
     if (confirm != true) return;
@@ -241,13 +354,15 @@ class _TreatmentFormState extends State<TreatmentForm> {
         _existingImageUrls.remove(imageUrl);
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ลบรูปภาพสำเร็จแล้วค่ะ'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('ลบรูปภาพสำเร็จแล้วค่ะ'),
+          backgroundColor: Colors.green,
+        ),
       );
     } else if (!success && context.mounted) {
       _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -263,10 +378,22 @@ class _TreatmentFormState extends State<TreatmentForm> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('การรักษา', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.purple)),
+                const Text(
+                  'การรักษา',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
+                ),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: Image.asset('assets/icons/back.png', width: 24, height: 24, color: Colors.purple),
+                  child: Image.asset(
+                    'assets/icons/back.png',
+                    width: 24,
+                    height: 24,
+                    color: Colors.purple,
+                  ),
                 ),
               ],
             ),
@@ -290,11 +417,17 @@ class _TreatmentFormState extends State<TreatmentForm> {
               child: ElevatedButton.icon(
                 onPressed: () => _selectDate(context),
                 icon: Image.asset('assets/icons/calendar.png', width: 24),
-                label: Text(_selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : 'เลือกวันที่'),
+                label: Text(
+                  _selectedDate != null
+                      ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                      : 'เลือกวันที่',
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple.shade100,
                   foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ),
             ),
@@ -312,23 +445,46 @@ class _TreatmentFormState extends State<TreatmentForm> {
                       }
                       return const Iterable<TreatmentMaster>.empty();
                     }
-                    return masterList.where((option) => option.name.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                    return masterList.where(
+                      (option) => option.name.toLowerCase().contains(
+                        textEditingValue.text.toLowerCase(),
+                      ),
+                    );
                   },
                   displayStringForOption: (option) => option.name,
-                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                  fieldViewBuilder: (
+                    context,
+                    controller,
+                    focusNode,
+                    onFieldSubmitted,
+                  ) {
                     controller.text = _procedureController.text;
-                    controller.addListener(() => _procedureController.text = controller.text);
+                    controller.addListener(
+                      () => _procedureController.text = controller.text,
+                    );
                     return TextFormField(
                       controller: controller,
                       focusNode: focusNode,
                       decoration: InputDecoration(
-                        prefixIcon: Padding(padding: const EdgeInsets.all(8.0), child: Image.asset('assets/icons/report.png', width: 24)),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Image.asset(
+                            'assets/icons/report.png',
+                            width: 24,
+                          ),
+                        ),
                         hintText: 'หัตถการ',
                         filled: true,
                         fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      validator: (value) => value == null || value.isEmpty ? 'กรุณากรอกหัตถการ' : null,
+                      validator:
+                          (value) =>
+                              value == null || value.isEmpty
+                                  ? 'กรุณากรอกหัตถการ'
+                                  : null,
                     );
                   },
                   optionsViewBuilder: (context, onSelected, options) {
@@ -339,7 +495,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
                         elevation: 4,
                         color: const Color(0xFFFFF5FC),
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(maxHeight: options.length * 50.0 > 200 ? 200 : options.length * 50.0),
+                          constraints: BoxConstraints(
+                            maxHeight:
+                                options.length * 50.0 > 200
+                                    ? 200
+                                    : options.length * 50.0,
+                          ),
                           child: ListView.builder(
                             padding: const EdgeInsets.all(8),
                             shrinkWrap: true,
@@ -350,12 +511,25 @@ class _TreatmentFormState extends State<TreatmentForm> {
                                 onTap: () => onSelected(treatment),
                                 borderRadius: BorderRadius.circular(12),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
                                   child: Row(
                                     children: [
-                                      Image.asset('assets/icons/treatment.png', width: 20, height: 20),
+                                      Image.asset(
+                                        'assets/icons/treatment.png',
+                                        width: 20,
+                                        height: 20,
+                                      ),
                                       const SizedBox(width: 8),
-                                      Text(treatment.name, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+                                      Text(
+                                        treatment.name,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -383,11 +557,16 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   child: TextFormField(
                     controller: _toothNumberController,
                     decoration: InputDecoration(
-                      prefixIcon: Padding(padding: const EdgeInsets.all(8.0), child: Image.asset('assets/icons/tooth.png', width: 24)),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Image.asset('assets/icons/tooth.png', width: 24),
+                      ),
                       hintText: 'ซี่ฟัน',
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     keyboardType: TextInputType.number,
                   ),
@@ -397,11 +576,16 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   child: TextFormField(
                     controller: _priceController,
                     decoration: InputDecoration(
-                      prefixIcon: Padding(padding: const EdgeInsets.all(8.0), child: Image.asset('assets/icons/money.png', width: 24)),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Image.asset('assets/icons/money.png', width: 24),
+                      ),
                       hintText: 'ราคา',
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     keyboardType: TextInputType.number,
                   ),
@@ -419,7 +603,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 hintText: 'บันทึกการรักษา (ถ้ามี)',
                 filled: true,
                 fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               maxLines: 3,
             ),
@@ -434,18 +620,31 @@ class _TreatmentFormState extends State<TreatmentForm> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orangeAccent.shade100,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
                     ),
-                    child: treatmentProvider.isLoading
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black54))
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.asset('assets/icons/save.png', width: 24, height: 24),
-                              const SizedBox(width: 8),
-                              const Text('บันทึก'),
-                            ],
-                          ),
+                    child:
+                        treatmentProvider.isLoading
+                            ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.black54,
+                              ),
+                            )
+                            : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Image.asset(
+                                  'assets/icons/save.png',
+                                  width: 24,
+                                  height: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text('บันทึก'),
+                              ],
+                            ),
                   ),
                 ),
                 if (_isEditing) ...[
@@ -453,31 +652,44 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
-                        final success = await treatmentProvider.deleteTreatment(widget.patientId, widget.treatment!.id);
+                        final success = await treatmentProvider.deleteTreatment(
+                          widget.patientId,
+                          widget.treatment!.id,
+                        );
                         if (success && context.mounted) {
                           Navigator.pop(context, true);
                         } else if (!success && context.mounted) {
-                          _showErrorSnackBar(context, treatmentProvider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
+                          _showErrorSnackBar(
+                            context,
+                            treatmentProvider.error ?? 'มีบางอย่างผิดพลาดค่ะ',
+                          );
                         }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.redAccent.shade100,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
                       ),
-                      child: treatmentProvider.isLoading
-                          ? const SizedBox.shrink()
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset('assets/icons/delete.png', width: 24, height: 24),
-                                const SizedBox(width: 8),
-                                const Text('ลบ'),
-                              ],
-                            ),
+                      child:
+                          treatmentProvider.isLoading
+                              ? const SizedBox.shrink()
+                              : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/icons/delete.png',
+                                    width: 24,
+                                    height: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('ลบ'),
+                                ],
+                              ),
                     ),
                   ),
-                ]
+                ],
               ],
             ),
           ],
@@ -495,7 +707,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text("รูปภาพประกอบ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text(
+              "รูปภาพประกอบ",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             Container(
               decoration: BoxDecoration(
                 color: AppTheme.buttonEditBg,
@@ -510,7 +725,11 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 ],
               ),
               child: IconButton(
-                icon: Image.asset('assets/icons/x_ray.png', width: 28, height: 28),
+                icon: Image.asset(
+                  'assets/icons/x_ray.png',
+                  width: 28,
+                  height: 28,
+                ),
                 tooltip: 'เพิ่มรูปภาพ',
                 onPressed: () => _showImageSourcePicker(context),
               ),
@@ -524,23 +743,30 @@ class _TreatmentFormState extends State<TreatmentForm> {
             height: 100,
             child: GridView.builder(
               scrollDirection: Axis.horizontal,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 1, mainAxisSpacing: 8, crossAxisSpacing: 8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 1,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
               itemCount: _existingImageUrls.length + _newImages.length,
               itemBuilder: (context, index) {
                 if (index < _existingImageUrls.length) {
                   final imageUrl = _existingImageUrls[index];
                   return _buildImageThumbnail(
                     imageProvider: NetworkImage(imageUrl),
-                    onRemove: _isEditing
-                        ? () => _handleDeleteExistingImage(provider, imageUrl)
-                        : null,
+                    onRemove:
+                        _isEditing
+                            ? () =>
+                                _handleDeleteExistingImage(provider, imageUrl)
+                            : null,
                   );
                 } else {
                   final imageIndex = index - _existingImageUrls.length;
                   final imageFile = _newImages[imageIndex];
                   return _buildImageThumbnail(
                     imageProvider: FileImage(imageFile),
-                    onRemove: () => setState(() => _newImages.removeAt(imageIndex)),
+                    onRemove:
+                        () => setState(() => _newImages.removeAt(imageIndex)),
                   );
                 }
               },
@@ -551,7 +777,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
-  Widget _buildImageThumbnail({required ImageProvider imageProvider, required VoidCallback? onRemove}) {
+  Widget _buildImageThumbnail({
+    required ImageProvider imageProvider,
+    required VoidCallback? onRemove,
+  }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: Stack(
@@ -561,12 +790,13 @@ class _TreatmentFormState extends State<TreatmentForm> {
             width: 100,
             height: 100,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              width: 100,
-              height: 100,
-              color: Colors.grey.shade300,
-              child: const Icon(Icons.broken_image, color: Colors.white),
-            ),
+            errorBuilder:
+                (context, error, stackTrace) => Container(
+                  width: 100,
+                  height: 100,
+                  color: Colors.grey.shade300,
+                  child: const Icon(Icons.broken_image, color: Colors.white),
+                ),
           ),
           if (onRemove != null)
             Positioned(
@@ -575,7 +805,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
               child: GestureDetector(
                 onTap: onRemove,
                 child: Container(
-                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    shape: BoxShape.circle,
+                  ),
                   child: const Icon(Icons.close, color: Colors.white, size: 18),
                 ),
               ),

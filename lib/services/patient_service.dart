@@ -1,5 +1,7 @@
-// 💖 สวัสดีค่ะพี่ทะเล ไลลาแก้ไขไฟล์นี้ให้แล้วนะคะ
-// โดยการย้ายฟังก์ชัน updatePatientRating กลับเข้าไปอยู่ในบ้าน PatientService ค่ะ 😊
+// 💖 Updated by Laila — PatientService
+// - เพิ่ม getPatientNameById() และ watchPatientById() เพื่อดึง/ติดตามชื่อสะดวกขึ้น
+// - คง method ที่พี่มีไว้เดิมทั้งหมด และย้าย updatePatientRating() กลับเข้าบ้าน
+// - เพิ่มคอมเมนต์และ log ให้ดีบักง่ายขึ้น
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -7,19 +9,18 @@ import '../models/patient.dart';
 import 'medical_image_service.dart';
 
 class PatientService {
-  final CollectionReference _patientsCollection = FirebaseFirestore.instance.collection('patients');
+  static const String _collectionName = 'patients';
+  final CollectionReference _patientsCollection =
+      FirebaseFirestore.instance.collection(_collectionName);
   final MedicalImageService _medicalImageService = MedicalImageService();
 
+  // ---------- Read ----------
   Future<List<Patient>> fetchPatientsOnce() async {
     try {
       final snapshot = await _patientsCollection.orderBy('name').get();
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['docId'] = doc.id;
-        return Patient.fromMap(data);
-      }).toList();
+      return snapshot.docs.map(_mapDocToPatient).toList();
     } catch (e) {
-      debugPrint("เกิดข้อผิดพลาดในการดึงข้อมูลคนไข้: $e");
+      debugPrint('❌ fetchPatientsOnce error: $e');
       return [];
     }
   }
@@ -28,24 +29,38 @@ class PatientService {
     if (patientId.isEmpty) return null;
     try {
       final doc = await _patientsCollection.doc(patientId).get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['docId'] = doc.id;
-        return Patient.fromMap(data);
-      }
-      return null;
+      if (!doc.exists) return null;
+      return _mapDocToPatient(doc);
     } catch (e) {
-      debugPrint("เกิดข้อผิดพลาดในการดึงข้อมูลคนไข้ด้วย ID: $e");
+      debugPrint('❌ getPatientById($patientId) error: $e');
       return null;
     }
   }
 
+  /// ดึงเฉพาะ "ชื่อ" สะดวกใช้ในฟอร์ม/ใบเสร็จ
+  Future<String?> getPatientNameById(String patientId) async {
+    final p = await getPatientById(patientId);
+    final name = p?.name.trim();
+    if (name == null || name.isEmpty) return null;
+    return name;
+  }
+
+  /// ติดตามข้อมูลคนไข้แบบเรียลไทม์ (สะดวกกับหน้าบัตรคนไข้)
+  Stream<Patient?> watchPatientById(String patientId) {
+    if (patientId.isEmpty) return const Stream.empty();
+    return _patientsCollection.doc(patientId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return _mapDocToPatient(doc);
+    });
+  }
+
+  // ---------- Create ----------
   Future<void> addPatient(Patient patient) async {
     try {
       final newHnNumber = await _generateNewHN();
-      
+
       final patientWithHn = Patient(
-        patientId: '',
+        patientId: '', // จะใส่ docId ตอนอ่านกลับด้วย _mapDocToPatient
         name: patient.name,
         prefix: patient.prefix,
         hnNumber: newHnNumber,
@@ -55,14 +70,15 @@ class PatientService {
         birthDate: patient.birthDate,
         medicalHistory: patient.medicalHistory,
         allergy: patient.allergy,
-        rating: patient.rating, // ✨ ตอนนี้เป็น double แล้ว
+        rating: patient.rating, // double
         gender: patient.gender,
         age: patient.age,
       );
+
       await _patientsCollection.add(patientWithHn.toMap());
-      debugPrint("✅ Added new patient with HN: $newHnNumber");
+      debugPrint('✅ Added new patient with HN: $newHnNumber');
     } catch (e) {
-      debugPrint("เกิดข้อผิดพลาดในการเพิ่มคนไข้: $e");
+      debugPrint('❌ addPatient error: $e');
       rethrow;
     }
   }
@@ -90,18 +106,19 @@ class PatientService {
     return '$hnPrefix${nextNumber.toString().padLeft(4, '0')}';
   }
 
+  // ---------- Update / Delete ----------
   Future<void> updatePatient(Patient patient) async {
     try {
       await _patientsCollection.doc(patient.patientId).update(patient.toMap());
     } catch (e) {
-      debugPrint("เกิดข้อผิดพลาดในการอัปเดตคนไข้: $e");
+      debugPrint('❌ updatePatient error: $e');
       rethrow;
     }
   }
 
   Future<void> deletePatient(String patientId) async {
     if (patientId.isEmpty) {
-      throw ArgumentError("Patient ID cannot be empty.");
+      throw ArgumentError('Patient ID cannot be empty.');
     }
     try {
       final patientDocRef = _patientsCollection.doc(patientId);
@@ -110,26 +127,36 @@ class PatientService {
       await _deleteSubcollection(patientDocRef, 'medical_images');
       await patientDocRef.delete();
     } catch (e) {
-      debugPrint("เกิดข้อผิดพลาดในการลบคนไข้และข้อมูลที่เกี่ยวข้อง: $e");
+      debugPrint('❌ deletePatient error: $e');
       rethrow;
     }
   }
-  
-  Future<void> _deleteSubcollection(DocumentReference docRef, String subcollectionName) async {
-      final snapshot = await docRef.collection(subcollectionName).get();
-      final futures = snapshot.docs.map((doc) => doc.reference.delete()).toList();
-      await Future.wait(futures);
+
+  Future<void> _deleteSubcollection(
+    DocumentReference docRef,
+    String subcollectionName,
+  ) async {
+    final snapshot = await docRef.collection(subcollectionName).get();
+    final futures = snapshot.docs.map((doc) => doc.reference.delete()).toList();
+    await Future.wait(futures);
   }
 
-  // ✨ [FIXED] ย้ายเข้ามาอยู่ในบ้าน PatientService แล้วนะคะ!
+  // ---------- Rating ----------
   Future<void> updatePatientRating(String patientId, double newRating) async {
     if (patientId.isEmpty) return;
     try {
       await _patientsCollection.doc(patientId).update({'rating': newRating});
-      debugPrint("✅ Updated rating for patient $patientId to $newRating");
+      debugPrint('✅ Updated rating for patient $patientId to $newRating');
     } catch (e) {
-      debugPrint("เกิดข้อผิดพลาดในการอัปเดตคะแนนคนไข้: $e");
+      debugPrint('❌ updatePatientRating error: $e');
       rethrow;
     }
+  }
+
+  // ---------- Mapper ----------
+  Patient _mapDocToPatient(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    data['docId'] = doc.id; // ฝัง docId เข้า model ด้วย
+    return Patient.fromMap(data);
   }
 }

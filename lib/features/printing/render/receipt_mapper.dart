@@ -32,15 +32,15 @@ ReceiptModel buildReceiptModel({
   final lines = items
       .map((e) => ReceiptLine(name: e.name, qty: e.qty, price: e.price))
       .toList();
-  final _sub = subTotal ?? lines.fold<num>(0, (p, e) => p + e.qty * e.price);
-  final _grand = grandTotal ?? _sub - discount + vat;
+  final sub = subTotal ?? lines.fold<num>(0, (p, e) => p + e.qty * e.price);
+  final grand = grandTotal ?? sub - discount + vat;
 
   return ReceiptModel(
     clinic: ClinicInfo(name: clinicName, address: clinicAddress, phone: clinicPhone),
     bill: BillInfo(billNo: billNo, issuedAt: issuedAt),
     patient: PatientInfo(name: patientName, hn: hn),
     lines: lines,
-    totals: TotalSummary(subTotal: _sub, discount: discount, vat: vat, grandTotal: _grand),
+    totals: TotalSummary(subTotal: sub, discount: discount, vat: vat, grandTotal: grand),
   );
 }
 

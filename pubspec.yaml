@@ -101,6 +101,7 @@ flutter:
       - assets/icons/male.png
       - assets/icons/female.png
       - assets/icons/notes.png
+      - assets/images/logo_clinic.png
 
   #   - images/a_dot_ham.jpeg
 

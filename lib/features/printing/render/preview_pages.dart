@@ -1,16 +1,14 @@
+// lib/features/printing/render/preview_pages.dart
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
-import 'receipt_renderer.dart';
+import 'receipt_renderer_mydent.dart';
 import 'appointment_slip_renderer.dart';
 
-/// พรีวิวใบเสร็จ (80mm) และ (ออปชัน) แสดงบล็อก "นัดต่อไป" ต่อท้าย
-///
-/// หมายเหตุ: ไม่แตะลายเซ็นของ ReceiptRenderer.render()
-/// ถ้า showNextAppt == true และมี nextAppt จะเรนเดอร์ใบนัดเป็นภาพแยกแล้วแสดงต่อท้าย
+/// พรีวิว "ใบเสร็จ" — รองรับแสดงบล็อก "นัดครั้งต่อไป" ด้วย
 class ReceiptPreviewPage extends StatefulWidget {
   const ReceiptPreviewPage({
     super.key,
@@ -28,8 +26,7 @@ class ReceiptPreviewPage extends StatefulWidget {
 }
 
 class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
-  Uint8List? _pngReceipt;
-  Uint8List? _pngNextAppt;
+  Uint8List? _png;
   bool _busy = true;
 
   @override
@@ -39,73 +36,68 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   Future<void> _render() async {
-    setState(() => _busy = true);
-
-    // 1) เรนเดอร์ใบเสร็จเป็นภาพ
-    final receiptRenderer = ReceiptRenderer();
-    final receiptImg = await receiptRenderer.render(widget.receipt);
-    final receiptBytes = await receiptRenderer.toPngBytes(receiptImg);
-
-    Uint8List? apptBytes;
-
-    // 2) ถ้าต้องการแสดงบล็อกใบนัด → เรนเดอร์ใบนัดเป็นภาพแยก
-    if (widget.showNextAppt && widget.nextAppt != null) {
-      final slip = AppointmentSlipModel(
-        clinic: widget.receipt.clinic,
-        patient: widget.receipt.patient,
-        appointment: AppointmentInfo(
-          startAt: widget.nextAppt!.startAt,
-          note: widget.nextAppt!.note,
-        ),
-      );
-      final apptRenderer = AppointmentSlipRenderer();
-      final apptImg = await apptRenderer.render(slip);
-      final apptByteData = await apptImg.toByteData(format: ui.ImageByteFormat.png);
-      apptBytes = apptByteData?.buffer.asUint8List();
-    }
-
     if (!mounted) return;
-    setState(() {
-      _pngReceipt = receiptBytes;
-      _pngNextAppt = apptBytes;
-      _busy = false;
-    });
+    setState(() => _busy = true);
+    try {
+      final renderer = MyDentReceiptRenderer();
+      final img = await renderer.renderWithLogoAsset(
+        widget.receipt,
+        logoAsset:
+            'assets/images/logo_clinic.png', // ตามที่เพิ่มใน pubspec แล้ว
+        logoTargetWidthPx: 160, // กว้าง ~160px กำลังสวยบน 80mm
+        showNextAppointment:
+            (widget.showNextAppt == true) && (widget.nextAppt != null),
+        nextAppointment: widget.nextAppt,
+      );
+      final png = await renderer.toPngBytes(img);
+      if (!mounted) return;
+      setState(() {
+        _png = png;
+        _busy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      // optional: show UI message
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text('เรนเดอร์พรีวิวไม่สำเร็จ: $e')),
+      // );
+      print('Preview render failed: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('พรีวิวใบเสร็จ (80mm)')),
-      body: _busy
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: Column(
-                  children: [
-                    if (_pngReceipt != null) Image.memory(_pngReceipt!, gaplessPlayback: true),
-                    if (_pngNextAppt != null) ...[
-                      const SizedBox(height: 16),
-                      Image.memory(_pngNextAppt!, gaplessPlayback: true),
-                    ],
-                  ],
+      appBar: AppBar(title: const Text('พรีวิวใบเสร็จ (80 มม.)')),
+      body:
+          _busy
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child:
+                      _png == null
+                          ? const Text('ไม่พบภาพ')
+                          : Image.memory(_png!, gaplessPlayback: true),
                 ),
               ),
-            ),
     );
   }
 }
 
-/// พรีวิว "ใบนัด" เดี่ยว ๆ (ใช้ทดสอบเลย์เอาต์ใบนัดโดยไม่ผ่านใบเสร็จ)
+/// พรีวิว "ใบนัด" — ใช้เฉพาะโมเดลสลิป
 class AppointmentSlipPreviewPage extends StatefulWidget {
   const AppointmentSlipPreviewPage({super.key, required this.slip});
   final AppointmentSlipModel slip;
 
   @override
-  State<AppointmentSlipPreviewPage> createState() => _AppointmentSlipPreviewPageState();
+  State<AppointmentSlipPreviewPage> createState() =>
+      _AppointmentSlipPreviewPageState();
 }
 
-class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage> {
+class _AppointmentSlipPreviewPageState
+    extends State<AppointmentSlipPreviewPage> {
   Uint8List? _png;
   bool _busy = true;
 
@@ -131,16 +123,18 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('พรีวิวใบนัด')),
-      body: _busy
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: _png == null
-                    ? const Text('ไม่พบภาพ')
-                    : Image.memory(_png!, gaplessPlayback: true),
+      body:
+          _busy
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child:
+                      _png == null
+                          ? const Text('ไม่พบภาพ')
+                          : Image.memory(_png!, gaplessPlayback: true),
+                ),
               ),
-            ),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 // 🌸 Imports from our project
 import '../models/appointment_model.dart';
@@ -25,7 +26,11 @@ import 'weekly_calendar_screen.dart';
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
   final Patient? initialPatient;
-  const CalendarScreen({super.key, this.showReset = false, this.initialPatient});
+  const CalendarScreen({
+    super.key,
+    this.showReset = false,
+    this.initialPatient,
+  });
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -181,24 +186,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
         backgroundColor: AppTheme.primaryLight,
         elevation: 0,
         title: const Text('ปฏิทินนัดหมาย'),
-        actions:
-            widget.showReset
-                ? [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.developer_mode,
-                      color: AppTheme.textSecondary,
-                    ),
-                    onPressed: () async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.remove('skipLogin');
-                      if (mounted) {
-                        Navigator.pushReplacementNamed(context, '/login');
-                      }
-                    },
-                  ),
-                ]
-                : null,
+        actions: [
+          // ปุ่มรีเซ็ต (มีอยู่เดิม) — โชว์เมื่อ showReset = true
+          if (widget.showReset)
+            IconButton(
+              icon: const Icon(
+                Icons.developer_mode,
+                color: AppTheme.textSecondary,
+              ),
+              tooltip: 'ออกจากโหมดข้ามล็อกอิน',
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('skipLogin');
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
+                }
+              },
+            ),
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.bug_report, color: AppTheme.textSecondary),
+              tooltip: 'Dev Preview',
+              onPressed: () {
+                Navigator.pushNamed(context, '/dev/preview');
+              },
+            ),
+        ],
       ),
       body: ListView(
         children: [
@@ -394,9 +407,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
         onPressed:
             () => showDialog(
               context: context,
-              builder: (_) => AppointmentAddDialog(
-                  initialDate: _selectedDay,
-                  initialPatient: widget.initialPatient),
+              builder:
+                  (_) => AppointmentAddDialog(
+                    initialDate: _selectedDay,
+                    initialPatient: widget.initialPatient,
+                  ),
             ).then((value) {
               if (value == true) {
                 _handleDataChange();

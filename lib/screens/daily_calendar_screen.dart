@@ -117,6 +117,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         backgroundColor: AppTheme.primaryLight,
         elevation: 0,
         title: const Text('รายวัน'),
+        
       ),
       // 💖 [LAYOUT-FIX v2.5.3] ไลลาปรับโครงสร้างตรงนี้นะคะ
       // เราจะใช้ Column เป็น Body หลัก แล้วใช้ Expanded เพื่อให้ Timeline ยืดเต็มพื้นที่ที่เหลือ

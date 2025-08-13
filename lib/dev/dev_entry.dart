@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../features/printing/render/receipt_mapper.dart';
-import '../features/printing/render/preview_pages.dart';
+import '../features/printing/render/preview_pages.dart' as pv;
 
 class DevEntry extends StatelessWidget {
   const DevEntry({super.key});
@@ -29,9 +29,9 @@ class DevEntry extends StatelessWidget {
                 vat: 64.40,
               );
               Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => ReceiptPreviewPage(receipt: receipt)),
-              );
+  context,
+  MaterialPageRoute(builder: (_) => pv.ReceiptPreviewPage(receipt: receipt)),
+);
             },
             child: const Text('พรีวิวใบเสร็จ'),
           ),
@@ -48,9 +48,9 @@ class DevEntry extends StatelessWidget {
                 note: 'มาก่อน 10 นาที',
               );
               Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => AppointmentSlipPreviewPage(slip: slip)),
-              );
+  context,
+  MaterialPageRoute(builder: (_) => pv.AppointmentSlipPreviewPage(slip: slip)),
+);
             },
             child: const Text('พรีวิวใบนัด'),
           ),

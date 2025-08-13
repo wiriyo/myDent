@@ -61,6 +61,27 @@ AppointmentSlipModel buildAppointmentSlip({
   );
 }
 
+AppointmentInfo mapCalendarResultToApptInfo(dynamic result) {
+  if (result == null) {
+    throw ArgumentError('calendarResult is null');
+  }
+
+  DateTime startAt;
+  String? note;
+
+  if (result is Map) {
+    startAt = result['startTime'] as DateTime;
+    note = result['notes'] as String?;
+  } else {
+    // ใช้ dynamic เพื่อเลี่ยงการ import AppointmentModel (กัน path ไม่ตรง)
+    final r = result as dynamic;
+    startAt = r.startTime as DateTime;
+    note = r.notes as String?;
+  }
+
+  return AppointmentInfo(startAt: startAt, note: note);
+}
+
 /*
 // เวอร์ชันต่อยอดภายหลัง: mapper ผูกกับชนิดจริงของ MyDent
 ReceiptModel mapFromMyDent({

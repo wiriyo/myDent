@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import './receipt_model.dart'; // reuse ClinicInfo / PatientInfo
 
+
 @immutable
 class AppointmentInfo {
   final DateTime startAt;

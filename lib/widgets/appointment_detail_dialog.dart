@@ -17,7 +17,8 @@ import '../styles/app_theme.dart';
 import 'package:flutter/foundation.dart' show kDebugMode; // ซ่อนปุ่มในโปรดักชัน
 import '../features/printing/printing.dart';
 import '../features/printing/render/receipt_mapper.dart';
-import '../features/printing/render/preview_pages.dart';
+import '../features/printing/render/preview_pages.dart' as pv;
+
 
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
@@ -478,13 +479,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                     icon: const Icon(Icons.print, color: AppTheme.primary),
                     label: const Text('พรีวิวใบนัด', style: TextStyle(color: AppTheme.primary)),
                     onPressed: () async {
-                      final slip = _buildSlipFromState();
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AppointmentSlipPreviewPage(slip: slip),
-                        ),
-                      );
-                    },
+  final slip = _buildSlipFromState();
+  await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => pv.AppointmentSlipPreviewPage(slip: slip),
+    ),
+  );
+},
+
                   ),
                 ],
                 // ======================================================

@@ -8,9 +8,9 @@ import 'package:intl/intl.dart';
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart' show AppointmentInfo; // เผื่อใช้ในอนาคตสำหรับบล็อกใบนัด
 
-/// เรนเดอร์ใบเสร็จ 80 มม. ตามแบบที่พี่ทะเลกำหนด (ไม่มี VAT)
-/// โครง: โลโก้(ออปชัน) → ชื่อ/ที่อยู่/โทรคลินิก → เส้นคั่น "********" → เลขที่ (ขวา) + วันที่ (ขวา ใต้เลขที่)
-/// → ผู้รับบริการ → การรักษา → ซี่ฟัน → ค่าบริการ → เส้นคั่น → (บล็อกนัดต่อไปออปชัน) → ขอบคุณ
+/// เรนเดอร์ใบเสร็จ 80 มม. ตามรูปแบบที่คลินิกต้องการ (ไม่มี VAT)
+/// โครง: โลโก้(ออปชัน) → ชื่อ/ที่อยู่/โทรคลินิก → เส้นคั่น "*********************" →
+/// เลขที่/วันที่/เวลา/ชื่อ/หัตถการ/ค่าบริการ แบบสองคอลัมน์ → (ใบนัดครั้งถัดไปออปชัน) → ขอบคุณ
 class ReceiptRenderer {
   /// ความกว้างพิกเซลสำหรับ 80mm @ ~203dpi (บางรุ่น 576px)
   final int widthPx;
@@ -51,69 +51,91 @@ class ReceiptRenderer {
 
     // 2) เส้นคั่นดาว
     y += 6;
-    y = _drawCenter(canvas, y, _repeatChar('*', count: 32),
+    y = _drawCenter(canvas, y, _repeatChar('*', count: 21),
         style: const TextStyle(letterSpacing: 1.0));
 
-    // 3) เลขที่ (ขวา) + วันที่ (ขวา ใต้เลขที่)
-    y += 4;
-    y = _drawRight(canvas, y, 'เลขที่  ${receipt.bill.billNo}',
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600));
-    y = _drawRight(canvas, y, _formatThaiBuddhistDate(receipt.bill.issuedAt),
-        style: const TextStyle(fontSize: 16));
-
+    // 3) ข้อมูลเลขที่ / วันที่ / เวลา / ชื่อ / หัตถการ / ค่าบริการ (สองคอลัมน์)
     y += 8;
+    y = _drawTwoColumns(canvas, y,
+        left: 'เลขที่',
+        right: receipt.bill.billNo,
+        leftStyle: const TextStyle(fontSize: 16),
+        rightStyle: const TextStyle(fontSize: 16));
 
-    // 4) ผู้รับบริการ / รายการรักษา / ซี่ฟัน / ค่าบริการ
-    y = _drawLeft(canvas, y, 'ผู้รับบริการ:', style: const TextStyle(fontSize: 16));
+    final dateText = _formatThaiBuddhistDateShort(receipt.bill.issuedAt);
+    y = _drawTwoColumns(canvas, y,
+        left: 'วันที่',
+        right: dateText,
+        leftStyle: const TextStyle(fontSize: 16),
+        rightStyle: const TextStyle(fontSize: 16));
+
+    final timeText = DateFormat.Hm('th_TH').format(receipt.bill.issuedAt);
+    y = _drawTwoColumns(canvas, y,
+        left: 'เวลา',
+        right: '$timeText น.',
+        leftStyle: const TextStyle(fontSize: 16),
+        rightStyle: const TextStyle(fontSize: 16));
+
     final patientName = receipt.patient.name.trim();
-    y = _drawLeft(canvas, y, '   ${patientName.isEmpty ? '(ไม่ระบุ)' : patientName}',
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600));
+    y = _drawTwoColumns(canvas, y,
+        left: 'ชื่อ',
+        right: '',
+        leftStyle: const TextStyle(fontSize: 16),
+        rightStyle: const TextStyle(fontSize: 16));
+    y = _drawRight(canvas, y,
+        patientName.isEmpty ? '(ไม่ระบุ)' : patientName,
+        style: const TextStyle(fontSize: 18));
 
-    // ใช้บรรทัดแรกเป็นชื่อหัตถการหลัก และดึงซี่ฟันจาก (#...)
+    // ใช้บรรทัดแรกเป็นชื่อหัตถการหลัก (พร้อมซี่ฟันหากมีในวงเล็บ)
     final mainLine = receipt.lines.isNotEmpty ? receipt.lines.first : null;
-    String treatmentName = mainLine?.name ?? '';
-    String toothText = '';
-    final m = RegExp(r"\s*\(#([^\)]+)\)\s*\$").firstMatch(treatmentName);
-    if (m != null) {
-      toothText = m.group(1) ?? '';
-      treatmentName = treatmentName.replaceAll(RegExp(r"\s*\(#([^\)]+)\)\s*\$"), '').trim();
-    }
-
-    if (treatmentName.isNotEmpty) {
-      y = _drawLeft(canvas, y, 'การรักษา:  $treatmentName', style: const TextStyle(fontSize: 16));
-    }
-    if (toothText.isNotEmpty) {
-      y = _drawLeft(canvas, y, 'ซี่ฟัน:  #$toothText', style: const TextStyle(fontSize: 16));
-    }
+    final treatmentName = mainLine?.name ?? '-';
+    y = _drawTwoColumns(canvas, y,
+        left: 'หัตถการ:',
+        right: treatmentName,
+        leftStyle: const TextStyle(fontSize: 16),
+        rightStyle: const TextStyle(fontSize: 16));
 
     final num total = receipt.lines.fold<num>(0, (p, e) => p + e.qty * e.price);
-    y = _drawLeft(canvas, y, 'ค่าบริการ:  ${_formatBaht(total)} บาท',
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700));
+    y = _drawTwoColumns(canvas, y,
+        left: 'ค่าบริการ',
+        right: '${_formatBaht(total)} บาท',
+        leftStyle: const TextStyle(fontSize: 16),
+        rightStyle:
+            const TextStyle(fontSize: 18, fontWeight: FontWeight.w700));
 
-    // 5) เส้นคั่น
-    y += 8;
-    y = _drawCenter(canvas, y, _repeatChar('_', count: 34));
-
-    // 6) บล็อกนัดต่อไป (ออปชัน)
+    // 4) ใบนัดครั้งถัดไป (ออปชัน)
     if (showNextAppointment && nextAppointment != null) {
-      y = _drawCenter(canvas, y, 'นัดต่อไป', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600));
-      final nextDate = _formatThaiBuddhistDate(nextAppointment.startAt);
+      y += 18;
+      canvas.drawLine(
+          Offset(24, y), Offset(widthPx - 24, y), paint..strokeWidth = 1);
+      y += 12;
+      y = _drawCenter(canvas, y, 'ใบนัดครั้งถัดไป',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700));
+      y += 6;
+      final nextDate = _formatThaiBuddhistDateShort(nextAppointment.startAt);
       final nextTime = DateFormat.Hm('th_TH').format(nextAppointment.startAt);
-      y = _drawLeft(canvas, y, nextDate, style: const TextStyle(fontSize: 16));
-      y = _drawLeft(canvas, y, 'เวลา:  $nextTime น.', style: const TextStyle(fontSize: 16));
-      if (treatmentName.isNotEmpty) {
-        y = _drawLeft(canvas, y, 'การรักษา:  $treatmentName', style: const TextStyle(fontSize: 16));
+      y = _drawTwoColumns(canvas, y,
+          left: 'วันที่นัด',
+          right: nextDate,
+          leftStyle: const TextStyle(fontSize: 16),
+          rightStyle: const TextStyle(fontSize: 16));
+      y = _drawTwoColumns(canvas, y,
+          left: 'เวลา',
+          right: '$nextTime น.',
+          leftStyle: const TextStyle(fontSize: 16),
+          rightStyle: const TextStyle(fontSize: 16));
+      final note = nextAppointment.note?.trim();
+      if (note != null && note.isNotEmpty) {
+        y = _drawTwoColumns(canvas, y,
+            left: 'หมายเหตุ',
+            right: note,
+            leftStyle: const TextStyle(fontSize: 16),
+            rightStyle: const TextStyle(fontSize: 16));
       }
-      if (toothText.isNotEmpty) {
-        y = _drawLeft(canvas, y, 'ซี่ฟัน:  #$toothText', style: const TextStyle(fontSize: 16));
-      }
-
-      y += 4;
-      y = _drawCenter(canvas, y, _repeatChar('_', count: 30));
-      y = _drawCenter(canvas, y, 'กรุณามาก่อนนัดหมาย 10–15 นาที');
+      y += 10;
     }
 
-    // 7) Footer
+    // 5) Footer
     y += 6;
     y = _drawCenter(canvas, y, 'ขอบคุณที่ใช้บริการ');
 
@@ -139,13 +161,11 @@ class ReceiptRenderer {
     return frame.image;
   }
 
-  String _formatThaiBuddhistDate(DateTime d) {
-    // ตัวอย่าง: "อังคาร 12 สิงหาคม 2568"
-    final dowFull = DateFormat('EEEE', 'th_TH').format(d); // เช่น "วันอังคาร"
-    final dow = dowFull.replaceFirst('วัน', '').trim();
-    final dmy = DateFormat('d MMMM ', 'th_TH').format(d);
+  String _formatThaiBuddhistDateShort(DateTime d) {
+    // ตัวอย่าง: "14 ส.ค 2568"
+    final dmy = DateFormat('d MMM ', 'th_TH').format(d);
     final buddhistYear = d.year + 543;
-    return '$dow $dmy$buddhistYear';
+    return '$dmy$buddhistYear';
   }
 
   String _formatBaht(num n) => NumberFormat('#,##0.##', 'th_TH').format(n);
@@ -159,16 +179,6 @@ class ReceiptRenderer {
     )..layout(maxWidth: widthPx.toDouble());
     tp.paint(canvas, Offset((widthPx - tp.width) / 2, y));
     return y + tp.height + 4;
-  }
-
-  double _drawLeft(Canvas canvas, double y, String text, {TextStyle? style}) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: (style ?? const TextStyle()).copyWith(color: Colors.black)),
-      textAlign: TextAlign.left,
-      textDirection: ui.TextDirection.ltr,
-    )..layout(maxWidth: (widthPx - 48).toDouble());
-    tp.paint(canvas, Offset(24, y));
-    return y + tp.height + 2;
   }
 
   double _drawRight(Canvas canvas, double y, String text, {TextStyle? style}) {

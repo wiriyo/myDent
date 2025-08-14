@@ -17,7 +17,6 @@ import '../services/treatment_master_service.dart';
 import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 
-import '../features/printing/printing.dart';
 import '../features/printing/render/receipt_mapper.dart' show ReceiptLineInput, buildReceiptModel, mapCalendarResultToApptInfo;
 import '../features/printing/render/preview_pages.dart' as pv;
 import '../features/printing/domain/receipt_model.dart' as receipt; // <-- explicit type import

@@ -1,7 +1,6 @@
 // lib/features/printing/render/preview_pages.dart
 export 'appointment_slip_preview_page.dart' show AppointmentSlipPreviewPage;
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -71,7 +70,11 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       if (obj.debugNeedsPaint) {
         await WidgetsBinding.instance.endOfFrame;
       }
-      final ui.Image image = await obj.toImage(pixelRatio: 2.5);
+
+      // Use the current platform's device pixel ratio when capturing the image
+      final pixelRatio =
+          ui.PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1.0;
+      final ui.Image image = await obj.toImage(pixelRatio: pixelRatio);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (!mounted) return;
       setState(() => _lastPng = byteData!.buffer.asUint8List());

@@ -1,6 +1,5 @@
 export 'appointment_slip_preview_page.dart' show AppointmentSlipPreviewPage;
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -72,11 +71,13 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
               const Center(child: CircularProgressIndicator())
             else
               const Center(child: Text('ไม่มีภาพ')),
-            Offstage(
-              offstage: true,
-              child: RepaintBoundary(
-                key: _boundaryKey,
-                child: _ReceiptWidget(width: 576, data: data, logoBytes: _logo),
+            IgnorePointer(
+              child: Opacity(
+                opacity: 0,
+                child: RepaintBoundary(
+                  key: _boundaryKey,
+                  child: _ReceiptWidget(width: 576, data: data, logoBytes: _logo),
+                ),
               ),
             ),
           ],

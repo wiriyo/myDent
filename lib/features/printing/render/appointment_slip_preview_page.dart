@@ -3,7 +3,6 @@
 // v3 — ใบนัด 80mm พร้อมโลโก้ (assets/images/logo_clinic.png)
 //      มี RepaintBoundary จับภาพเป็น PNG ได้
 // ===============================================
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

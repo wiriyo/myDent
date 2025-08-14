@@ -1,8 +1,8 @@
 diff --git a/lib/features/printing/render/preview_pages.dart b/lib/features/printing/render/preview_pages.dart
-index 928d393d5a87bdd3f963bd85c21438f9101199d5..abfd2fdf10745a1cc7ca97e03be7ffb1e8854f04 100644
+index d87adb4bc0499f45cceddd66478efa59ba584208..c352af83fa937e04f27fc9a0c78a9ee4b0d602da 100644
 --- a/lib/features/printing/render/preview_pages.dart
 +++ b/lib/features/printing/render/preview_pages.dart
-@@ -21,84 +21,88 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
+@@ -20,82 +20,84 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
    final _boundaryKey = GlobalKey();
    Uint8List? _png;
    bool _busy = false;
@@ -60,18 +60,14 @@ index 928d393d5a87bdd3f963bd85c21438f9101199d5..abfd2fdf10745a1cc7ca97e03be7ffb1
                const Center(child: CircularProgressIndicator())
              else
                const Center(child: Text('ไม่มีภาพ')),
--            Offstage(
--              offstage: true,
--              child: RepaintBoundary(
--                key: _boundaryKey,
--                child: _ReceiptWidget(width: 576, data: data, logoBytes: _logo),
-+            IgnorePointer(
-+              child: Opacity(
+             IgnorePointer(
+               child: Opacity(
+-                opacity: 0,
 +                opacity: 0.001,
-+                child: RepaintBoundary(
-+                  key: _boundaryKey,
-+                  child: _ReceiptWidget(width: 576, data: data, logoBytes: _logo),
-+                ),
+                 child: RepaintBoundary(
+                   key: _boundaryKey,
+                   child: _ReceiptWidget(width: 576, data: data, logoBytes: _logo),
+                 ),
                ),
              ),
            ],
@@ -93,7 +89,3 @@ index 928d393d5a87bdd3f963bd85c21438f9101199d5..abfd2fdf10745a1cc7ca97e03be7ffb1
                Expanded(
                  child: ElevatedButton.icon(
                    onPressed: (_png == null || _busy) ? null : _sendToPrinter,
-                   icon: const Icon(Icons.print),
-                   label: const Text('พิมพ์'),
-                 ),
-               ),

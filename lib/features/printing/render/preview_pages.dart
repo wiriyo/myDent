@@ -42,7 +42,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       await WidgetsBinding.instance.endOfFrame;
       final obj = _boundaryKey.currentContext?.findRenderObject();
       if (obj is! RenderRepaintBoundary) throw Exception('boundary not found');
-      if (obj.debugNeedsPaint) { await WidgetsBinding.instance.endOfFrame; }
+      while (obj.debugNeedsPaint) {
+        await WidgetsBinding.instance.endOfFrame;
+      }
       final ui.Image image = await obj.toImage(pixelRatio: 2.6);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (!mounted) return; setState(() => _png = byteData!.buffer.asUint8List());
@@ -73,7 +75,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
               const Center(child: Text('ไม่มีภาพ')),
             IgnorePointer(
               child: Opacity(
-                opacity: 0,
+                opacity: 0.001,
                 child: RepaintBoundary(
                   key: _boundaryKey,
                   child: _ReceiptWidget(width: 576, data: data, logoBytes: _logo),

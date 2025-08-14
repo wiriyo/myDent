@@ -1,5 +1,6 @@
-// Receipt preview page for 80mm printer
+// Receipt preview page for 80mm printer (DEV: force _sampleData)
 
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -13,12 +14,14 @@ class ReceiptPreviewPage extends StatefulWidget {
   final dynamic receipt;
   final bool showNextAppt;
   final dynamic nextAppt;
+  final bool useSampleData; // DEV toggle to always use _sampleData
 
   const ReceiptPreviewPage({
     super.key,
     this.receipt,
     this.showNextAppt = false,
     this.nextAppt,
+    this.useSampleData = kDebugMode,
   });
 
   @override
@@ -39,9 +42,11 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   Future<void> _prepare() async {
-    final data = widget.receipt == null
+    final data = widget.useSampleData
         ? _sampleData()
-        : _mapToRenderData(widget.receipt, showNextAppt: widget.showNextAppt, nextAppt: widget.nextAppt);
+        : (widget.receipt == null
+            ? _sampleData()
+            : _mapToRenderData(widget.receipt, showNextAppt: widget.showNextAppt, nextAppt: widget.nextAppt));
 
     ByteData? logo;
     try {
@@ -70,9 +75,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         await WidgetsBinding.instance.endOfFrame;
       }
 
-      // Use the current platform's device pixel ratio when capturing the image
-      final pixelRatio =
-          ui.PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1.0;
+      final pixelRatio = ui.PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 2.2;
       final ui.Image image = await obj.toImage(pixelRatio: pixelRatio);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (!mounted) return;
@@ -143,7 +146,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   ReceiptRenderData _mapToRenderData(dynamic r, {required bool showNextAppt, dynamic nextAppt}) {
-    final clinicName = _getS(r, ['clinicName', 'clinic_name']) ?? 'คลินิกทันตกรรม';
+    final clinicName = _getS(r, ['clinicName', 'clinic_name']) ?? 'คลินิกทันตกรรมหมอกุสุมาภรณ์';
     final clinicAddr = _getS(r, ['clinicAddress', 'clinic_address', 'address']);
     final clinicTel  = _getS(r, ['clinicPhone', 'clinicTel', 'phone', 'tel']);
     final billNo     = _getS(r, ['billNo', 'receiptNo', 'bill_no', 'receipt_no']) ?? '00-001';
@@ -306,7 +309,6 @@ class _ReceiptPreviewWidget extends StatelessWidget {
   final double width;
   const _ReceiptPreviewWidget({required this.data, required this.logoBytes, required this.width});
 
-  // ความกว้างคอลัมน์ซ้ายเพื่อให้รูปแบบตรงกับใบเสร็จตัวอย่าง
   static const double _labelWidth = 200;
 
   @override

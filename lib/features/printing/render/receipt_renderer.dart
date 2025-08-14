@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
+import '../utils/th_format.dart';
 
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart' show AppointmentInfo; // เผื่อใช้ในอนาคตสำหรับบล็อกใบนัด
@@ -62,17 +63,17 @@ class ReceiptRenderer {
         leftStyle: const TextStyle(fontSize: 16),
         rightStyle: const TextStyle(fontSize: 16));
 
-    final dateText = _formatThaiBuddhistDateShort(receipt.bill.issuedAt);
+    final dateText = ThFormat.dateThai(receipt.bill.issuedAt);
     y = _drawTwoColumns(canvas, y,
         left: 'วันที่',
         right: dateText,
         leftStyle: const TextStyle(fontSize: 16),
         rightStyle: const TextStyle(fontSize: 16));
 
-    final timeText = DateFormat.Hm('th_TH').format(receipt.bill.issuedAt);
+    final timeText = ThFormat.timeThai(receipt.bill.issuedAt);
     y = _drawTwoColumns(canvas, y,
         left: 'เวลา',
-        right: '$timeText น.',
+        right: timeText,
         leftStyle: const TextStyle(fontSize: 16),
         rightStyle: const TextStyle(fontSize: 16));
 
@@ -112,8 +113,8 @@ class ReceiptRenderer {
       y = _drawCenter(canvas, y, 'ใบนัดครั้งถัดไป',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700));
       y += 6;
-      final nextDate = _formatThaiBuddhistDateShort(nextAppointment.startAt);
-      final nextTime = DateFormat.Hm('th_TH').format(nextAppointment.startAt);
+      final nextDate = ThFormat.dateThai(nextAppointment.startAt);
+      final nextTime = ThFormat.timeThai(nextAppointment.startAt);
       y = _drawTwoColumns(canvas, y,
           left: 'วันที่นัด',
           right: nextDate,
@@ -121,7 +122,7 @@ class ReceiptRenderer {
           rightStyle: const TextStyle(fontSize: 16));
       y = _drawTwoColumns(canvas, y,
           left: 'เวลา',
-          right: '$nextTime น.',
+          right: nextTime,
           leftStyle: const TextStyle(fontSize: 16),
           rightStyle: const TextStyle(fontSize: 16));
       final note = nextAppointment.note?.trim();
@@ -159,13 +160,6 @@ class ReceiptRenderer {
     );
     final frame = await codec.getNextFrame();
     return frame.image;
-  }
-
-  String _formatThaiBuddhistDateShort(DateTime d) {
-    // ตัวอย่าง: "14 ส.ค 2568"
-    final dmy = DateFormat('d MMM ', 'th_TH').format(d);
-    final buddhistYear = d.year + 543;
-    return '$dmy$buddhistYear';
   }
 
   String _formatBaht(num n) => NumberFormat('#,##0.##', 'th_TH').format(n);

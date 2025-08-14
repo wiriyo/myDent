@@ -306,6 +306,9 @@ class _ReceiptPreviewWidget extends StatelessWidget {
   final double width;
   const _ReceiptPreviewWidget({required this.data, required this.logoBytes, required this.width});
 
+  // ความกว้างคอลัมน์ซ้ายเพื่อให้รูปแบบตรงกับใบเสร็จตัวอย่าง
+  static const double _labelWidth = 200;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -380,7 +383,7 @@ class _ReceiptPreviewWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(k)),
+          SizedBox(width: _labelWidth, child: Text(k)),
           const SizedBox(width: 10),
           Expanded(child: Text(v, textAlign: TextAlign.right)),
         ],

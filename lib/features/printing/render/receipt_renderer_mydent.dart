@@ -1,5 +1,4 @@
-// lib/features/printing/render/preview_pages.dart
-export 'appointment_slip_preview_page.dart' show AppointmentSlipPreviewPage;
+// Receipt preview page for 80mm printer
 
 import 'dart:ui' as ui;
 

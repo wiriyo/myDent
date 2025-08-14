@@ -52,6 +52,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 'assets/images/tooth_logo.png',
                 height: 160,
               ),
+              const SizedBox(height: 8),
+              const Text(
+                'คลินิกทันตกรรมหมอกุสุมาภรณ์',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'โทร. 094-5639334',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                ),
+              ),
               const SizedBox(height: 12),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),

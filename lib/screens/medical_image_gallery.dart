@@ -1,6 +1,7 @@
 // lib/screens/medical_image_gallery.dart
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MedicalImageGallery extends StatelessWidget {
   final Stream<List<Map<String, dynamic>>>? imageStream;
@@ -62,24 +63,19 @@ class MedicalImageGallery extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     child: AspectRatio(
                       aspectRatio: 3 / 4,
-                      child: Image.network(
-                        image['url'] ?? '',
+                      child: CachedNetworkImage(
+                        imageUrl: image['url'] ?? '',
                         fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            color: Colors.purple.shade50,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.broken_image, size: 40),
-                          );
-                        },
+                        placeholder: (context, url) => Container(
+                          color: Colors.purple.shade50,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.broken_image, size: 40),
+                        ),
                       ),
                     ),
                   ),

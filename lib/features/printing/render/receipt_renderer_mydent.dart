@@ -1,255 +1,309 @@
 // lib/features/printing/render/receipt_renderer_mydent.dart
-import 'dart:math' as math;
+// PATCH v1.3 — แก้ assert '!debugNeedsPaint' ตอน toImage()
+// - เรียก renderView.prepareInitialFrame() ก่อน build/flush
+// - เพิ่มรอบ retry ถ้ายัง debugNeedsPaint ให้ flush อีกครั้งหลัง microtask
+// - ไม่เปลี่ยน API เดิมของ MyDentReceiptRenderer.renderPng
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
-import 'package:intl/intl.dart';
+import 'package:flutter/rendering.dart'; // ใช้ RenderView/PipelineOwner/ฯลฯ
+import 'package:flutter/services.dart';
+import '../utils/th_format.dart';
 
-import '../domain/receipt_model.dart';
-import '../domain/appointment_slip_model.dart';
+/// ===== โมเดลที่ renderer ใช้ =====
+class ReceiptRenderData {
+  final String receiptNo; // YY-NNN
+  final DateTime issuedAt;
+  final String clinicName;
+  final String? clinicAddress;
+  final String? clinicTel;
+  final String patientName;
+  final List<ReceiptItem> items;
+  final num subtotal;
+  final num discount;
+  final num total;
+  final num paid;
+  final num change;
+  final NextAppointmentBlock? nextAppointment; // ออปชัน: บล็อกใบนัดถัดไป
 
-/// โหลดรูปจาก assets แล้วบีบให้กว้างตามต้องการ (พิกเซล)
-Future<ui.Image?> loadClinicLogo({
-  String assetPath = 'assets/images/logo_clinic.png',
-  int targetWidthPx = 160,
-}) async {
-  try {
-    final data = await rootBundle.load(assetPath);
-    final codec = await ui.instantiateImageCodec(
-      data.buffer.asUint8List(),
-      targetWidth: targetWidthPx,
-    );
-    final frame = await codec.getNextFrame();
-    return frame.image;
-  } catch (e) {
-    debugPrint('❌ Load clinic logo failed: $e');
-    return null;
-  }
+  ReceiptRenderData({
+    required this.receiptNo,
+    required this.issuedAt,
+    required this.clinicName,
+    this.clinicAddress,
+    this.clinicTel,
+    required this.patientName,
+    required this.items,
+    required this.subtotal,
+    required this.discount,
+    required this.total,
+    required this.paid,
+    required this.change,
+    this.nextAppointment,
+  });
+}
+
+class ReceiptItem {
+  final String name;
+  final int qty;
+  final num price; // ต่อหน่วย
+  const ReceiptItem({required this.name, required this.qty, required this.price});
+  num get lineTotal => qty * price;
+}
+
+class NextAppointmentBlock {
+  final DateTime dateTime;
+  final String? note;
+  const NextAppointmentBlock({required this.dateTime, this.note});
 }
 
 class MyDentReceiptRenderer {
-  // กว้างหน้ากระดาษ 80 มม. ส่วนมาก ~ 576px (ขึ้นกับเครื่อง/ความละเอียด)
-  static const double paperW = 576;
-  static const double pad = 24;
-  static const double lh = 32; // base line height
-
-  /// ฟังก์ชันช่วย เรียกง่าย ๆ พร้อมโหลดโลโก้จาก assets ให้เลย
-  Future<ui.Image> renderWithLogoAsset(
-    ReceiptModel model, {
-    String logoAsset = 'assets/images/logo_clinic.png',
-    int logoTargetWidthPx = 160,
-    bool showNextAppointment = false,
-    AppointmentInfo? nextAppointment,
+  /// เรนเดอร์ Widget เป็น PNG bytes (ความกว้างฐาน ~576 สำหรับ 80mm)
+  static Future<Uint8List> renderPng({
+    required ReceiptRenderData data,
+    ByteData? logoBytes,
+    double logicalWidth = 576,
+    double pixelRatio = 2.0,
+    Brightness brightness = Brightness.light,
   }) async {
-    final logo = await loadClinicLogo(
-      assetPath: logoAsset,
-      targetWidthPx: logoTargetWidthPx,
-    );
-    return render(
-      model,
-      showNextAppointment: showNextAppointment,
-      nextAppointment: nextAppointment,
-      logo: logo,
-    );
-  }
+    // ---------- Offscreen render tree ----------
+    final pipelineOwner = PipelineOwner();
+    final buildOwner = BuildOwner(focusManager: FocusManager());
 
-  /// เรนเดอร์ใบเสร็จเป็นภาพ (ใช้ในพรีวิว/พิมพ์จริงก็ได้)
-  Future<ui.Image> render(
-    ReceiptModel model, {
-    bool showNextAppointment = false,
-    AppointmentInfo? nextAppointment,
-    ui.Image? logo,
-  }) async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(
-      recorder,
-      Rect.fromLTWH(0, 0, paperW, 2200), // เว้นเผื่อความสูง แล้วค่อย crop ท้าย
+    final boundary = RenderRepaintBoundary();
+    final positioned = RenderPositionedBox(alignment: Alignment.topLeft, child: boundary);
+
+    final renderView = RenderView(
+      view: ui.PlatformDispatcher.instance.implicitView!,
+      configuration: ViewConfiguration(
+        // เวอร์ชัน Flutter ปัจจุบันอนุญาตใส่เฉพาะ devicePixelRatio ได้
+        devicePixelRatio: pixelRatio,
+      ),
+      child: positioned,
     );
 
-    // BG ขาว
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, paperW, 2200),
-      Paint()..color = Colors.white,
+    pipelineOwner.rootNode = renderView;
+    // ✅ สำคัญ: เตรียมเฟรมแรก ไม่งั้น boundary อาจยังต้อง paint อยู่
+    renderView.prepareInitialFrame();
+
+    // ---------- Build โครง Widget ----------
+    final widget = _ReceiptWidget(
+      data: data,
+      logoBytes: logoBytes,
+      width: logicalWidth,
+      brightness: brightness,
     );
 
-    double y = pad;
+    final adapter = RenderObjectToWidgetAdapter<RenderBox>(
+      container: boundary,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: MediaQuery(
+          // ให้มี metrics คร่าว ๆ สำหรับ layout ด้านใน
+          data: MediaQueryData(size: Size(logicalWidth, 2000)),
+          child: _AutoMeasureHost(width: logicalWidth, child: widget),
+        ),
+      ),
+    );
 
-    // 1) LOGO (ถ้ามี)
-    if (logo != null) {
-      final logoW = logo.width.toDouble(); // โหลดมาบีบกว้างไว้แล้วจาก helper
-      final logoH = logo.height.toDouble();
-      final dx = (paperW - logoW) / 2;
-      canvas.drawImageRect(
-        logo,
-        Rect.fromLTWH(0, 0, logo.width.toDouble(), logo.height.toDouble()),
-        Rect.fromLTWH(dx, y, logoW, logoH),
-        Paint(),
-      );
-      y += logoH + 8;
+    final element = adapter.attachToRenderTree(buildOwner);
+    buildOwner.buildScope(element);
+    buildOwner.finalizeTree();
+
+    // ---------- Flush จนพร้อม paint ----------
+    void _flushAll() {
+      pipelineOwner.flushLayout();
+      pipelineOwner.flushCompositingBits();
+      pipelineOwner.flushPaint();
     }
 
-    // 2) ส่วนหัวคลินิก (กึ่งกลาง)
-    y = _textCenter(canvas, model.clinic.name, y, 22, FontWeight.w700);
-    if (model.clinic.address.trim().isNotEmpty) {
-      y = _textCenter(canvas, model.clinic.address, y, 18, FontWeight.w400);
-    }
-    if (model.clinic.phone.trim().isNotEmpty) {
-      y = _textCenter(canvas, 'โทร. ${model.clinic.phone}', y, 18, FontWeight.w400);
-    }
+    _flushAll();
 
-    // 3) เส้นดาว
-    y += 6;
-    y = _divider(canvas, y, pattern: '****************');
-
-    // 4) กล่องมุมขวา: เลขที่ + วันที่ไทย (อยู่ด้านขวาทั้งคู่)
-    final billNoText = 'เลขที่  ${model.bill.billNo}';
-    final issuedText = _formatThaiDate(model.bill.issuedAt);
-    y += 6;
-    y = _textRight(canvas, billNoText, y, 18, FontWeight.w600);
-    y = _textRight(canvas, issuedText, y, 18, FontWeight.w400);
-    y += 8;
-
-    // 5) บล็อกผู้รับบริการ + รายการ
-    y = _kv(canvas, 'ผู้รับบริการ:', model.patient.name, y);
-
-    // ✅ สรุปรายการจากบรรทัดแรก (ดีไซน์ของพี่: 1 ไอเท็มหลัก, ไม่คิด VAT แยก)
-    final firstLine = model.lines.isNotEmpty ? model.lines.first : null;
-    final proc = firstLine?.name ?? '-';
-    final qty = firstLine?.qty ?? 1;
-    final price = firstLine?.price ?? 0;
-    final service = qty > 1 ? '$proc x$qty' : proc;
-
-    y = _kv(canvas, 'การรักษา:', service, y);
-
-    // ดึงซี่ฟันจากชื่อรายการแบบคร่าว ๆ (#11)
-    final tooth = _extractTooth(proc);
-    if (tooth != null) {
-      y = _kv(canvas, 'ซี่ฟัน:', tooth, y);
+    // ถ้ายังต้องการ paint อยู่ ให้รอ microtask แล้ว flush อีกครั้ง
+    if (boundary.debugNeedsPaint) {
+      await Future<void>.delayed(Duration.zero);
+      _flushAll();
     }
 
-    y = _kv(canvas, 'ค่าบริการ:', _formatBaht(model.totals.grandTotal), y);
-
-    // 6) เส้นคั่น
-    y += 6;
-    y = _rule(canvas, y);
-
-    // 7) บล็อก “นัดต่อไป” (ถ้าขอให้แสดง และมีข้อมูล)
-    if (showNextAppointment && nextAppointment != null) {
-      y = _textCenter(canvas, 'นัดต่อไป', y + 6, 20, FontWeight.w700);
-      y = _kv(canvas, 'วัน:', _formatThaiDate(nextAppointment.startAt), y);
-      y = _kv(canvas, 'เวลา:', _formatTime(nextAppointment.startAt), y);
-      if ((nextAppointment.note ?? '').trim().isNotEmpty) {
-        y = _kv(canvas, 'หมายเหตุ:', nextAppointment.note!.trim(), y);
-      }
-      y += 6;
-      y = _rule(canvas, y);
-    }
-
-    // 8) ข้อความกำกับท้ายบิล
-    y = _textCenter(canvas, 'กรุณามาก่อนนัดหมาย 10–15 นาที', y + 6, 18, FontWeight.w400);
-    y = _textCenter(canvas, 'ขอบคุณที่ใช้บริการ', y + 2, 18, FontWeight.w600);
-
-    // ปิดภาพ + crop ความสูงจริง
-    final picture = recorder.endRecording();
-    final img = await picture.toImage(paperW.toInt(), (y + pad).ceil());
-    return img;
-  }
-
-  /// แปลงภาพ → PNG bytes (เอาไปแสดงใน Image.memory หรือส่งพิมพ์)
-  Future<Uint8List> toPngBytes(ui.Image image) async {
+    // ---------- Snapshot เป็น PNG ----------
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
+}
 
-  // ================= helpers (วาดข้อความ/เส้น) =================
-
-  double _textCenter(Canvas c, String text, double y, double size, FontWeight w) {
-    final tp = _tp(text, size, w, TextAlign.center);
-    tp.layout(maxWidth: paperW - (pad * 2));
-    tp.paint(c, Offset(pad, y));
-    return y + math.max(lh, tp.height + 2);
-  }
-
-  double _textRight(Canvas c, String text, double y, double size, FontWeight w) {
-    final tp = _tp(text, size, w, TextAlign.right);
-    tp.layout(maxWidth: paperW - (pad * 2));
-    tp.paint(c, Offset(pad, y));
-    return y + math.max(lh, tp.height + 2);
-  }
-
-  double _kv(Canvas c, String k, String v, double y) {
-    const keyW = 140.0;
-    final tpK = _tp(k, 18, FontWeight.w600, TextAlign.left)..layout(maxWidth: keyW);
-    final tpV = _tp(v, 18, FontWeight.w400, TextAlign.left)
-      ..layout(maxWidth: paperW - pad * 2 - keyW - 8);
-
-    tpK.paint(c, Offset(pad, y));
-    tpV.paint(c, Offset(pad + keyW + 8, y));
-
-    final h = math.max(tpK.height, tpV.height);
-    return y + math.max(lh, h + 2);
-  }
-
-  double _divider(Canvas c, double y, {String pattern = '****************'}) {
-    final tp = _tp(pattern, 18, FontWeight.w600, TextAlign.center)
-      ..layout(maxWidth: paperW - pad * 2);
-    tp.paint(c, Offset(pad, y));
-    return y + math.max(lh, tp.height + 2);
-  }
-
-  double _rule(Canvas c, double y) {
-    final paint = Paint()
-      ..color = const Color(0x22000000)
-      ..strokeWidth = 1;
-    c.drawLine(Offset(pad, y), Offset(paperW - pad, y), paint);
-    return y + 8;
-  }
-
-  TextPainter _tp(String text, double size, FontWeight w, TextAlign align) {
-    return TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          fontSize: size,
-          fontWeight: w,
-          color: Colors.black,
-          height: 1.15,
-          // ถ้ามีพิมพ์ไทยเฉพาะ ให้กำหนดฟอนต์ เช่น:
-          // fontFamily: 'NotoSansThai',
+/// Host จำกัดความกว้างสลิป และคุมพื้นหลัง
+class _AutoMeasureHost extends StatelessWidget {
+  final double width;
+  final Widget child;
+  const _AutoMeasureHost({required this.width, required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Material(
+        color: Colors.white,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: width),
+            child: SizedBox(width: width, child: child),
+          ),
         ),
       ),
-      textDirection: ui.TextDirection.ltr,
-      textAlign: align,
-      // maxLines: null = ไม่จำกัดบรรทัด (จะตัดคำให้อัตโนมัติภายใน maxWidth)
-      maxLines: null,
-      ellipsis: null,
+    );
+  }
+}
+
+class _ReceiptWidget extends StatelessWidget {
+  final ReceiptRenderData data;
+  final ByteData? logoBytes;
+  final double width;
+  final Brightness brightness;
+  const _ReceiptWidget({
+    required this.data,
+    this.logoBytes,
+    required this.width,
+    required this.brightness,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final divider = Container(height: 1, color: Colors.black);
+    return Container(
+      width: width,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: DefaultTextStyle(
+        style: const TextStyle(fontSize: 22, color: Colors.black, height: 1.25),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (logoBytes != null) ...[
+              Center(
+                child: Image.memory(
+                  logoBytes!.buffer.asUint8List(),
+                  width: 180,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Center(
+              child: Text(
+                data.clinicName,
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (data.clinicAddress != null && data.clinicAddress!.trim().isNotEmpty)
+              Center(child: Text(data.clinicAddress!, textAlign: TextAlign.center)),
+            if (data.clinicTel != null && data.clinicTel!.trim().isNotEmpty)
+              Center(child: Text('โทร ${data.clinicTel!}')),
+            const SizedBox(height: 8),
+            divider,
+            const SizedBox(height: 8),
+            _kv('เลขที่ใบเสร็จ', data.receiptNo),
+            _kv('วันที่', ThFormat.dateThai(data.issuedAt)),
+            _kv('เวลา', ThFormat.timeThai(data.issuedAt)),
+            _kv('ผู้ป่วย', data.patientName),
+            const SizedBox(height: 8),
+            divider,
+            const SizedBox(height: 8),
+            _itemsTable(data.items),
+            const SizedBox(height: 6),
+            divider,
+            const SizedBox(height: 6),
+            _kv('รวมก่อนส่วนลด', ThFormat.baht(data.subtotal)),
+            _kv('ส่วนลด', ThFormat.baht(data.discount)),
+            _kvBold('รวมสุทธิ', ThFormat.baht(data.total)),
+            const SizedBox(height: 2),
+            _kv('รับเงิน', ThFormat.baht(data.paid)),
+            _kv('เงินทอน', ThFormat.baht(data.change)),
+            const SizedBox(height: 10),
+            if (data.nextAppointment != null) ...[
+              divider,
+              const SizedBox(height: 8),
+              const Center(child: Text('ใบนัดครั้งถัดไป', style: TextStyle(fontWeight: FontWeight.w700))),
+              const SizedBox(height: 6),
+              _kv('วันที่นัด', ThFormat.dateThai(data.nextAppointment!.dateTime)),
+              _kv('เวลา', ThFormat.timeThai(data.nextAppointment!.dateTime)),
+              if ((data.nextAppointment!.note ?? '').trim().isNotEmpty)
+                _kv('หมายเหตุ', data.nextAppointment!.note!),
+            ],
+            const SizedBox(height: 10),
+            const Center(child: Text('ขอบคุณที่ใช้บริการ')),
+          ],
+        ),
+      ),
     );
   }
 
-  String _formatThaiDate(DateTime dt) {
-    // ตัวอย่างที่ต้องการ: อังคาร 12 สิงหาคม 2568
-    final base = DateFormat('EEEE d MMMM yyyy', 'th_TH').format(dt);
-    final be = dt.year + 543;
-    final parts = base.split(' ');
-    if (parts.isNotEmpty) {
-      parts[parts.length - 1] = be.toString();
-    }
-    return parts.join(' ');
+  Widget _kv(String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 180, child: Text(k)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(v, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
   }
 
-  String _formatTime(DateTime dt) => '${DateFormat('HH:mm', 'th_TH').format(dt)} น.';
-
-  String _formatBaht(num n) {
-    final f = NumberFormat('#,##0.##', 'th_TH');
-    return '${f.format(n)} บาท';
+  Widget _kvBold(String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 180,
+            child: Text(k, style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              v,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  String? _extractTooth(String name) {
-    // หา #ตัวเลข เช่น #11
-    final re = RegExp(r'#\d+');
-    final m = re.firstMatch(name);
-    return m?.group(0);
+  Widget _itemsTable(List<ReceiptItem> items) {
+    return Column(
+      children: [
+        const Row(
+          children: [
+            Expanded(flex: 6, child: Text('รายการ')),
+            Expanded(flex: 2, child: Text('จำนวน', textAlign: TextAlign.right)),
+            Expanded(flex: 3, child: Text('ราคา', textAlign: TextAlign.right)),
+            Expanded(flex: 3, child: Text('รวม', textAlign: TextAlign.right)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        for (final it in items) _itemRow(it),
+      ],
+    );
+  }
+
+  Widget _itemRow(ReceiptItem it) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1.5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 6, child: Text(it.name)),
+          Expanded(flex: 2, child: Text('${it.qty}', textAlign: TextAlign.right)),
+          Expanded(flex: 3, child: Text(ThFormat.baht(it.price), textAlign: TextAlign.right)),
+          Expanded(flex: 3, child: Text(ThFormat.baht(it.lineTotal), textAlign: TextAlign.right)),
+        ],
+      ),
+    );
   }
 }

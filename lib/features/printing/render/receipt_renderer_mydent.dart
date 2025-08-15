@@ -9,12 +9,10 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
 import '../utils/th_format.dart';
 import '../services/thermal_printer_service.dart';
-// ✨ FIX: import โมเดลข้อมูลชุดใหม่เข้ามา
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
 
 class ReceiptPreviewPage extends StatefulWidget {
-  // ✨ FIX: เปลี่ยนมารับ ReceiptModel และ AppointmentInfo ที่เป็น type-safe
   final ReceiptModel? receipt;
   final AppointmentInfo? nextAppt;
   final bool useSampleData;
@@ -34,7 +32,6 @@ class ReceiptPreviewPage extends StatefulWidget {
 
 class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   final _boundaryKey = GlobalKey();
-  // ✨ FIX: เปลี่ยน state มารองรับ ReceiptModel
   ReceiptModel? _data;
   ByteData? _logo;
   Uint8List? _lastPng;
@@ -49,7 +46,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 
   Future<void> _prepare() async {
     try {
-      // ✨ IMPROVED: logic ง่ายขึ้นมาก เพราะ type ถูกต้องแล้ว
       final data = (widget.useSampleData || widget.receipt == null)
           ? _sampleData()
           : widget.receipt!;
@@ -75,7 +71,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 
   Future<ByteData?> _loadLogo() async {
     try {
-      // ✨ FIX: แก้ไข path ที่พิมพ์ผิด จาก imgaes -> images
       final data = await rootBundle.load('assets/images/logo_clinic.png');
       return data;
     } catch (e) {
@@ -151,7 +146,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                   data: renderData,
                   logo: _logo,
                   showNextAppointment: widget.showNextAppt,
-                  // ✨ FIX: ส่ง nextAppt ที่เป็น type ที่ถูกต้องลงไป
                   nextAppointment: widget.nextAppt,
                 ),
               ),
@@ -172,11 +166,10 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     );
   }
 
-  // ✨ IMPROVED: สร้าง sample data ด้วยโมเดลใหม่ สะอาดและปลอดภัยกว่าเดิม
   ReceiptModel _sampleData() {
     return ReceiptModel(
       clinic: const ClinicInfo(
-        name: 'คลินิกทันตกรรมหมอกุสุมาภรณ์',
+        name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์', // Updated for new header
         address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
         phone: '094-5639334',
       ),
@@ -203,7 +196,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 }
 
 class MyDentReceiptRenderer extends StatelessWidget {
-  // ✨ FIX: เปลี่ยนมารับโมเดลข้อมูลชุดใหม่
   final ReceiptModel data;
   final ByteData? logo;
   final bool showNextAppointment;
@@ -229,11 +221,7 @@ class MyDentReceiptRenderer extends StatelessWidget {
   }
 }
 
-// ✨ NOTE: คลาสเก่าๆ อย่าง ReceiptRenderData, ReceiptItem ถูกลบออกไปแล้ว
-// เพราะเราใช้โมเดลกลางจาก domain/receipt_model.dart แทน
-
 class _ReceiptWidget extends StatelessWidget {
-  // ✨ FIX: เปลี่ยนมารับโมเดลข้อมูลชุดใหม่
   final ReceiptModel data;
   final ByteData? logoBytes;
   final double width;
@@ -248,52 +236,69 @@ class _ReceiptWidget extends StatelessWidget {
     this.nextAppt,
   });
 
-  static const double _labelWidth = 200;
+  static const double _labelWidth = 150;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: width,
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: DefaultTextStyle(
         style: const TextStyle(fontSize: 22, color: Colors.black, height: 1.25),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center, // Center align all children
           mainAxisSize: MainAxisSize.min,
           children: [
             if (logoBytes != null) ...[
-              Center(child: Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium)),
+              Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium),
               const SizedBox(height: 6),
             ],
-            // ✨ IMPROVED: อ่านค่าจากโมเดลใหม่ทั้งหมด
-            Center(child: Text(data.clinic.name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700))),
-            if (data.clinic.address.trim().isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Center(child: Text(data.clinic.address, textAlign: TextAlign.center)),
-            ],
-            if (data.clinic.phone.trim().isNotEmpty) Center(child: Text('โทร. ${data.clinic.phone}')),
+            
+            // ✨ FIX: แยกชื่อคลินิกเป็น 2 บรรทัด
+            Text('คลินิกทันตกรรม', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            Text('หมอกุสุมาภรณ์', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            
+            const SizedBox(height: 2),
+            Text('304 ม.1 ต.หนองพอก', textAlign: TextAlign.center),
+            Text('อ.หนองพอก จ.ร้อยเอ็ด', textAlign: TextAlign.center),
+            Text('094-5639334', textAlign: TextAlign.center),
+            
             const SizedBox(height: 6),
-            const Center(child: Text('*********************')),
+            const Text('*********************'),
             const SizedBox(height: 8),
-            _kv('เลขที่', data.bill.billNo),
-            _kv('วันที่', ThFormat.dateThai(data.bill.issuedAt)),
-            _kv('เวลา', ThFormat.timeThai(data.bill.issuedAt)),
-            _kv('ชื่อ', ''),
-            Padding(padding: const EdgeInsets.only(bottom: 2), child: Align(alignment: Alignment.centerRight, child: Text(data.patient.name, textAlign: TextAlign.right))),
-            _kv('หัตถการ:', data.lines.isNotEmpty ? data.lines.first.name : '-'),
-            _kv('ค่าบริการ', ThFormat.baht(data.totals.grandTotal)),
+
+            // This Column is for the left-aligned content
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _kv('เลขที่', data.bill.billNo),
+                _kv('วันที่', ThFormat.dateThai(data.bill.issuedAt, shortYear: false)),
+                _kv('เวลา', ThFormat.timeThai(data.bill.issuedAt)),
+                _kv('ชื่อ', ''),
+                Padding(padding: const EdgeInsets.only(bottom: 2), child: Align(alignment: Alignment.centerRight, child: Text(data.patient.name, textAlign: TextAlign.right))),
+                _kv('หัตถการ:', data.lines.isNotEmpty ? data.lines.first.name : '-'),
+                _kv('ค่าบริการ', ThFormat.baht(data.totals.grandTotal)),
+              ],
+            ),
+            
             const SizedBox(height: 18),
             if (showNextAppt && nextAppt != null) ...[
-              const Divider(height: 20, thickness: 1),
-              const Center(child: Text('ใบนัดครั้งถัดไป', style: TextStyle(fontWeight: FontWeight.w700))),
+              const Divider(height: 20, thickness: 1, color: Colors.black),
+              const Text('ใบนัดครั้งถัดไป', style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              _kv('วันที่นัด', ThFormat.dateThai(nextAppt!.startAt)),
-              _kv('เวลา', ThFormat.timeThai(nextAppt!.startAt)),
-              if ((nextAppt!.note ?? '').trim().isNotEmpty) _kv('หมายเหตุ', nextAppt!.note!),
+              // This Column is for the left-aligned appointment details
+              Column(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                    _kv('วันที่นัด', ThFormat.dateThai(nextAppt!.startAt, shortYear: false)),
+                    _kv('เวลา', ThFormat.timeThai(nextAppt!.startAt)),
+                    if ((nextAppt!.note ?? '').trim().isNotEmpty) _kv('หมายเหตุ', nextAppt!.note!),
+                 ],
+              ),
               const SizedBox(height: 10),
             ],
-            const Center(child: Text('ขอบคุณที่ใช้บริการ')),
+            const Text('ขอบคุณที่ใช้บริการ'),
           ],
         ),
       ),
@@ -308,7 +313,14 @@ class _ReceiptWidget extends StatelessWidget {
         children: [
           SizedBox(width: _labelWidth, child: Text(k)),
           const SizedBox(width: 10),
-          Expanded(child: Text(v, textAlign: TextAlign.right)),
+          Expanded(
+            child: Text(
+              v,
+              textAlign: TextAlign.right,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

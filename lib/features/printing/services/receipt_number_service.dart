@@ -1,4 +1,5 @@
 // lib/features/printing/services/receipt_number_service.dart
+// บริการสำหรับจัดการเลขใบเสร็จ (Receipt Number)
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/th_format.dart';
 

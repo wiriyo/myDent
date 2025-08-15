@@ -10,7 +10,8 @@ plugins {
 
 android {
     namespace = "com.example.mydent_app"
-    compileSdk = 35
+    // compileSdk ควรเป็นเวอร์ชันล่าสุด ซึ่ง 34 ถูกต้องแล้วค่ะ
+    compileSdk = 34
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -23,20 +24,21 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.mydent_app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        // minSdkVersion ควรเป็น 21 ขึ้นไปค่ะ
+        minSdk = 21
+        
+        // ✨ FIX: นี่คือจุดที่สำคัญที่สุดค่ะ!
+        // เราจะระบุ targetSdk เป็น 34 ไปเลยตรงๆ
+        // เพื่อให้ Android รู้ว่าแอปเรารองรับ permission แบบใหม่แล้ว
+        targetSdk = 34 
+
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

@@ -1,3 +1,6 @@
+// lib/features/printing/render/receipt_renderer.dart
+// Renderer สำหรับใบเสร็จ MyDent
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:math' as math;

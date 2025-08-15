@@ -1,3 +1,6 @@
+// lib/features/printing/printing.dart
+// โมดูลสำหรับการพิมพ์ใบเสร็จและสลิป
+
 export 'domain/receipt_model.dart';
 export 'domain/appointment_slip_model.dart';
 export 'render/receipt_renderer_mydent.dart';

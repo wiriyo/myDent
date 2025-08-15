@@ -1,4 +1,6 @@
 // lib/features/printing/services/thermal_printer_service.dart
+// อัปเดตครั้งสุดท้าย: เพิ่มการขอ Permission.location โดยตรง
+
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
@@ -7,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
+import 'package:permission_handler/permission_handler.dart';
 
 class PrinterDevice {
   final String name;
@@ -24,8 +27,32 @@ class ThermalPrinterService {
   CapabilityProfile? _profile;
   Future<CapabilityProfile> _loadProfile() async => _profile ??= await CapabilityProfile.load();
 
+  // ✨ FINAL FIX: อัปเกรดฟังก์ชันขออนุญาตให้สมบูรณ์แบบที่สุด!
+  Future<bool> _requestPermissions() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      // เพิ่มการขอ Location เข้าไปโดยตรง เพราะบาง OS ผูกติดกัน
+      Permission.location, 
+    ].request();
+
+    var allGranted = true;
+    statuses.forEach((permission, status) {
+      if (status != PermissionStatus.granted) {
+        allGranted = false;
+        debugPrint('${permission.toString()} was not granted. Status: ${status.toString()}');
+      }
+    });
+
+    return allGranted;
+  }
+
   Future<List<PrinterDevice>> discoverPaired() async {
-    if (!Platform.isAndroid) return const <PrinterDevice>[]; // ขั้นนี้รองรับ Android ก่อน
+    if (!Platform.isAndroid) return const <PrinterDevice>[];
+    
+    final permissionsOk = await _requestPermissions();
+    if (!permissionsOk) return const <PrinterDevice>[];
+
     final list = await PrintBluetoothThermal.pairedBluetooths;
     return list.map((d) => PrinterDevice(name: d.name, mac: d.macAdress)).toList(growable: false);
   }
@@ -34,7 +61,12 @@ class ThermalPrinterService {
     try { return await PrintBluetoothThermal.connectionStatus; } catch (_) { return false; }
   }
 
-  Future<bool> connectByMac(String mac) async => await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+  Future<bool> connectByMac(String mac) async {
+    final permissionsOk = await _requestPermissions();
+    if (!permissionsOk) return false;
+    return await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+  }
+
   Future<void> disconnect() async { try { await PrintBluetoothThermal.disconnect; } catch (_) {} }
 
   Future<void> saveDefault(PrinterDevice d) async {
@@ -53,17 +85,29 @@ class ThermalPrinterService {
 
   Future<bool> ensureConnectedOrPick(BuildContext context) async {
     if (await isConnected()) return true;
+    
+    final permissionsOk = await _requestPermissions();
+    if (!permissionsOk) {
+      _toast(context, 'จำเป็นต้องอนุญาตการเข้าถึง Bluetooth และ Location ก่อนนะคะ');
+      return false;
+    }
+    
     final saved = await loadDefault();
     if (saved != null && await connectByMac(saved.mac)) return true;
+    
     final picked = await _showPickerDialog(context);
     if (picked == null) return false;
+    
     final ok = await connectByMac(picked.mac);
     if (ok) await saveDefault(picked);
     return ok;
   }
 
   Future<PrinterDevice?> _showPickerDialog(BuildContext context) async {
+    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     final devices = await discoverPaired();
+    if (!mounted(context)) return null;
+
     if (devices.isEmpty) {
       await showDialog<void>(
         context: context,
@@ -102,6 +146,7 @@ class ThermalPrinterService {
   }
 
   Future<void> printPng(Uint8List pngBytes, {int feed = 3, bool cut = true, PosAlign align = PosAlign.center}) async {
+    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     final profile = await _loadProfile();
     final gen = Generator(PaperSize.mm80, profile);
 
@@ -118,12 +163,27 @@ class ThermalPrinterService {
   }
 
   Future<void> ensureConnectAndPrintPng(BuildContext context, Uint8List pngBytes, {int feed = 3, bool cut = true}) async {
+    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     if (!Platform.isAndroid) { _toast(context, 'โหมดนี้รองรับ Android ก่อนนะคะ'); return; }
     final ok = await ensureConnectedOrPick(context);
+    if (!mounted(context)) return;
     if (!ok) { _toast(context, 'เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ'); return; }
     try { await printPng(pngBytes, feed: feed, cut: cut); _toast(context, 'ส่งพิมพ์เรียบร้อย'); }
     catch (e, st) { if (kDebugMode) debugPrint('print error: $e\n$st'); _toast(context, 'พิมพ์ไม่สำเร็จ: $e'); }
   }
 
-  void _toast(BuildContext context, String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _toast(BuildContext context, String msg) {
+    if (mounted(context)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
+  bool mounted(BuildContext context) {
+    try {
+      // ignore: unnecessary_null_comparison
+      return context != null && context.findRenderObject() != null;
+    } catch (e) {
+      return false;
+    }
+  }
 }

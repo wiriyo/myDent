@@ -1,4 +1,5 @@
 // lib/features/printing/utils/th_format.dart
+// Utils สำหรับจัดรูปแบบข้อมูลไทย เช่น วันที่, เวลา, จำนวนเงิน
 import 'package:intl/intl.dart';
 
 class ThFormat {

@@ -1,3 +1,5 @@
+// lib/features/printing/render/receipt_mapper.dart
+// Mapper สำหรับ ReceiptModel และ AppointmentSlipModel
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
 

@@ -5,6 +5,17 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+     <!-- เดิมมี BLUETOOTH / BLUETOOTH_ADMIN แล้ว คงไว้ได้ -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+    <!-- Android 12+ ต้องใช้สิทธิ์ใหม่ในการเชื่อมต่อ/สแกน -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+
+    <!-- บางเครื่องยังต้องใช้ตอนสแกนอุปกรณ์ที่จับคู่: -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:label="mydent_app"
         android:name="${applicationName}"

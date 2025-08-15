@@ -1,28 +1,18 @@
-// Receipt preview page for 80mm printer (DEV: force _sampleData)
-
+import 'dart:typed_data';
 import 'dart:ui' as ui;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
-
 import '../utils/th_format.dart';
+import '../services/thermal_printer_service.dart';
 
 class ReceiptPreviewPage extends StatefulWidget {
   final dynamic receipt;
   final bool showNextAppt;
   final dynamic nextAppt;
-  final bool useSampleData; // DEV toggle to always use _sampleData
-
-  const ReceiptPreviewPage({
-    super.key,
-    this.receipt,
-    this.showNextAppt = false,
-    this.nextAppt,
-    this.useSampleData = kDebugMode,
-  });
-
+  final bool useSampleData;
+  const ReceiptPreviewPage({super.key, this.receipt, this.showNextAppt = false, this.nextAppt, this.useSampleData = false});
   @override
   State<ReceiptPreviewPage> createState() => _ReceiptPreviewPageState();
 }
@@ -33,6 +23,8 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   ByteData? _logo;
   Uint8List? _lastPng;
   bool _busyCapture = false;
+  // ✨ NEW: เพิ่มตัวแปรสำหรับเช็คสถานะ loading ค่ะ
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -41,30 +33,47 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   Future<void> _prepare() async {
-    final data = widget.useSampleData
-        ? _sampleData()
-        : (widget.receipt == null
-            ? _sampleData()
-            : _mapToRenderData(widget.receipt, showNextAppt: widget.showNextAppt, nextAppt: widget.nextAppt));
-
-    ByteData? logo;
     try {
-      logo = await rootBundle.load('assets/images/logo_clinic.png');
-    } catch (_) {
-      logo = null;
-    }
+      // ✨ IMPROVED: ปรับ logic การเลือกข้อมูลให้ชัดเจนขึ้น
+      final data = (widget.useSampleData || widget.receipt == null)
+          ? _sampleData()
+          : _mapToRenderData(widget.receipt, showNextAppt: widget.showNextAppt, nextAppt: widget.nextAppt);
 
-    if (!mounted) return;
-    setState(() {
-      _data = data;
-      _logo = logo;
-    });
+      final logo = await _loadLogo();
+      if (!mounted) return;
+      
+      // พอเตรียมข้อมูลเสร็จ ก็บอกว่า loading เสร็จแล้วน้า
+      setState(() {
+        _data = data;
+        _logo = logo;
+        _isLoading = false;
+      });
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('prepare error: $e\n$st');
+      if (mounted) {
+        setState(() {
+          _data = _sampleData(); // ถ้ามีปัญหา ให้ใช้ข้อมูลตัวอย่างไปก่อน
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<ByteData?> _loadLogo() async {
+    try {
+      final data = await rootBundle.load('assets/imgaes/logo_clinic.png');
+      return data;
+    } catch (_) {
+      // ถ้าหาโลโก้ไม่เจอ จะ return null ไปเงียบๆ ค่ะ
+      return null;
+    }
   }
 
   Future<void> _capturePng() async {
     if (_busyCapture) return;
     setState(() => _busyCapture = true);
     try {
+      await Future<void>.delayed(const Duration(milliseconds: 16));
       await WidgetsBinding.instance.endOfFrame;
       final obj = _boundaryKey.currentContext?.findRenderObject();
       if (obj is! RenderRepaintBoundary) {
@@ -73,101 +82,106 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       if (obj.debugNeedsPaint) {
         await WidgetsBinding.instance.endOfFrame;
       }
-
-      final pixelRatio = ui.PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 2.2;
-      final ui.Image image = await obj.toImage(pixelRatio: pixelRatio);
+      final ui.Image image = await obj.toImage(pixelRatio: 1.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (!mounted) return;
       setState(() => _lastPng = byteData!.buffer.asUint8List());
-    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพเรียบร้อย')));
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('capture error: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('จับภาพไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('จับภาพไม่สำเร็จ: $e')));
       }
     } finally {
       if (mounted) setState(() => _busyCapture = false);
     }
   }
 
+  Future<void> _print() async {
+    if (_lastPng == null) {
+      await _capturePng();
+    }
+    if (_lastPng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
+      return;
+    }
+    await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ✨ NEW: ถ้ายัง loading อยู่ ให้โชว์วงกลมหมุนๆ น่ารักๆ ไปก่อน
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('พรีวิวใบเสร็จ')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // พอโหลดเสร็จแล้ว เรามั่นใจได้เลยว่า _data ไม่ใช่ null แน่นอน
+    final renderData = _data!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('พรีวิวใบเสร็จ (80mm)')),
+      appBar: AppBar(
+        title: const Text('พรีวิวใบเสร็จ'),
+        actions: [
+          IconButton(onPressed: _busyCapture ? null : _capturePng, icon: const Icon(Icons.image_outlined), tooltip: 'บันทึกเป็นภาพ'),
+          IconButton(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), tooltip: 'พิมพ์'),
+        ],
+      ),
       body: Center(
-        child: _data == null
-            ? const CircularProgressIndicator()
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(12),
-                child: RepaintBoundary(
-                  key: _boundaryKey,
-                  child: _ReceiptPreviewWidget(
-                    data: _data!,
-                    logoBytes: _logo,
-                    width: 576,
-                  ),
+        child: SingleChildScrollView( // ✨ Added SingleChildScrollView for long receipts
+          child: ColoredBox(
+            color: Colors.white,
+            child: RepaintBoundary(
+              key: _boundaryKey,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints.tightFor(width: 576),
+                child: MyDentReceiptRenderer(
+                  data: renderData,
+                  logo: _logo,
+                  showNextAppointment: widget.showNextAppt,
+                  nextAppointment: widget.nextAppt,
                 ),
               ),
+            ),
+          ),
+        ),
       ),
       bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _busyCapture || _data == null ? null : _capturePng,
-                  icon: const Icon(Icons.image),
-                  label: const Text('บันทึกเป็นภาพ'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: (_lastPng == null || _busyCapture) ? null : _sendToPrinter,
-                  icon: const Icon(Icons.print),
-                  label: const Text('พิมพ์'),
-                ),
-              ),
-            ],
-          ),
+        minimum: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _capturePng, icon: const Icon(Icons.image), label: const Text('บันทึกเป็นภาพ'))),
+            const SizedBox(width: 12),
+            Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), label: const Text('พิมพ์'))),
+          ],
         ),
       ),
     );
   }
-
-  Future<void> _sendToPrinter() async {
-    if (kDebugMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('สาธิต: ส่งภาพ (${_lastPng?.lengthInBytes ?? 0} bytes) ไปที่เครื่องพิมพ์')),
-      );
-    }
-  }
-
+  
+  // ... (ส่วนที่เหลือของโค้ดเหมือนเดิมค่ะ)
   ReceiptRenderData _mapToRenderData(dynamic r, {required bool showNextAppt, dynamic nextAppt}) {
-    final clinicName = _getS(r, ['clinicName', 'clinic_name']) ?? 'คลินิกทันตกรรมหมอกุสุมาภรณ์';
-    final clinicAddr = _getS(r, ['clinicAddress', 'clinic_address', 'address']);
-    final clinicTel  = _getS(r, ['clinicPhone', 'clinicTel', 'phone', 'tel']);
-    final billNo     = _getS(r, ['billNo', 'receiptNo', 'bill_no', 'receipt_no']) ?? '00-001';
-    final issuedAt   = _getDt(r, ['issuedAt', 'createdAt']) ?? DateTime.now();
-    final patient    = _getS(r, ['patientName', 'patient.name', 'name']) ?? '-';
-
-    final items = _getItems(r);
-    num subtotal = _getN(r, ['subTotal','subtotal']) ?? items.fold<num>(0, (s, it) => s + it.lineTotal);
-    final discount = _getN(r, ['discount']) ?? 0;
-    num total = _getN(r, ['grandTotal','total']) ?? (subtotal - discount);
+    String clinicName = _readString(r, ['clinicName', 'clinic_name']) ?? 'คลินิกทันตกรรมหมอกุสุมาภรณ์';
+    String? clinicAddr = _readString(r, ['clinicAddress', 'clinic_address', 'address']);
+    String? clinicTel = _readString(r, ['clinicPhone', 'clinicTel', 'phone', 'tel']);
+    String billNo = _readString(r, ['billNo', 'receiptNo', 'bill_no', 'receipt_no']) ?? '00-001';
+    DateTime issuedAt = _readDateTime(r, ['issuedAt', 'createdAt']) ?? DateTime.now();
+    String patient = _readString(r, ['patientName', 'patient.name', 'name']) ?? '-';
+    final items = _readItems(r);
+    num subtotal = _readNum(r, ['subTotal', 'subtotal']) ?? items.fold<num>(0, (s, it) => s + it.lineTotal);
+    num discount = _readNum(r, ['discount']) ?? 0;
+    num total = _readNum(r, ['grandTotal', 'total']) ?? (subtotal - discount);
     if (total < 0) total = 0;
-
-    final paid = _getN(r, ['paid']) ?? total;
-    final change = _getN(r, ['change']) ?? 0;
-
+    num paid = _readNum(r, ['paid']) ?? total;
+    num change = _readNum(r, ['change']) ?? 0;
     NextAppointmentBlock? next;
     if (showNextAppt && nextAppt != null) {
-      final dt = _getDt(nextAppt, ['startAt','start','dateTime','time']);
-      final note = _getS(nextAppt, ['note','notes','remark']);
+      final dt = _readDateTime(nextAppt, ['startAt', 'start', 'dateTime', 'time']);
+      final note = _readString(nextAppt, ['note', 'notes', 'remark']);
       if (dt != null) next = NextAppointmentBlock(dateTime: dt, note: note);
     }
-
     return ReceiptRenderData(
       receiptNo: billNo,
       issuedAt: issuedAt,
@@ -184,76 +198,103 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       nextAppointment: next,
     );
   }
-
-  String? _getS(dynamic o, List<String> keys) {
+  dynamic _maybeToMap(dynamic o) {
     if (o == null) return null;
+    if (o is Map) return o;
+    try {
+      final m = (o as dynamic).toJson();
+      if (m is Map) return m;
+    } catch (_) {}
+    return null;
+  }
+  dynamic _readPath(dynamic o, String path) {
+    dynamic cur = o;
+    for (final part in path.split('.')) {
+      if (cur == null) return null;
+      if (cur is Map) {
+        cur = cur[part];
+        continue;
+      }
+      cur = _maybeToMap(cur);
+      if (cur is Map) {
+        cur = cur[part];
+      } else {
+        return null;
+      }
+    }
+    return cur;
+  }
+  String? _readString(dynamic o, List<String> keys) {
     for (final k in keys) {
-      try {
-        if (k.contains('.')) {
-          final parts = k.split('.');
-          dynamic cur = o;
-          for (final p in parts) { cur = cur[p]; }
-          if (cur is String) return cur;
-        } else {
-          final v = (o is Map) ? o[k] : o.___noMap___;
-          if (v is String) return v;
-        }
-      } catch (_) {
-        try { final v = o.toJson?[k]; if (v is String) return v; } catch (_) {}
+      final v = _readPath(o, k);
+      if (v is String) return v;
+    }
+    return null;
+  }
+  num? _readNum(dynamic o, List<String> keys) {
+    for (final k in keys) {
+      final v = _readPath(o, k);
+      if (v is num) return v;
+      if (v is String) {
+        final p = num.tryParse(v);
+        if (p != null) return p;
       }
     }
     return null;
   }
-
-  num? _getN(dynamic o, List<String> keys) {
+  DateTime? _readDateTime(dynamic o, List<String> keys) {
     for (final k in keys) {
-      try { final v = (o is Map) ? o[k] : o.___noMap___; if (v is num) return v; } catch (_) {}
-      try { final v = o.toJson?[k]; if (v is num) return v; } catch (_) {}
+      final v = _readPath(o, k);
+      if (v is DateTime) return v;
+      if (v is String) {
+        try {
+          return DateTime.parse(v);
+        } catch (_) {}
+      }
     }
     return null;
   }
-
-  DateTime? _getDt(dynamic o, List<String> keys) {
-    for (final k in keys) {
-      try { final v = (o is Map) ? o[k] : o.___noMap___; if (v is DateTime) return v; } catch (_) {}
-      try { final v = o.toJson?[k]; if (v is DateTime) return v; } catch (_) {}
-    }
-    return null;
-  }
-
-  List<ReceiptItem> _getItems(dynamic r) {
-    dynamic raw;
-    try { raw = r.items; } catch (_) {}
-    raw ??= (r is Map ? r['items'] : null);
-    if (raw is! List) return [ReceiptItem(name: 'ค่าบริการ', qty: 1, price: 0)];
+  List<ReceiptItem> _readItems(dynamic r) {
+    dynamic raw = _readPath(r, 'items');
+    // ✨ FIX: แก้ไขเรื่อง const ให้ถูกต้องค่ะ
+    if (raw is! List || raw.isEmpty) return const [const ReceiptItem(name: 'ค่าบริการ', qty: 1, price: 0)];
     final out = <ReceiptItem>[];
     for (final it in raw) {
-      String name = '-'; int qty = 1; num price = 0;
-      try { name = it.name as String; } catch (_) { if (it is Map && it['name'] is String) name = it['name']; }
-      try { qty = (it.qty as num).toInt(); } catch (_) { if (it is Map && it['qty'] is num) qty = (it['qty'] as num).toInt(); }
-      try { price = it.price as num; } catch (_) { if (it is Map && it['price'] is num) price = it['price']; }
+      final name = _readString(it, ['name', 'title']) ?? '-';
+      final qty = (_readNum(it, ['qty', 'quantity']) ?? 1).toInt();
+      final price = _readNum(it, ['price', 'unitPrice']) ?? 0;
       out.add(ReceiptItem(name: name, qty: qty, price: price));
     }
-    return out.isEmpty ? [ReceiptItem(name: 'ค่าบริการ', qty: 1, price: 0)] : out;
+    return out;
   }
-
   ReceiptRenderData _sampleData() {
     return ReceiptRenderData(
       receiptNo: '68-001',
-      issuedAt: DateTime.now(),
+      issuedAt: DateTime(2025, 8, 15, 14, 30),
       clinicName: 'คลินิกทันตกรรมหมอกุสุมาภรณ์',
       clinicAddress: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
       clinicTel: '094-5639334',
       patientName: 'นาย อรุณ วิริโยคุณ',
-      items: [
-        const ReceiptItem(name: 'ถอน (#11)', qty: 1, price: 600),
-      ],
+      items: const [ReceiptItem(name: 'ถอน (#11)', qty: 1, price: 600)],
       subtotal: 600,
       discount: 0,
       total: 600,
       paid: 600,
       change: 0,
+      nextAppointment: NextAppointmentBlock(dateTime: DateTime(2025, 8, 22, 10, 0), note: 'ตรวจติดตามผล'),
     );
+  }
+}
+
+class MyDentReceiptRenderer extends StatelessWidget {
+  final ReceiptRenderData data;
+  final ByteData? logo;
+  final bool showNextAppointment;
+  final dynamic nextAppointment;
+  const MyDentReceiptRenderer({super.key, required this.data, this.logo, this.showNextAppointment = false, this.nextAppointment});
+  @override
+  Widget build(BuildContext context) {
+    return _ReceiptWidget(data: data, logoBytes: logo, width: 576, showNextAppt: showNextAppointment, nextAppt: nextAppointment);
   }
 }
 
@@ -271,21 +312,7 @@ class ReceiptRenderData {
   final num paid;
   final num change;
   final NextAppointmentBlock? nextAppointment;
-  const ReceiptRenderData({
-    required this.receiptNo,
-    required this.issuedAt,
-    required this.clinicName,
-    this.clinicAddress,
-    this.clinicTel,
-    required this.patientName,
-    required this.items,
-    required this.subtotal,
-    required this.discount,
-    required this.total,
-    required this.paid,
-    required this.change,
-    this.nextAppointment,
-  });
+  const ReceiptRenderData({required this.receiptNo, required this.issuedAt, required this.clinicName, this.clinicAddress, this.clinicTel, required this.patientName, required this.items, required this.subtotal, required this.discount, required this.total, required this.paid, required this.change, this.nextAppointment});
 }
 
 class ReceiptItem {
@@ -302,14 +329,14 @@ class NextAppointmentBlock {
   const NextAppointmentBlock({required this.dateTime, this.note});
 }
 
-class _ReceiptPreviewWidget extends StatelessWidget {
+class _ReceiptWidget extends StatelessWidget {
   final ReceiptRenderData data;
   final ByteData? logoBytes;
   final double width;
-  const _ReceiptPreviewWidget({required this.data, required this.logoBytes, required this.width});
-
+  final bool showNextAppt;
+  final dynamic nextAppt;
+  const _ReceiptWidget({required this.data, required this.logoBytes, required this.width, this.showNextAppt = false, this.nextAppt});
   static const double _labelWidth = 200;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -320,30 +347,18 @@ class _ReceiptPreviewWidget extends StatelessWidget {
         style: const TextStyle(fontSize: 22, color: Colors.black, height: 1.25),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // Make column only as tall as its content
           children: [
             if (logoBytes != null) ...[
-              Center(
-                child: Image.memory(
-                  logoBytes!.buffer.asUint8List(),
-                  width: 180,
-                  filterQuality: FilterQuality.medium,
-                ),
-              ),
+              Center(child: Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium)),
               const SizedBox(height: 6),
             ],
-            Center(
-              child: Text(
-                data.clinicName,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-              ),
-            ),
+            Center(child: Text(data.clinicName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700))),
             if ((data.clinicAddress ?? '').trim().isNotEmpty) ...[
               const SizedBox(height: 2),
               Center(child: Text(data.clinicAddress!, textAlign: TextAlign.center)),
             ],
-            if ((data.clinicTel ?? '').trim().isNotEmpty)
-              Center(child: Text('โทร. ${data.clinicTel!}')),
+            if ((data.clinicTel ?? '').trim().isNotEmpty) Center(child: Text('โทร. ${data.clinicTel!}')),
             const SizedBox(height: 6),
             const Center(child: Text('*********************')),
             const SizedBox(height: 8),
@@ -351,24 +366,17 @@ class _ReceiptPreviewWidget extends StatelessWidget {
             _kv('วันที่', ThFormat.dateThai(data.issuedAt)),
             _kv('เวลา', ThFormat.timeThai(data.issuedAt)),
             _kv('ชื่อ', ''),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(data.patientName, textAlign: TextAlign.right),
-              ),
-            ),
+            Padding(padding: const EdgeInsets.only(bottom: 2), child: Align(alignment: Alignment.centerRight, child: Text(data.patientName, textAlign: TextAlign.right))),
             _kv('หัตถการ:', data.items.isNotEmpty ? data.items.first.name : '-'),
             _kv('ค่าบริการ', ThFormat.baht(data.total)),
             const SizedBox(height: 18),
-            if (data.nextAppointment != null) ...[
+            if (showNextAppt && data.nextAppointment != null) ...[
               const Divider(height: 20, thickness: 1),
               const Center(child: Text('ใบนัดครั้งถัดไป', style: TextStyle(fontWeight: FontWeight.w700))),
               const SizedBox(height: 6),
               _kv('วันที่นัด', ThFormat.dateThai(data.nextAppointment!.dateTime)),
               _kv('เวลา', ThFormat.timeThai(data.nextAppointment!.dateTime)),
-              if ((data.nextAppointment!.note ?? '').trim().isNotEmpty)
-                _kv('หมายเหตุ', data.nextAppointment!.note!),
+              if ((data.nextAppointment!.note ?? '').trim().isNotEmpty) _kv('หมายเหตุ', data.nextAppointment!.note!),
               const SizedBox(height: 10),
             ],
             const Center(child: Text('ขอบคุณที่ใช้บริการ')),
@@ -377,7 +385,6 @@ class _ReceiptPreviewWidget extends StatelessWidget {
       ),
     );
   }
-
   Widget _kv(String k, String v) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1.5),

@@ -10,6 +10,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary; // สำห
 import 'package:flutter/services.dart' show rootBundle, ByteData;
 import '../utils/th_format.dart';
 import '../domain/appointment_slip_model.dart';
+import '../services/thermal_printer_service.dart';
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
   final AppointmentSlipModel slip;
@@ -99,9 +100,17 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   }
 
   Future<void> _sendToPrinter() async {
-    if (kDebugMode) {
+    if (_png == null) return;
+    try {
+      await ThermalPrinterService.instance.printImage(_png!);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('สาธิต: ส่งภาพใบนัด (${_png?.lengthInBytes ?? 0} bytes) ไปเครื่องพิมพ์')),
+        const SnackBar(content: Text('ส่งไปยังเครื่องพิมพ์เรียบร้อย')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('พิมพ์ล้มเหลว: $e')),
       );
     }
   }

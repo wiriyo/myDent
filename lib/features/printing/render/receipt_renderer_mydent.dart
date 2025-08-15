@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
 
 import '../utils/th_format.dart';
+import '../services/thermal_printer_service.dart';
 
 class ReceiptPreviewPage extends StatefulWidget {
   final dynamic receipt;
@@ -137,9 +138,17 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   Future<void> _sendToPrinter() async {
-    if (kDebugMode) {
+    if (_lastPng == null) return;
+    try {
+      await ThermalPrinterService.instance.printImage(_lastPng!);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('สาธิต: ส่งภาพ (${_lastPng?.lengthInBytes ?? 0} bytes) ไปที่เครื่องพิมพ์')),
+        const SnackBar(content: Text('ส่งไปยังเครื่องพิมพ์เรียบร้อย')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('พิมพ์ล้มเหลว: $e')),
       );
     }
   }

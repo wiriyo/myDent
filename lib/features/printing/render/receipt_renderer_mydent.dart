@@ -1,6 +1,5 @@
 // Receipt preview page for 80mm printer (DEV: force _sampleData)
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';

@@ -1,4 +1,4 @@
-// 💖 สวัสดีค่ะพี่ทะเล! ไลลาตกแต่ง Dropdown ของช่องสถานะให้โค้งมนสวยงามแล้วนะคะ 😊
+// 💖 สวัสดีค่ะพี่ทะเล! ไลลาเชื่อมต่อใบนัดเวอร์ชันใหม่ให้แล้วนะคะ 😊
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -13,11 +13,10 @@ import '../screens/treatment_add.dart';
 import '../models/appointment_model.dart';
 import '../styles/app_theme.dart';
 
-// dev mode
-import 'package:flutter/foundation.dart' show kDebugMode; // ซ่อนปุ่มในโปรดักชัน
-import '../features/printing/printing.dart';
+// ✨ FIX: import โมเดลและหน้าพรีวิวที่เราจะใช้
+import '../features/printing/domain/appointment_slip_model.dart';
+import '../features/printing/render/appointment_slip_preview_page.dart';
 import '../features/printing/render/receipt_mapper.dart';
-import '../features/printing/render/preview_pages.dart' as pv;
 
 
 class AppointmentDetailDialog extends StatefulWidget {
@@ -99,27 +98,24 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     }
   }
 
-  // ========= NEW: ตัวช่วยสร้างใบนัดจากสถานะปัจจุบัน เพื่อพรีวิว =========
   AppointmentSlipModel _buildSlipFromState() {
     final patientName = widget.patient.name;
-    final String hn = ''; // ยังไม่มี HN ในโมเดล patient ของโปรเจกต์นี้
+    final String hn = '';
     final DateTime startAt = widget.appointment.startTime;
     final String? note = _reasonController.text.trim().isEmpty
-        ? null
+        ? widget.appointment.treatment // ถ้าไม่มีโน้ต ให้ใช้ชื่อ treatment แทน
         : _reasonController.text.trim();
 
-    // TODO: เปลี่ยนเป็นข้อมูลจริงจาก Clinic settings เมื่อพร้อมต่อ state
     return buildAppointmentSlip(
-      clinicName: 'MyDent คลินิก',
-      clinicAddress: '123 ถนนสุขใจ เขตบางกะปิ กทม.',
-      clinicPhone: '02-123-4567',
+      clinicName: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+      clinicAddress: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+      clinicPhone: '094-5639334',
       patientName: patientName,
       hn: hn,
       startAt: startAt,
       note: note,
     );
   }
-  // ======================================================================
 
   void _editAppointment() {
     Navigator.pop(context);
@@ -206,7 +202,23 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       }
 
       if (mounted) {
+        // ✨ FIX: ตรวจสอบสถานะก่อน แล้วค่อยแสดงใบนัด
+        final bool shouldShowSlip = _currentStatus == 'รอยืนยัน';
+
+        // ปิด dialog นี้ก่อน
         Navigator.pop(context);
+
+        // ถ้าสถานะตรงตามเงื่อนไข ให้เปิดหน้าพรีวิวใบนัด
+        if (shouldShowSlip) {
+          final slip = _buildSlipFromState();
+          // ใช้ context ของหน้าที่เปิด dialog อยู่ (ซึ่งตอนนี้มองเห็นแล้ว)
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AppointmentSlipPreviewPage(slip: slip),
+            ),
+          );
+        }
+        
         if (_currentStatus == 'เสร็จสิ้น') {
           showTreatmentDialog(
             context,
@@ -417,12 +429,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               ],
             ),
             const SizedBox(height: 16),
-            // ✨ [UI-FIX] ตกแต่ง Dropdown ของเราให้สวยงามโค้งมนค่ะ!
             DropdownButtonFormField<String>(
               value: _currentStatus,
               items: statusOptions.map((status) => DropdownMenuItem(value: status, child: Text(status))).toList(),
               onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
-              borderRadius: BorderRadius.circular(16.0), // ทำให้เมนูที่กางออกมามนสวย
+              borderRadius: BorderRadius.circular(16.0),
               decoration: InputDecoration(
                 labelText: 'สถานะ',
                 filled: true,
@@ -459,39 +470,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         ),
       ),
       actions: [
+        // ✨ FIX: จัดกลุ่มปุ่มใหม่ให้เหลือ 3 ปุ่มหลัก
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Row(
-              children: [
-                _buildIconActionButton(iconPath: 'assets/icons/save.png', backgroundColor: AppTheme.buttonCallBg, tooltip: 'บันทึกการเปลี่ยนแปลง', onPressed: _saveChanges),
-                const SizedBox(width: 12),
-                _buildIconActionButton(iconPath: 'assets/icons/edit.png', backgroundColor: AppTheme.buttonEditBg, tooltip: 'แก้ไขนัดหมาย', onPressed: _editAppointment),
-                // ========= NEW: ปุ่มพรีวิวใบนัด (DEV เท่านั้น) =========
-                if (kDebugMode) ...[
-                  const SizedBox(width: 12),
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.95),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    icon: const Icon(Icons.print, color: AppTheme.primary),
-                    label: const Text('พรีวิวใบนัด', style: TextStyle(color: AppTheme.primary)),
-                    onPressed: () async {
-  final slip = _buildSlipFromState();
-  await Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => pv.AppointmentSlipPreviewPage(slip: slip),
-    ),
-  );
-},
-
-                  ),
-                ],
-                // ======================================================
-              ],
-            ),
+            _buildIconActionButton(iconPath: 'assets/icons/save.png', backgroundColor: AppTheme.buttonCallBg, tooltip: 'บันทึกการเปลี่ยนแปลง', onPressed: _saveChanges),
+            const SizedBox(width: 8),
+            _buildIconActionButton(iconPath: 'assets/icons/edit.png', backgroundColor: AppTheme.buttonEditBg, tooltip: 'แก้ไขนัดหมาย', onPressed: _editAppointment),
+            const SizedBox(width: 8),
             _buildIconActionButton(iconPath: 'assets/icons/delete.png', backgroundColor: AppTheme.buttonDeleteBg, tooltip: 'ลบนัดหมาย', onPressed: _deleteAppointment),
           ],
         ),
@@ -520,7 +506,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   }) {
     return SizedBox(
       height: 48,
-      width: 64,
+      width: 56,
       child: Material(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(14),

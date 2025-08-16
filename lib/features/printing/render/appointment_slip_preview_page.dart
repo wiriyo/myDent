@@ -9,14 +9,17 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
 import '../utils/th_format.dart';
 import '../domain/appointment_slip_model.dart';
-// ✨ NEW: import services ที่จำเป็นเข้ามา
+// ✨ FIX: เพิ่ม import ที่ขาดไป เพื่อให้รู้จัก ClinicInfo และ PatientInfo
+import '../domain/receipt_model.dart';
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
 
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
-  final AppointmentSlipModel slip;
-  const AppointmentSlipPreviewPage({super.key, required this.slip});
+  // ทำให้ slip เป็น optional และเพิ่ม useSampleData เพื่อให้หน้านี้แสดงตัวอย่างได้ง่าย
+  final AppointmentSlipModel? slip;
+  final bool useSampleData;
+  const AppointmentSlipPreviewPage({super.key, this.slip, this.useSampleData = true});
 
   @override
   State<AppointmentSlipPreviewPage> createState() => _AppointmentSlipPreviewPageState();
@@ -24,6 +27,7 @@ class AppointmentSlipPreviewPage extends StatefulWidget {
 
 class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage> {
   final _boundaryKey = GlobalKey();
+  AppointmentSlipModel? _data;
   ByteData? _logo;
   Uint8List? _lastPng;
   bool _busyCapture = false;
@@ -37,8 +41,18 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
 
   Future<void> _prepare() async {
     try {
+      // ใช้ข้อมูลตัวอย่างถ้าถูกร้องขอ หรือถ้าไม่มีข้อมูลจริงส่งเข้ามา
+      final data = (widget.useSampleData || widget.slip == null)
+          ? _sampleData()
+          : widget.slip!;
+
       final logo = await rootBundle.load('assets/images/logo_clinic.png');
-      if (mounted) setState(() => _logo = logo);
+      if (mounted) {
+        setState(() {
+          _logo = logo;
+          _data = data; // เซ็ตข้อมูลสำหรับแสดงผล
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _logo = null);
     } finally {
@@ -48,12 +62,14 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading || _data == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('พรีวิวใบนัด')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    
+    final slipData = _data!;
 
     return Scaffold(
       appBar: AppBar(title: const Text('พรีวิวใบนัด')),
@@ -62,28 +78,45 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
           padding: const EdgeInsets.all(12),
           child: RepaintBoundary(
             key: _boundaryKey,
-            child: _SlipWidget(width: 576, slip: widget.slip, logoBytes: _logo),
+            child: _SlipWidget(width: 576, slip: slipData, logoBytes: _logo),
           ),
         ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: FilledButton.icon(
+              SizedBox(
+                width: 110,
+                height: 72,
+                child: FilledButton(
                   onPressed: _busyCapture ? null : _captureAndSavePng,
-                  icon: const Icon(Icons.image),
-                  label: const Text('บันทึกเป็นภาพ'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Color(0xFFE8F5E9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: Image.asset('assets/icons/picture.png', width: 36, height: 36),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
+              const SizedBox(width: 24),
+              SizedBox(
+                width: 110,
+                height: 72,
+                child: FilledButton(
                   onPressed: _busyCapture ? null : _print,
-                  icon: const Icon(Icons.print),
-                  label: const Text('พิมพ์'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Color(0xFFFFF3E0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: Image.asset('assets/icons/printer.png', width: 36, height: 36),
                 ),
               ),
             ],
@@ -93,7 +126,25 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     );
   }
 
-  // ✨ NEW: ฟังก์ชันสำหรับจับภาพและบันทึกลงแกลเลอรี (เหมือนใบเสร็จ)
+  // สร้างข้อมูลตัวอย่างเพื่อให้แสดงผลได้ถูกต้องตามที่ต้องการ
+  AppointmentSlipModel _sampleData() {
+    return AppointmentSlipModel(
+      clinic: const ClinicInfo(
+        name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+        address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+        phone: '094-5639334',
+      ),
+      patient: const PatientInfo(
+        name: 'คุณสมหญิง น่ารักจุง',
+        hn: 'HN54321',
+      ),
+      appointment: AppointmentInfo(
+        startAt: DateTime(2025, 8, 22, 11, 0),
+        note: 'ถอน(#21)', // หัตถการตามที่ขอ
+      ),
+    );
+  }
+
   Future<void> _captureAndSavePng() async {
     if (_busyCapture) return; setState(() => _busyCapture = true);
     try {
@@ -124,21 +175,38 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     } finally { if (mounted) setState(() => _busyCapture = false); }
   }
 
-  // ✨ NEW: ฟังก์ชันสำหรับพิมพ์ (เหมือนใบเสร็จ)
   Future<void> _print() async {
-    if (_lastPng == null) {
-      final obj = _boundaryKey.currentContext?.findRenderObject();
-      if (obj is! RenderRepaintBoundary) return;
-      final ui.Image image = await obj.toImage(pixelRatio: 2.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-      setState(() => _lastPng = byteData.buffer.asUint8List());
-    }
-    
-    if (_lastPng != null) {
-      await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
-    } else {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
+    if (_busyCapture) return;
+    setState(() => _busyCapture = true);
+
+    try {
+      if (_lastPng == null) {
+        final obj = _boundaryKey.currentContext?.findRenderObject();
+        if (obj is! RenderRepaintBoundary) return;
+        final ui.Image image = await obj.toImage(pixelRatio: 2.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData == null) return;
+        _lastPng = byteData.buffer.asUint8List();
+      }
+      
+      if (_lastPng != null) {
+        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busyCapture = false);
+      }
     }
   }
 }
@@ -172,11 +240,9 @@ class _SlipWidget extends StatelessWidget {
               const SizedBox(height: 6),
             ],
             
-            // ✨ FIX 1: เปลี่ยนส่วนหัวให้เหมือนใบเสร็จ
             Text('คลินิกทันตกรรม', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             Text('หมอกุสุมาภรณ์', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            // ✨ FIX: เปลี่ยนการแสดงผลที่อยู่ให้เหมือนใบเสร็จ
             Text('304 ม.1 ต.หนองพอก', textAlign: TextAlign.center),
             Text('อ.หนองพอก จ.ร้อยเอ็ด', textAlign: TextAlign.center),
             Text('094-5639334', textAlign: TextAlign.center),
@@ -187,11 +253,9 @@ class _SlipWidget extends StatelessWidget {
             const Text('ใบนัด', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24)),
             const SizedBox(height: 8),
 
-            // This Column is for the left-aligned content
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✨ FIX 2: เปลี่ยนการแสดงผลชื่อให้เหมือนใบเสร็จ
                 _kv('ชื่อ', ''),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
@@ -205,13 +269,13 @@ class _SlipWidget extends StatelessWidget {
                 ),
                 _kv('วันที่นัด', ThFormat.dateThai(slip.appointment.startAt, shortYear: false)),
                 _kv('เวลานัด', ThFormat.timeThai(slip.appointment.startAt)),
-                _kv('หัตถการ', slip.appointment.note!.trim()),
+                if ((slip.appointment.note ?? '').trim().isNotEmpty)
+                  _kv('หัตถการ', slip.appointment.note!.trim()),
               ],
             ),
             
             const SizedBox(height: 24),
             
-            // ✨ FIX 5: เปลี่ยนส่วนท้ายตามที่พี่ทะเลแก้ไข
             Column(
               children: [
                 Text(

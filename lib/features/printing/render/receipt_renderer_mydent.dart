@@ -81,32 +81,27 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     }
   }
 
-  // ✨ IMPROVED: อัปเกรดฟังก์ชันนี้ให้ทั้งจับภาพและบันทึกลงแกลเลอรี
   Future<void> _captureAndSavePng() async {
     if (_busyCapture) return;
     setState(() => _busyCapture = true);
     try {
-      // 1. จับภาพใบเสร็จ (เหมือนเดิม)
       final obj = _boundaryKey.currentContext?.findRenderObject();
       if (obj is! RenderRepaintBoundary) {
         throw Exception('ไม่พบ RepaintBoundary');
       }
-      final ui.Image image = await obj.toImage(pixelRatio: 2.0); // เพิ่ม pixelRatio เพื่อความคมชัด
+      final ui.Image image = await obj.toImage(pixelRatio: 2.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         throw Exception('ไม่สามารถแปลงภาพเป็นข้อมูลได้');
       }
       final pngBytes = byteData.buffer.asUint8List();
-      // เก็บภาพไว้ใน state เผื่อกดพิมพ์ต่อ
       setState(() => _lastPng = pngBytes);
 
-      // 2. เรียกใช้หน่วยปฏิบัติการพิเศษเพื่อบันทึกภาพ
       final fileName = 'MyDent-Receipt-${DateTime.now().millisecondsSinceEpoch}.png';
       final bool success = await ImageSaverService.saveImage(pngBytes, fileName);
 
       if (!mounted) return;
 
-      // 3. แจ้งผลลัพธ์ให้ผู้ใช้ทราบ
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพลงในแกลเลอรีเรียบร้อย')));
       } else {
@@ -124,21 +119,38 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 
 
   Future<void> _print() async {
-    // ถ้ายังไม่เคยจับภาพ ให้จับภาพก่อน
-    if (_lastPng == null) {
-      final obj = _boundaryKey.currentContext?.findRenderObject();
-      if (obj is! RenderRepaintBoundary) return;
-      final ui.Image image = await obj.toImage(pixelRatio: 2.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-      setState(() => _lastPng = byteData.buffer.asUint8List());
-    }
-    
-    // ถ้ามีภาพแล้ว (หรือเพิ่งจับภาพเสร็จ) ก็ส่งไปพิมพ์
-    if (_lastPng != null) {
-      await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
-    } else {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
+    if (_busyCapture) return;
+    setState(() => _busyCapture = true);
+
+    try {
+      if (_lastPng == null) {
+        final obj = _boundaryKey.currentContext?.findRenderObject();
+        if (obj is! RenderRepaintBoundary) return;
+        final ui.Image image = await obj.toImage(pixelRatio: 2.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData == null) return;
+        _lastPng = byteData.buffer.asUint8List();
+      }
+      
+      if (_lastPng != null) {
+        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
+        // ✨ FIX: กลับไปหน้าก่อนหน้าหลังจากพิมพ์
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busyCapture = false);
+      }
     }
   }
 
@@ -156,7 +168,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('พรีวิวใบเสร็จ'),
-        // ✨ FIX: ลบ actions (ปุ่มที่มุมขวาบน) ออกไป
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -178,20 +189,50 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         ),
       ),
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _captureAndSavePng, icon: const Icon(Icons.image), label: const Text('บันทึกเป็นภาพ'))),
-            const SizedBox(width: 12),
-            Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), label: const Text('พิมพ์'))),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 110,
+                height: 72,
+                child: FilledButton(
+                  onPressed: _busyCapture ? null : _captureAndSavePng,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Color(0xFFE8F5E9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: Image.asset('assets/icons/picture.png', width: 36, height: 36),
+                ),
+              ),
+              const SizedBox(width: 24),
+              SizedBox(
+                width: 110,
+                height: 72,
+                child: FilledButton(
+                  onPressed: _busyCapture ? null : _print,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Color(0xFFFFF3E0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: Image.asset('assets/icons/printer.png', width: 36, height: 36),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   ReceiptModel _sampleData() {
-    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     return ReceiptModel(
       clinic: const ClinicInfo(
         name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
@@ -220,7 +261,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 }
 
-// ... (ส่วนที่เหลือของ MyDentReceiptRenderer และ _ReceiptWidget เหมือนเดิมค่ะ)
 class MyDentReceiptRenderer extends StatelessWidget {
   final ReceiptModel data;
   final ByteData? logo;
@@ -242,7 +282,7 @@ class MyDentReceiptRenderer extends StatelessWidget {
       logoBytes: logo,
       width: 576,
       showNextAppt: showNextAppointment,
-      nextAppt: nextAppointment,
+      nextAppointment: nextAppointment,
     );
   }
 }
@@ -252,14 +292,14 @@ class _ReceiptWidget extends StatelessWidget {
   final ByteData? logoBytes;
   final double width;
   final bool showNextAppt;
-  final AppointmentInfo? nextAppt;
+  final AppointmentInfo? nextAppointment;
 
   const _ReceiptWidget({
     required this.data,
     required this.logoBytes,
     required this.width,
     this.showNextAppt = false,
-    this.nextAppt,
+    this.nextAppointment,
   });
 
   static const double _labelWidth = 150;
@@ -273,7 +313,7 @@ class _ReceiptWidget extends StatelessWidget {
       child: DefaultTextStyle(
         style: const TextStyle(fontSize: 22, color: Colors.black, height: 1.25),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center, // Center align all children
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (logoBytes != null) ...[
@@ -293,7 +333,6 @@ class _ReceiptWidget extends StatelessWidget {
             const Text('*********************'),
             const SizedBox(height: 8),
 
-            // This Column is for the left-aligned content
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -308,17 +347,16 @@ class _ReceiptWidget extends StatelessWidget {
             ),
             
             const SizedBox(height: 18),
-            if (showNextAppt && nextAppt != null) ...[
+            if (showNextAppt && nextAppointment != null) ...[
               const Divider(height: 20, thickness: 1, color: Colors.black),
               const Text('ใบนัดครั้งถัดไป', style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              // This Column is for the left-aligned appointment details
               Column(
                  crossAxisAlignment: CrossAxisAlignment.start,
                  children: [
-                    _kv('วันที่นัด', ThFormat.dateThai(nextAppt!.startAt, shortYear: false)),
-                    _kv('เวลา', ThFormat.timeThai(nextAppt!.startAt)),
-                    if ((nextAppt!.note ?? '').trim().isNotEmpty) _kv('หมายเหตุ', nextAppt!.note!),
+                    _kv('วันที่นัด', ThFormat.dateThai(nextAppointment!.startAt, shortYear: false)),
+                    _kv('เวลา', ThFormat.timeThai(nextAppointment!.startAt)),
+                    if ((nextAppointment!.note ?? '').trim().isNotEmpty) _kv('หมายเหตุ', nextAppointment!.note!),
                  ],
               ),
               const SizedBox(height: 10),

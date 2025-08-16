@@ -112,6 +112,7 @@ flutter:
       - assets/icons/notes.png
       - assets/images/logo_clinic.png
       - assets/icons/printer.png
+      - assets/icons/picture.png
 
   #   - images/a_dot_ham.jpeg
 

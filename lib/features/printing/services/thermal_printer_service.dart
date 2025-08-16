@@ -3,6 +3,7 @@
 
 import 'dart:io' show Platform;
 import 'dart:typed_data';
+// ✨ FIX: แก้ไข typo จาก package.flutter -> package:flutter ค่ะ
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';

@@ -1,5 +1,5 @@
 // lib/features/printing/render/receipt_renderer_mydent.dart
-// Renderer สำหรับใบเสร็จ MyDent (เวอร์ชันอัปเกรด)
+// Renderer สำหรับใบเสร็จ MyDent (อัปเกรด: เพิ่มฟังก์ชันบันทึกภาพลงแกลเลอรี)
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -11,6 +11,8 @@ import '../utils/th_format.dart';
 import '../services/thermal_printer_service.dart';
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
+// ✨ NEW: import หน่วยปฏิบัติการพิเศษของเราเข้ามา
+import '../services/image_saver_service.dart';
 
 class ReceiptPreviewPage extends StatefulWidget {
   final ReceiptModel? receipt;
@@ -79,40 +81,65 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     }
   }
 
-  Future<void> _capturePng() async {
+  // ✨ IMPROVED: อัปเกรดฟังก์ชันนี้ให้ทั้งจับภาพและบันทึกลงแกลเลอรี
+  Future<void> _captureAndSavePng() async {
     if (_busyCapture) return;
     setState(() => _busyCapture = true);
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 16));
-      await WidgetsBinding.instance.endOfFrame;
+      // 1. จับภาพใบเสร็จ (เหมือนเดิม)
       final obj = _boundaryKey.currentContext?.findRenderObject();
       if (obj is! RenderRepaintBoundary) {
         throw Exception('ไม่พบ RepaintBoundary');
       }
-      final ui.Image image = await obj.toImage(pixelRatio: 1.0);
+      final ui.Image image = await obj.toImage(pixelRatio: 2.0); // เพิ่ม pixelRatio เพื่อความคมชัด
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw Exception('ไม่สามารถแปลงภาพเป็นข้อมูลได้');
+      }
+      final pngBytes = byteData.buffer.asUint8List();
+      // เก็บภาพไว้ใน state เผื่อกดพิมพ์ต่อ
+      setState(() => _lastPng = pngBytes);
+
+      // 2. เรียกใช้หน่วยปฏิบัติการพิเศษเพื่อบันทึกภาพ
+      final fileName = 'MyDent-Receipt-${DateTime.now().millisecondsSinceEpoch}.png';
+      final bool success = await ImageSaverService.saveImage(pngBytes, fileName);
+
       if (!mounted) return;
-      setState(() => _lastPng = byteData!.buffer.asUint8List());
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพเรียบร้อย')));
+
+      // 3. แจ้งผลลัพธ์ให้ผู้ใช้ทราบ
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพลงในแกลเลอรีเรียบร้อย')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพไม่สำเร็จ! โปรดตรวจสอบการอนุญาต')));
+      }
     } catch (e, st) {
-      if (kDebugMode) debugPrint('capture error: $e\n$st');
+      if (kDebugMode) debugPrint('capture/save error: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('จับภาพไม่สำเร็จ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
       }
     } finally {
       if (mounted) setState(() => _busyCapture = false);
     }
   }
 
+
   Future<void> _print() async {
+    // ถ้ายังไม่เคยจับภาพ ให้จับภาพก่อน
     if (_lastPng == null) {
-      await _capturePng();
+      final obj = _boundaryKey.currentContext?.findRenderObject();
+      if (obj is! RenderRepaintBoundary) return;
+      final ui.Image image = await obj.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      setState(() => _lastPng = byteData.buffer.asUint8List());
     }
-    if (_lastPng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
-      return;
+    
+    // ถ้ามีภาพแล้ว (หรือเพิ่งจับภาพเสร็จ) ก็ส่งไปพิมพ์
+    if (_lastPng != null) {
+      await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
+    } else {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
     }
-    await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
   }
 
   @override
@@ -130,7 +157,8 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       appBar: AppBar(
         title: const Text('พรีวิวใบเสร็จ'),
         actions: [
-          IconButton(onPressed: _busyCapture ? null : _capturePng, icon: const Icon(Icons.image_outlined), tooltip: 'บันทึกเป็นภาพ'),
+          // ✨ UPDATE: เปลี่ยนให้เรียกใช้ฟังก์ชันใหม่
+          IconButton(onPressed: _busyCapture ? null : _captureAndSavePng, icon: const Icon(Icons.image_outlined), tooltip: 'บันทึกเป็นภาพ'),
           IconButton(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), tooltip: 'พิมพ์'),
         ],
       ),
@@ -157,7 +185,8 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         minimum: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _capturePng, icon: const Icon(Icons.image), label: const Text('บันทึกเป็นภาพ'))),
+            // ✨ UPDATE: เปลี่ยนให้เรียกใช้ฟังก์ชันใหม่
+            Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _captureAndSavePng, icon: const Icon(Icons.image), label: const Text('บันทึกเป็นภาพ'))),
             const SizedBox(width: 12),
             Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), label: const Text('พิมพ์'))),
           ],
@@ -167,9 +196,10 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   ReceiptModel _sampleData() {
+    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     return ReceiptModel(
       clinic: const ClinicInfo(
-        name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์', // Updated for new header
+        name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
         address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
         phone: '094-5639334',
       ),
@@ -195,6 +225,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 }
 
+// ... (ส่วนที่เหลือของ MyDentReceiptRenderer และ _ReceiptWidget เหมือนเดิมค่ะ)
 class MyDentReceiptRenderer extends StatelessWidget {
   final ReceiptModel data;
   final ByteData? logo;
@@ -255,7 +286,6 @@ class _ReceiptWidget extends StatelessWidget {
               const SizedBox(height: 6),
             ],
             
-            // ✨ FIX: แยกชื่อคลินิกเป็น 2 บรรทัด
             Text('คลินิกทันตกรรม', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             Text('หมอกุสุมาภรณ์', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             

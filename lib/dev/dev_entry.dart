@@ -64,13 +64,13 @@ class DevEntry extends StatelessWidget {
             FilledButton.tonal(
               onPressed: () {
                 final slip = buildAppointmentSlip(
-                  clinicName: 'MyDent คลินิก',
+                  clinicName: 'คลินิกหมอกุสุมาภรณ์',
                   clinicAddress: '123 ถนนสุขใจ เขตบางกะปิ กทม.',
                   clinicPhone: '02-123-4567',
                   patientName: 'คุณสมหญิง ยิ้มแย้ม',
                   hn: 'HN889900',
                   startAt: DateTime.now().add(const Duration(days: 7)),
-                  note: 'มาก่อน 10 นาที',
+                  note: 'ถอน(#21)',
                 );
                 Navigator.push(
                   context,

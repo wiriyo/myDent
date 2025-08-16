@@ -1,13 +1,18 @@
+// 💖 สวัสดีค่ะพี่ทะเล! ไลลาอัปเดตไฟล์สำหรับทดสอบสลิปแบบรวมให้แล้วนะคะ 😊
+
+// ===============================================
 // lib/dev/dev_entry.dart
-// v2 — แก้ error ใน DEV menu: buildReceiptModel ไม่มีพารามิเตอร์ paid/change
-//      ตัดออก และคง grandTotal/subTotal/discount/vat ไว้ตามสัญญาใน receipt_mapper.dart
-//      แสดงเฉพาะตอน DEBUG (kDebugMode) เท่านั้น
+// ===============================================
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 // Printing Preview pages
 import '../features/printing/render/preview_pages.dart' as pv;
+
+// Domain models needed for creating sample data
+import '../features/printing/domain/receipt_model.dart';
+import '../features/printing/domain/appointment_slip_model.dart';
 
 // Mapper สร้างโมเดลทดสอบสำหรับใบเสร็จ/ใบนัด
 import '../features/printing/render/receipt_mapper.dart';
@@ -33,9 +38,9 @@ class DevEntry extends StatelessWidget {
             FilledButton(
               onPressed: () {
                 final receipt = buildReceiptModel(
-                  clinicName: 'MyDent คลินิก',
-                  clinicAddress: '123 ถนนสุขใจ เขตบางกะปิ กทม.',
-                  clinicPhone: '02-123-4567',
+                  clinicName: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+                  clinicAddress: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+                  clinicPhone: '094-5639334',
                   billNo: '68-001',
                   issuedAt: DateTime.now(),
                   patientName: 'คุณสมชาย ใจดี',
@@ -43,16 +48,12 @@ class DevEntry extends StatelessWidget {
                     ReceiptLineInput(name: 'ขูดหินปูน', qty: 1, price: 800),
                     ReceiptLineInput(name: 'ยาสีฟัน', qty: 1, price: 120),
                   ],
-                  subTotal: 920,
-                  discount: 0,
-                  vat: 0,
-                  grandTotal: 920,
-                  // ❌ ไม่มี paid/change ในสัญญาของ buildReceiptModel — ไม่ต้องส่ง
                 );
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
+                    // ใช้ useSampleData: false เพื่อให้แสดงข้อมูลจริงที่ส่งไป
+                    builder: (_) => pv.ReceiptPreviewPage(receipt: receipt, useSampleData: false),
                   ),
                 );
               },
@@ -64,9 +65,9 @@ class DevEntry extends StatelessWidget {
             FilledButton.tonal(
               onPressed: () {
                 final slip = buildAppointmentSlip(
-                  clinicName: 'คลินิกหมอกุสุมาภรณ์',
-                  clinicAddress: '123 ถนนสุขใจ เขตบางกะปิ กทม.',
-                  clinicPhone: '02-123-4567',
+                  clinicName: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+                  clinicAddress: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+                  clinicPhone: '094-5639334',
                   patientName: 'คุณสมหญิง ยิ้มแย้ม',
                   hn: 'HN889900',
                   startAt: DateTime.now().add(const Duration(days: 7)),
@@ -75,11 +76,50 @@ class DevEntry extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => pv.AppointmentSlipPreviewPage(slip: slip),
+                    // ใช้ useSampleData: false เพื่อให้แสดงข้อมูลจริงที่ส่งไป
+                    builder: (_) => pv.AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
                   ),
                 );
               },
               child: const Text('พรีวิวใบนัด'),
+            ),
+            const SizedBox(height: 12),
+
+            // -------- ✨ NEW: พรีวิวสลิปรวม (ใบเสร็จ + ใบนัด) --------
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
+              onPressed: () {
+                // 1. สร้างข้อมูลใบเสร็จ
+                final receipt = buildReceiptModel(
+                  clinicName: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+                  clinicAddress: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+                  clinicPhone: '094-5639334',
+                  billNo: '68-002',
+                  issuedAt: DateTime.now(),
+                  patientName: 'คุณสมศักดิ์ แข็งแรง',
+                  items: const [
+                    ReceiptLineInput(name: 'อุดฟัน', qty: 1, price: 700),
+                  ],
+                );
+
+                // 2. สร้างข้อมูลนัดครั้งถัดไป
+                final nextAppointment = AppointmentInfo(
+                  startAt: DateTime.now().add(const Duration(days: 14, hours: 2)),
+                  note: 'ตรวจติดตามผลการอุดฟัน',
+                );
+
+                // 3. เปิดหน้าพรีวิวสลิปแบบรวม
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => pv.CombinedSlipPreviewPage(
+                      receipt: receipt,
+                      nextAppointment: nextAppointment,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('พรีวิวสลิปรวม (ใบเสร็จ+ใบนัด)'),
             ),
           ],
         ),

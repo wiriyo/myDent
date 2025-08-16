@@ -156,11 +156,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('พรีวิวใบเสร็จ'),
-        actions: [
-          // ✨ UPDATE: เปลี่ยนให้เรียกใช้ฟังก์ชันใหม่
-          IconButton(onPressed: _busyCapture ? null : _captureAndSavePng, icon: const Icon(Icons.image_outlined), tooltip: 'บันทึกเป็นภาพ'),
-          IconButton(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), tooltip: 'พิมพ์'),
-        ],
+        // ✨ FIX: ลบ actions (ปุ่มที่มุมขวาบน) ออกไป
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -185,7 +181,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         minimum: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // ✨ UPDATE: เปลี่ยนให้เรียกใช้ฟังก์ชันใหม่
             Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _captureAndSavePng, icon: const Icon(Icons.image), label: const Text('บันทึกเป็นภาพ'))),
             const SizedBox(width: 12),
             Expanded(child: FilledButton.icon(onPressed: _busyCapture ? null : _print, icon: const Icon(Icons.print), label: const Text('พิมพ์'))),

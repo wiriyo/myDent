@@ -1,37 +1,31 @@
 // lib/features/printing/services/image_saver_service.dart
-// หน่วยปฏิบัติการพิเศษสำหรับบันทึกภาพลงแกลเลอรี
+// หน่วยปฏิบัติการพิเศษสำหรับบันทึกภาพลงแกลเลอรี (Final Upgrade)
 
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+// ✨ NEW: import กุญแจ Master Key ดอกใหม่ของเรา!
+import 'package:gal/gal.dart';
+// permission_handler ยังต้องใช้อยู่นะคะ
 import 'package:permission_handler/permission_handler.dart';
 
 class ImageSaverService {
   /// บันทึกข้อมูลรูปภาพ (Uint8List) ลงในแกลเลอรีของอุปกรณ์
-  /// จะมีการขออนุญาตเข้าถึงที่เก็บข้อมูล (Storage/Photos) ก่อน
   static Future<bool> saveImage(Uint8List imageBytes, String fileName) async {
-    // 1. ขออนุญาตเข้าถึง Photos (สำหรับ iOS) หรือ Storage (สำหรับ Android รุ่นเก่า)
-    // สำหรับ Android รุ่นใหม่ๆ library จะจัดการให้เองค่ะ
+    // 1. ขออนุญาตเข้าถึง Photos/Storage ก่อน
+    // library 'gal' ต้องการให้เราจัดการ permission เองค่ะ
     final status = await Permission.photos.request();
-
-    if (status.isGranted || status.isLimited) {
-      try {
-        // 2. ถ้าได้รับอนุญาต ก็ทำการบันทึกภาพ
-        final result = await ImageGallerySaver.saveImage(
-          imageBytes,
-          quality: 100, // คุณภาพสูงสุด
-          name: fileName, // ตั้งชื่อไฟล์
-        );
-        debugPrint('Image save result: $result');
-        // คืนค่า true ถ้าการบันทึกสำเร็จ
-        return result['isSuccess'] ?? false;
-      } catch (e) {
-        debugPrint('Error saving image: $e');
-        return false;
-      }
-    } else {
-      // 3. ถ้าผู้ใช้ไม่อนุญาต ก็คืนค่า false
+    if (!status.isGranted && !status.isLimited) {
       debugPrint('Photos permission not granted');
+      return false;
+    }
+
+    try {
+      // 2. เรียกใช้ 'gal' เพื่อบันทึกภาพโดยตรง! ง่ายมากๆ เลยค่ะ
+      await Gal.putImageBytes(imageBytes, name: fileName);
+      debugPrint('Image saved successfully using gal!');
+      return true;
+    } catch (e) {
+      debugPrint('Error saving image with gal: $e');
       return false;
     }
   }

@@ -1,5 +1,6 @@
-// 💖 สวัสดีค่ะพี่ทะเล! ไลลาเชื่อมต่อใบนัดเวอร์ชันใหม่ให้แล้วนะคะ 😊
-
+// ----------------------------------------------------------------
+// 📁 lib/widgets/appointment_detail_dialog.dart (v1.6 - 💖 Laila's Reliable Refresh Fix!)
+// ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -12,12 +13,9 @@ import '../screens/appointment_add.dart';
 import '../screens/treatment_add.dart';
 import '../models/appointment_model.dart';
 import '../styles/app_theme.dart';
-
-// ✨ FIX: import โมเดลและหน้าพรีวิวที่เราจะใช้
 import '../features/printing/domain/appointment_slip_model.dart';
 import '../features/printing/render/appointment_slip_preview_page.dart';
 import '../features/printing/render/receipt_mapper.dart';
-
 
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
@@ -41,7 +39,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   final PatientService _patientService = PatientService();
   late String _currentStatus;
   late TextEditingController _reasonController;
-
   final List<String> statusOptions = const [
     'รอยืนยัน',
     'ยืนยันแล้ว',
@@ -125,6 +122,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         appointment: widget.appointment,
       ),
     ).then((value) {
+      // 💖 ทำให้เป็นมาตรฐานเดียวกัน คือเช็ค 'true' แล้วโหลดใหม่ค่ะ
       if (value == true) {
         widget.onDataChanged();
       }
@@ -183,6 +181,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         status: _currentStatus,
         notes: _reasonController.text.trim().isEmpty ? null : _reasonController.text.trim(),
       );
+
       await _appointmentService.updateAppointment(updatedAppointment);
 
       final currentRating = widget.patient.rating;
@@ -194,6 +193,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       if (newRating != currentRating) {
         await _patientService.updatePatientRating(widget.patient.patientId, newRating);
       }
+
       double? initialPrice;
       if (_currentStatus == 'เสร็จสิ้น') {
         final master =
@@ -202,16 +202,10 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       }
 
       if (mounted) {
-        // ✨ FIX: ตรวจสอบสถานะก่อน แล้วค่อยแสดงใบนัด
         final bool shouldShowSlip = _currentStatus == 'รอยืนยัน';
-
-        // ปิด dialog นี้ก่อน
         Navigator.pop(context);
-
-        // ถ้าสถานะตรงตามเงื่อนไข ให้เปิดหน้าพรีวิวใบนัด
         if (shouldShowSlip) {
           final slip = _buildSlipFromState();
-          // ใช้ context ของหน้าที่เปิด dialog อยู่ (ซึ่งตอนนี้มองเห็นแล้ว)
           await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => AppointmentSlipPreviewPage(slip: slip),
@@ -231,6 +225,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             initialPrice: initialPrice,
           );
         }
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),
@@ -262,7 +257,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   Widget _buildRatingStars(double rating) {
     final int fullStars = rating.floor();
     final bool hasHalfStar = (rating - fullStars) >= 0.5;
-
     return Row(
       children: List.generate(5, (index) {
         Widget toothIcon;
@@ -470,7 +464,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         ),
       ),
       actions: [
-        // ✨ FIX: จัดกลุ่มปุ่มใหม่ให้เหลือ 3 ปุ่มหลัก
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [

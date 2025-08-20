@@ -1,7 +1,4 @@
-// PATCH: treatment_form.dart — fix "ReceiptModel isn't a type" + avoid ambiguous ReceiptPreviewPage
-// 1) add explicit import for domain ReceiptModel
-// 2) alias preview_pages.dart as pv and use pv.ReceiptPreviewPage
-// 3) change _buildReceiptFromForm() return type to receipt.ReceiptModel
+// lib/screens/treatment_form.dart
 
 import 'package:flutter/material.dart';
 import 'dart:io';
@@ -19,7 +16,7 @@ import '../styles/app_theme.dart';
 
 import '../features/printing/render/receipt_mapper.dart' show ReceiptLineInput, buildReceiptModel, mapCalendarResultToApptInfo;
 import '../features/printing/render/preview_pages.dart' as pv;
-import '../features/printing/domain/receipt_model.dart' as receipt; // <-- explicit type import
+import '../features/printing/domain/receipt_model.dart' as receipt;
 
 class TreatmentForm extends StatefulWidget {
   final String patientId;
@@ -117,6 +114,17 @@ class _TreatmentFormState extends State<TreatmentForm> {
       if (name != null && name.trim().isNotEmpty) return name.trim();
     } catch (_) {}
     return '';
+  }
+
+  // ✨ NEW: ฟังก์ชันสำหรับดึงข้อมูลคนไข้ฉบับเต็ม
+  Future<Patient?> _getPatientForScheduling() async {
+    try {
+      // ใช้ PatientService เพื่อดึงข้อมูลทั้งหมดของคนไข้จาก ID
+      return await PatientService().getPatientById(widget.patientId);
+    } catch (e) {
+      debugPrint("Error fetching patient for scheduling: $e");
+      return null;
+    }
   }
 
   Future<receipt.ReceiptModel> _buildReceiptFromForm() async {
@@ -232,7 +240,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           title: const Text('นัดหมายครั้งต่อไป'),
-          content: const Text('ต้องการนัดหมายครั้งต่อไปไม่?'),
+          content: const Text('ต้องการนัดหมายครั้งต่อไปหรือไม่?'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ไม่มีนัดหมาย')),
             TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('นัดหมายครั้งต่อไป')),
@@ -244,12 +252,20 @@ class _TreatmentFormState extends State<TreatmentForm> {
       final nav = Navigator.of(context);
 
       if (shouldSchedule == true) {
+        // ✨ FIX: ดึงข้อมูลคนไข้ฉบับเต็มก่อนส่งไปหน้าปฏิทิน
+        final patientForScheduling = await _getPatientForScheduling();
+        if (patientForScheduling == null) {
+          if (mounted) _showErrorSnackBar(context, 'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้');
+          return;
+        }
+
         final receipt = await _buildReceiptFromForm();
         nav.pop(true);
         final calendarResult = await nav.pushNamed(
           '/calendar',
           arguments: {
-            'initialPatient': Patient(patientId: widget.patientId, name: widget.patientName ?? '', prefix: ''),
+            // ✨ FIX: ส่งข้อมูลคนไข้ฉบับเต็ม (ที่มี prefix) ไป
+            'initialPatient': patientForScheduling,
             'receiptDraft': receipt,
           },
         );

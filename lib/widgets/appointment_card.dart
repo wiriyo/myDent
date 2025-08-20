@@ -1,5 +1,7 @@
-// 💖 สวัสดีค่ะพี่ทะเล! ไลลาอัปเกรดการ์ดนัดหมายของเราแล้วนะคะ
-// ตอนนี้การ์ดของเราสามารถเข้าใจและแสดงผลคะแนนแบบ double ที่มีฟันสีชมพูได้แล้วค่ะ 😊
+// ----------------------------------------------------------------
+// 📁 lib/widgets/appointment_card.dart (UPGRADED)
+// v1.2.0 - 💖 แก้ไขปัญหา Overflow และปรับปรุง Layout ให้ยืดหยุ่นขึ้น
+// ----------------------------------------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -27,9 +29,7 @@ class AppointmentCard extends StatelessWidget {
     this.isShort = false,
   });
 
-  // ✨ [UPGRADED] เปลี่ยนให้รับค่า rating เป็น double และใช้ if-else แทน switch ค่ะ
   CardTheme _getCardTheme(double rating, String status) {
-    // ถ้ามีคะแนน จะใช้สีตามคะแนนเป็นหลัก
     if (rating > 0) {
       if (rating >= 4.5) {
         return (cardColor: AppTheme.rating5Star, borderColor: Colors.green.shade200);
@@ -39,7 +39,6 @@ class AppointmentCard extends StatelessWidget {
         return (cardColor: AppTheme.rating3StarAndBelow, borderColor: Colors.red.shade200);
       }
     }
-    // ถ้าไม่มีคะแนน (เป็น 0) จะใช้สีตามสถานะนัดหมาย
     return switch (status) {
       'ยืนยันแล้ว' => (
           cardColor: const Color(0xFFE8F5E9),
@@ -70,8 +69,8 @@ class AppointmentCard extends StatelessWidget {
 
     final patientName = patient.name;
     final patientPhone = patient.telephone ?? '';
-    final rating = patient.rating; // ✨ ตอนนี้เป็น double แล้ว
-    final cardTheme = _getCardTheme(rating, status); // ✨ ส่ง double เข้าไปได้เลย
+    final rating = patient.rating;
+    final cardTheme = _getCardTheme(rating, status);
 
     return InkWell(
       onTap: onTap,
@@ -95,7 +94,7 @@ class AppointmentCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               constraints: const BoxConstraints(minHeight: 90),
               child: _buildFullView(context, appointment.startTime, appointment.endTime, patientName,
-                  treatment, teeth, status, patientPhone, notes, rating, isCompact), // ✨ ส่ง double เข้าไปได้เลย
+                  treatment, teeth, status, patientPhone, notes, rating, isCompact),
             );
           },
         ),
@@ -103,7 +102,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // --- (เมธอด _buildShortView ไม่มีการเปลี่ยนแปลง) ---
   Widget _buildShortView(BuildContext context, String patientName, String treatment, String teeth, String phone, String status, BoxConstraints constraints) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -123,13 +121,16 @@ class AppointmentCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
                 ),
+                // ✨ FIX: ใช้ Flexible เพื่อให้ข้อความนี้ยืดหยุ่นและไม่ดันจนล้น
                 if (constraints.maxHeight > 38)
-                  Text(
-                    '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.black.withOpacity(0.7)),
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
+                  Flexible(
+                    child: Text(
+                      '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.black.withOpacity(0.7)),
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ),
               ],
             ),
@@ -148,7 +149,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // ✨ [UPGRADED] เปลี่ยนให้รับค่า rating เป็น double ค่ะ
   Widget _buildFullView(
       BuildContext context,
       DateTime startTime,
@@ -159,7 +159,7 @@ class AppointmentCard extends StatelessWidget {
       String status,
       String phone,
       String notes,
-      double rating, // ✨ รับเป็น double
+      double rating,
       bool isCompact) {
     final durationInMinutes = endTime.difference(startTime).inMinutes;
     final bool isLongAppointment = durationInMinutes > 60;
@@ -189,7 +189,7 @@ class AppointmentCard extends StatelessWidget {
                       textStyle: TextStyle(
                           fontWeight: FontWeight.bold, fontSize: titleSize),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2), 
                     if (isLongAppointment) ...[
                       _buildInfoRow(
                         iconAsset: 'assets/icons/clock.png',
@@ -227,7 +227,7 @@ class AppointmentCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2), 
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -250,14 +250,13 @@ class AppointmentCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.grey.shade200),
               ),
-              child: _buildRatingStars(rating), // ✨ ส่ง double เข้าไปได้เลย
+              child: _buildRatingStars(rating),
             ),
           ),
       ],
     );
   }
 
-  // --- (เมธอด _buildInfoRow, _buildStatusChip, _buildCallButton, _buildCompactCallButton, _makeCall ไม่มีการเปลี่ยนแปลง) ---
   Widget _buildInfoRow({String? iconAsset, IconData? icon, required String text, required double iconSize, Color? iconColor, TextStyle? textStyle, int maxLines = 1,}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,7 +298,6 @@ class AppointmentCard extends StatelessWidget {
     );
   }
 
-  // ✨ [UPGRADED] อัปเกรดให้แสดงผลฟันสีชมพูได้แล้วค่ะ!
   Widget _buildRatingStars(double rating) {
     final int fullStars = rating.floor();
     final bool hasHalfStar = (rating - fullStars) >= 0.5;
@@ -309,14 +307,12 @@ class AppointmentCard extends StatelessWidget {
       children: List.generate(5, (index) {
         Widget toothIcon;
         if (index < fullStars) {
-          // 🦷 ฟันดี
           toothIcon = Image.asset(
             'assets/icons/tooth_good.png',
             width: 18,
             height: 18,
           );
         } else if (index == fullStars && hasHalfStar) {
-          // 💖 ฟันอักเสบ (สีชมพู)
           toothIcon = Image.asset(
             'assets/icons/tooth_good.png',
             width: 18,
@@ -324,7 +320,6 @@ class AppointmentCard extends StatelessWidget {
             color: AppTheme.ratingInflamedTooth,
           );
         } else {
-          // 🦷 ฟันผุ
           toothIcon = Image.asset(
             'assets/icons/tooth_broke.png',
             width: 18,

@@ -1,13 +1,12 @@
-// v2.6.3 - 🐞 Fixed day-of-week label cropping issue
-// 📁 lib/screens/calendar_screen.dart
-
+// ----------------------------------------------------------------
+// 📁 lib/screens/calendar_screen.dart (v1.6 - 💖 Laila's Reliable Refresh Fix!)
+// ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
-
 // 🌸 Imports from our project
 import '../models/appointment_model.dart';
 import '../models/patient.dart';
@@ -22,10 +21,12 @@ import '../styles/app_theme.dart';
 import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart';
+import '../features/printing/domain/receipt_model.dart' as receipt;
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
   final Patient? initialPatient;
+
   const CalendarScreen({
     super.key,
     this.showReset = false,
@@ -42,21 +43,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
   Map<DateTime, List<AppointmentModel>> _events = {};
-
   List<AppointmentModel> _selectedAppointments = [];
   List<Patient> _patientsForAppointments = [];
-
   DateTime _focusedDay = DateTime.now();
   late DateTime _selectedDay;
   DayWorkingHours? _selectedDayWorkingHours;
   CalendarFormat _calendarFormat = CalendarFormat.month;
   bool _isLoading = true;
+  bool _isInitialLoad = true;
+  Patient? _chainedPatient;
+  receipt.ReceiptModel? _receiptDraft;
 
   @override
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _loadDataForMonth(_focusedDay);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInitialLoad) {
+      final arguments =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (arguments != null) {
+        _chainedPatient = arguments['initialPatient'] as Patient?;
+        _receiptDraft = arguments['receiptDraft'] as receipt.ReceiptModel?;
+      }
+      _loadDataForMonth(_focusedDay);
+      _isInitialLoad = false;
+    }
   }
 
   void _handleDataChange() {
@@ -72,7 +88,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     final firstDayOfMonth = DateTime(month.year, month.month, 1);
     final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
-
     final List<Future> fetchTasks = [];
     final Map<DateTime, List<AppointmentModel>> events = {};
 
@@ -91,18 +106,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     await Future.wait(fetchTasks);
-    _events = events;
-
+    if (!mounted) return;
+    
+    setState(() {
+      _events = events;
+    });
+    
     await _populateTimelineForDay(_selectedDay);
   }
 
   Future<void> _populateTimelineForDay(DateTime day) async {
     final dayKey = DateTime.utc(day.year, day.month, day.day);
     final appointments = _events[dayKey] ?? [];
+    
+    appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
     final patientIds = appointments.map((appt) => appt.patientId).toSet();
+    final List<Patient> patients = [];
 
-    List<Patient> patients = [];
     if (patientIds.isNotEmpty) {
       for (String id in patientIds) {
         final patient = await _patientService.getPatientById(id);
@@ -123,7 +144,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     if (!mounted) return;
-
     setState(() {
       _selectedAppointments = appointments;
       _patientsForAppointments = patients;
@@ -143,6 +163,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
       'อาทิตย์',
     ];
     return days[weekday - 1];
+  }
+
+  // 💖 ไลลาเปลี่ยนกลับมาใช้วิธีที่แน่นอนที่สุดค่ะ!
+  void _onAddAppointmentPressed() {
+    showDialog(
+      context: context,
+      builder: (_) => AppointmentAddDialog(
+        initialDate: _selectedDay,
+        initialPatient: _chainedPatient ?? widget.initialPatient,
+      ),
+    ).then((value) {
+      // เมื่อได้รับสัญญาณ 'true' กลับมา เราจะโหลดข้อมูลใหม่ทั้งหมดเลยค่ะ
+      if (value == true) {
+        _handleDataChange();
+        if (_receiptDraft != null) {
+          // ส่วนนี้อาจจะต้องปรับปรุงในอนาคตนะคะ แต่ตอนนี้ขอแก้บั๊กหลักก่อนค่ะ
+          // Navigator.of(context).pop(value); 
+        }
+      }
+    });
   }
 
   @override
@@ -166,7 +206,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _selectedDayWorkingHours!.timeSlots.last.closeTime.hour,
         _selectedDayWorkingHours!.timeSlots.last.closeTime.minute,
       );
-
       const double hourHeight = 120.0;
       final double pixelsPerMinute = hourHeight / 60.0;
       const double verticalPadding = 28.0;
@@ -187,7 +226,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         elevation: 0,
         title: const Text('ปฏิทินนัดหมาย'),
         actions: [
-          // ปุ่มรีเซ็ต (มีอยู่เดิม) — โชว์เมื่อ showReset = true
           if (widget.showReset)
             IconButton(
               icon: const Icon(
@@ -249,7 +287,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
               },
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             child: Container(
@@ -272,16 +309,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 calendarFormat: _calendarFormat,
-
-                // 💖 [CROP-FIX v2.6.3] เพิ่มความสูงให้แถววันในสัปดาห์
-                // เพื่อแก้ปัญหาตัวอักษรโดนตัดค่ะ
                 daysOfWeekHeight: 22,
-
                 eventLoader: (day) {
                   final dayKey = DateTime.utc(day.year, day.month, day.day);
                   return _events[dayKey] ?? [];
                 },
-
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
@@ -370,53 +402,39 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 12),
-
           SizedBox(
             height: timelineHeight,
             child:
                 _isLoading
                     ? const Center(
-                      child: CircularProgressIndicator(color: AppTheme.primary),
-                    )
+                        child: CircularProgressIndicator(color: AppTheme.primary),
+                      )
                     : (_selectedDayWorkingHours == null ||
-                        _selectedDayWorkingHours!.isClosed)
-                    ? Center(
-                      child: Text(
-                        'คลินิกปิดทำการ',
-                        style: TextStyle(
-                          color: AppTheme.textDisabled,
-                          fontSize: 16,
-                          fontFamily: AppTheme.fontFamily,
-                        ),
-                      ),
-                    )
-                    : TimelineView(
-                      selectedDate: _selectedDay,
-                      appointments: _selectedAppointments,
-                      patients: _patientsForAppointments,
-                      workingHours: _selectedDayWorkingHours!,
-                      onDataChanged: _handleDataChange,
-                      initialPatient: widget.initialPatient,
-                    ),
+                            _selectedDayWorkingHours!.isClosed)
+                        ? Center(
+                            child: Text(
+                              'คลินิกปิดทำการ',
+                              style: TextStyle(
+                                color: AppTheme.textDisabled,
+                                fontSize: 16,
+                                fontFamily: AppTheme.fontFamily,
+                              ),
+                            ),
+                          )
+                        : TimelineView(
+                            selectedDate: _selectedDay,
+                            appointments: _selectedAppointments,
+                            patients: _patientsForAppointments,
+                            workingHours: _selectedDayWorkingHours!,
+                            onDataChanged: _handleDataChange,
+                            initialPatient: widget.initialPatient,
+                          ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed:
-            () => showDialog(
-              context: context,
-              builder:
-                  (_) => AppointmentAddDialog(
-                    initialDate: _selectedDay,
-                    initialPatient: widget.initialPatient,
-                  ),
-            ).then((value) {
-              if (value == true) {
-                _handleDataChange();
-              }
-            }),
+        onPressed: _onAddAppointmentPressed,
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

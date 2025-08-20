@@ -1,5 +1,7 @@
-// v2.5.3 - 🏗️ Refactored Layout to Reliably Fill Height
-// 📁 lib/screens/daily_calendar_screen.dart
+// ----------------------------------------------------------------
+// 📁 lib/screens/daily_calendar_screen.dart (UPGRADED)
+// v2.5.4 - 🚀 FIX: แก้ไขการรับค่าจาก Dialog เพื่อให้รีเฟรชหน้าจอได้ถูกต้อง
+// ----------------------------------------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -119,12 +121,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         title: const Text('รายวัน'),
         
       ),
-      // 💖 [LAYOUT-FIX v2.5.3] ไลลาปรับโครงสร้างตรงนี้นะคะ
-      // เราจะใช้ Column เป็น Body หลัก แล้วใช้ Expanded เพื่อให้ Timeline ยืดเต็มพื้นที่ที่เหลือ
-      // วิธีนี้จะแก้ปัญหาพื้นที่ว่างด้านล่างได้อย่างถาวรเลยค่ะ!
       body: Column(
         children: [
-          // ส่วนหัว (ตัวเลือก View Mode) จะอยู่เหมือนเดิม
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: ViewModeSelector(
@@ -136,7 +134,6 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               onDailyViewTapped: _handleDataChange,
             ),
           ),
-          // ส่วนหัว (ตัวเลือกวัน) ก็อยู่เหมือนเดิมค่ะ
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
@@ -169,16 +166,12 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
               ],
             ),
           ),
-          // ✨ Expanded Widget จะเข้ามาทำหน้าที่ขยายส่วนนี้ให้เต็มพื้นที่ที่เหลือในแนวตั้ง
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-                // ✨ เราใช้ SingleChildScrollView ห่อเฉพาะส่วนนี้
-                // เพื่อให้ Timeline สามารถเลื่อนได้ในกรณีที่เนื้อหายาวเกินพื้นที่ที่ Expanded จัดให้
                 : SingleChildScrollView(
                     child: (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
                         ? Padding(
-                            // เพิ่ม Padding ให้ข้อความ "ปิดทำการ" ไม่ชิดขอบบนเกินไปค่ะ
                             padding: const EdgeInsets.only(top: 48.0),
                             child: Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily))),
                           )
@@ -204,8 +197,9 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       onPressed: () => showDialog(
         context: context, 
         builder: (context) => AppointmentAddDialog(initialDate: _currentDate)
+      // ✨ FIX: เปลี่ยนการเช็คผลลัพธ์จาก `value == true` เป็น `value is AppointmentModel`
       ).then((value) {
-        if (value == true) {
+        if (value is AppointmentModel) {
           _handleDataChange();
         }
       }),

@@ -1,5 +1,7 @@
-// v2.5.0 - ✨ Added Event Counters & Fixed Label Cropping
-// 📁 lib/screens/weekly_calendar_screen.dart
+// ----------------------------------------------------------------
+// 📁 lib/screens/weekly_calendar_screen.dart (UPGRADED)
+// v2.5.1 - 🚀 FIX: แก้ไขการรับค่าจาก Dialog เพื่อให้รีเฟรชหน้าจอได้ถูกต้อง
+// ----------------------------------------------------------------
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -503,8 +505,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                   (_) => AppointmentAddDialog(
                     initialDate: _selectedDay ?? DateTime.now(),
                   ),
+            // ✨ FIX: เปลี่ยนการเช็คผลลัพธ์จาก `value == true` เป็น `value is AppointmentModel`
             ).then((value) {
-              if (value == true) {
+              if (value is AppointmentModel) {
                 _handleDataChange();
               }
             }),
@@ -576,7 +579,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 child: Text(
                   text,
                   style: const TextStyle(
-                    fontSize: 14, // เพิ่มขนาดตัวอักษร
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textSecondary,
                   ),
@@ -594,11 +597,11 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
               shape: BoxShape.circle,
             ),
             defaultTextStyle: const TextStyle(
-              fontSize: 14, // เพิ่มขนาดตัวอักษร
+              fontSize: 14,
               color: AppTheme.textPrimary,
             ),
             weekendTextStyle: const TextStyle(
-              fontSize: 14, // เพิ่มขนาดตัวอักษร
+              fontSize: 14,
               color: AppTheme.textSecondary,
             ),
           ),
@@ -622,7 +625,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     );
   }
 
-  // 💖 [UPDATE v2.5.0] ไลลาอัปเดต Widget นี้ให้แสดงป้ายนับนัดหมายและแก้ปัญหาตัวอักษรโดนตัดค่ะ
   Widget _buildWeekDayHeader() {
     final firstDayOfWeek = _focusedDay.subtract(
       Duration(days: _focusedDay.weekday - 1),
@@ -645,7 +647,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
 
             return Container(
               width: _dayColumnWidth,
-              // ✨ [CROP-FIX] เพิ่ม Padding ด้านล่างเพื่อให้ตัวอักษรมีพื้นที่หายใจค่ะ
               padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0),
               decoration: BoxDecoration(
                 color:
@@ -657,7 +658,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                   bottom: BorderSide(color: Colors.grey.shade300, width: 2),
                 ),
               ),
-              // ✨ [EVENT-COUNT] ใช้ Stack เพื่อวางป้ายตัวเลขไว้บนหัวข้อวันค่ะ
               child: Stack(
                 clipBehavior: Clip.none,
                 alignment: Alignment.center,
@@ -857,8 +857,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                               initialDate: day,
                               initialStartTime: itemStart,
                             ),
+                      // ✨ FIX: เปลี่ยนการเช็คผลลัพธ์จาก `value == true` เป็น `value is AppointmentModel`
                       ).then((value) {
-                        if (value == true) {
+                        if (value is AppointmentModel) {
                           _handleDataChange();
                         }
                       }),

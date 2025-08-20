@@ -1,5 +1,8 @@
-// lib/features/printing/render/receipt_mapper.dart
-// Mapper สำหรับ ReceiptModel และ AppointmentSlipModel
+// ----------------------------------------------------------------
+// 📁 lib/features/printing/render/receipt_mapper.dart (UPGRADED)
+// v1.1.0 - 🚀 อัปเกรด mapCalendarResultToApptInfo ให้แสดงข้อมูลครบถ้วน
+// ----------------------------------------------------------------
+
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
 
@@ -63,34 +66,35 @@ AppointmentSlipModel buildAppointmentSlip({
   );
 }
 
+/// ✨ [UPGRADED v1.1.0] แปลงผลลัพธ์จากหน้าปฏิทิน (AppointmentModel) ให้เป็น AppointmentInfo
+/// ตอนนี้จะรวมข้อมูล หัตถการ + ซี่ฟัน + หมายเหตุ เข้าด้วยกันเพื่อการแสดงผลที่สมบูรณ์
 AppointmentInfo mapCalendarResultToApptInfo(dynamic result) {
   if (result == null) {
     throw ArgumentError('calendarResult is null');
   }
 
   DateTime startAt;
-  String? note;
+  String treatment;
+  List<String> teeth;
+  String? notes;
 
-  if (result is Map) {
-    startAt = result['startTime'] as DateTime;
-    note = result['notes'] as String?;
-  } else {
-    // ใช้ dynamic เพื่อเลี่ยงการ import AppointmentModel (กัน path ไม่ตรง)
-    final r = result as dynamic;
-    startAt = r.startTime as DateTime;
-    note = r.notes as String?;
+  // ใช้ dynamic เพื่อเลี่ยงการ import AppointmentModel โดยตรง
+  // ทำให้ mapper นี้ยืดหยุ่นและไม่ผูกติดกับ model layer โดยตรง
+  final r = result as dynamic;
+  startAt = r.startTime as DateTime;
+  treatment = r.treatment as String? ?? '';
+  // แปลง List<dynamic> ให้เป็น List<String> อย่างปลอดภัย
+  teeth = (r.teeth as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+  notes = r.notes as String?;
+  
+  // สร้างข้อความสำหรับแสดงผลในใบนัด
+  final teethString = teeth.isNotEmpty ? ' (#${teeth.join(', ')})' : '';
+  String fullNote = '$treatment$teethString';
+
+  // ถ้ามีหมายเหตุเพิ่มเติม ก็ให้ขึ้นบรรทัดใหม่
+  if (notes != null && notes.trim().isNotEmpty) {
+    fullNote += '\n${notes.trim()}';
   }
 
-  return AppointmentInfo(startAt: startAt, note: note);
+  return AppointmentInfo(startAt: startAt, note: fullNote.trim());
 }
-
-/*
-// เวอร์ชันต่อยอดภายหลัง: mapper ผูกกับชนิดจริงของ MyDent
-ReceiptModel mapFromMyDent({
-  required MdClinic clinic,
-  required MdInvoice invoice,
-  required MdPatient patient,
-}) {
-  // TODO: แปลงฟิลด์จริงของ MyDent → ReceiptModel
-}
-*/

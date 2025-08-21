@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v1.6 - 💖 Laila's Reliable Refresh Fix!)
+// 📁 lib/screens/calendar_screen.dart (v1.8 - 💖 Laila's Final Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -22,6 +22,8 @@ import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
+import '../features/printing/domain/appointment_slip_model.dart';
+import '../features/printing/render/appointment_slip_preview_page.dart';
 
 class CalendarScreen extends StatefulWidget {
   final bool showReset;
@@ -165,7 +167,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return days[weekday - 1];
   }
 
-  // 💖 ไลลาเปลี่ยนกลับมาใช้วิธีที่แน่นอนที่สุดค่ะ!
   void _onAddAppointmentPressed() {
     showDialog(
       context: context,
@@ -173,13 +174,40 @@ class _CalendarScreenState extends State<CalendarScreen> {
         initialDate: _selectedDay,
         initialPatient: _chainedPatient ?? widget.initialPatient,
       ),
-    ).then((value) {
-      // เมื่อได้รับสัญญาณ 'true' กลับมา เราจะโหลดข้อมูลใหม่ทั้งหมดเลยค่ะ
-      if (value == true) {
-        _handleDataChange();
+    ).then((result) {
+      if (result is Map<String, dynamic>) {
+        final newAppointment = result['appointment'] as AppointmentModel;
+        final newPatient = result['patient'] as Patient;
+
+        // 💖 ไลลาแก้ตรงนี้ให้เรียกชื่อให้ถูกต้องนะคะ
+        final slip = AppointmentSlipModel(
+          clinic: const receipt.ClinicInfo(
+            name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+            address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+            phone: '094-5639334',
+          ),
+          patient: receipt.PatientInfo(
+            name: newPatient.name,
+            hn: newPatient.hnNumber ?? '',
+          ),
+          appointment: AppointmentInfo(
+            startAt: newAppointment.startTime,
+            note: newAppointment.notes?.trim().isEmpty ?? true
+                ? newAppointment.treatment
+                : newAppointment.notes,
+          ),
+        );
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
+          ),
+        ).then((_) {
+            _handleDataChange();
+        });
+
         if (_receiptDraft != null) {
-          // ส่วนนี้อาจจะต้องปรับปรุงในอนาคตนะคะ แต่ตอนนี้ขอแก้บั๊กหลักก่อนค่ะ
-          // Navigator.of(context).pop(value); 
+          Navigator.of(context).pop(newAppointment);
         }
       }
     });

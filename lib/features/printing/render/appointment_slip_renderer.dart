@@ -1,3 +1,6 @@
+
+// 📁 lib/features/printing/render/appointment_slip_renderer.dart
+
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/widgets/appointment_detail_dialog.dart (v1.6 - 💖 Laila's Reliable Refresh Fix!)
+// 📁 lib/widgets/appointment_detail_dialog.dart (v2.0 - 💖 Laila's UI-Safe Fix!)
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -122,7 +122,6 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         appointment: widget.appointment,
       ),
     ).then((value) {
-      // 💖 ทำให้เป็นมาตรฐานเดียวกัน คือเช็ค 'true' แล้วโหลดใหม่ค่ะ
       if (value == true) {
         widget.onDataChanged();
       }
@@ -208,7 +207,8 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           final slip = _buildSlipFromState();
           await Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => AppointmentSlipPreviewPage(slip: slip),
+              // 💖 FIX: แก้ไขแค่จุดนี้จุดเดียวเลยค่ะ บอกน้องให้ใช้ข้อมูลจริง โดยไม่กระทบ UI เดิมเลยค่ะ
+              builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
             ),
           );
         }

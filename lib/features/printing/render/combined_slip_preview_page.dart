@@ -212,7 +212,7 @@ class _CombinedSlipWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // --- ส่วนที่ 1: ใบเสร็จ (เหมือนเดิม แต่ไม่มี "ขอบคุณ") ---
+            // --- ส่วนที่ 1: ใบเสร็จ ---
             if (logoBytes != null) ...[
               Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium),
               const SizedBox(height: 6),
@@ -243,7 +243,7 @@ class _CombinedSlipWidget extends StatelessWidget {
             // --- ส่วนที่ 2: เส้นคั่น ---
             const Divider(height: 20, thickness: 1, color: Colors.black),
             
-            // --- ส่วนที่ 3: ใบนัด (ไม่มี Header และ ชื่อ) ---
+            // --- ส่วนที่ 3: ใบนัด ---
             const SizedBox(height: 10),
             const Text('นัดครั้งต่อไป', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24)),
             const SizedBox(height: 8),

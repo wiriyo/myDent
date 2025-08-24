@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/appointment_add.dart (v1.6 - 💖 Laila's Reliable Refresh Fix!)
+// 📁 lib/screens/appointment_add.dart (v1.7 - 💖 Laila's Final Fix!)
 // ----------------------------------------------------------------
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -294,9 +294,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         await _appointmentService.addAppointment(appointment);
       }
       if (mounted) {
-        // 💖 ไลลาเปลี่ยนให้ส่งสัญญาณ 'true' กลับไปแทนค่ะ
-        // เพื่อบอกว่า "สำเร็จแล้วนะ!"
-        Navigator.of(context).pop(true);
+        // 💖✨ THE FIX v1.7: ส่งข้อมูลกลับไปเป็น Map ที่มีทั้ง appointment และ patient ค่ะ!
+        Navigator.of(context).pop({
+          'appointment': appointment,
+          'patient': _selectedPatient!,
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨', style: TextStyle(fontFamily: AppTheme.fontFamily))),
         );

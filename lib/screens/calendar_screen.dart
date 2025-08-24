@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v1.8 - 💖 Laila's Final Fix!)
+// 📁 lib/screens/calendar_screen.dart (v2.1 - 💖 Laila's Routing Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
-// 🌸 Imports from our project
+
 import '../models/appointment_model.dart';
 import '../models/patient.dart';
 import '../services/appointment_service.dart';
@@ -26,13 +26,16 @@ import '../features/printing/domain/appointment_slip_model.dart';
 import '../features/printing/render/appointment_slip_preview_page.dart';
 
 class CalendarScreen extends StatefulWidget {
+  // These are now optional, as data can come from ModalRoute
   final bool showReset;
   final Patient? initialPatient;
+  final receipt.ReceiptModel? receiptDraft;
 
   const CalendarScreen({
     super.key,
     this.showReset = false,
     this.initialPatient,
+    this.receiptDraft,
   });
 
   @override
@@ -53,6 +56,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   bool _isLoading = true;
   bool _isInitialLoad = true;
+  
+  // State variables that will hold the final data
   Patient? _chainedPatient;
   receipt.ReceiptModel? _receiptDraft;
 
@@ -60,26 +65,42 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
+    // We will now read properties in didChangeDependencies to have access to context
+    debugPrint("💖 Laila Debug (Calendar): initState - initial patient from widget: ${widget.initialPatient?.name}");
+    debugPrint("💖 Laila Debug (Calendar): initState - initial receipt from widget? ${widget.receiptDraft != null}");
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInitialLoad) {
-      final arguments =
-          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (arguments != null) {
+      // 💖✨ THE ROUTING FIX v2.1: Read arguments from ModalRoute
+      // This allows the screen to work with both pushNamed and MaterialPageRoute
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      
+      if (arguments is Map) {
+        // This handles the case from the new treatment_form using pushNamed
         _chainedPatient = arguments['initialPatient'] as Patient?;
         _receiptDraft = arguments['receiptDraft'] as receipt.ReceiptModel?;
+        debugPrint("💖 Laila Debug (Calendar): Received arguments via ModalRoute!");
+      } else {
+        // This is a fallback for direct calls using MaterialPageRoute
+        _chainedPatient = widget.initialPatient;
+        _receiptDraft = widget.receiptDraft;
+        debugPrint("💖 Laila Debug (Calendar): No ModalRoute args, using widget properties.");
       }
+      
+      debugPrint("💖 Laila Debug (Calendar): Final patient for this screen: ${_chainedPatient?.name}");
+      debugPrint("💖 Laila Debug (Calendar): Final receipt draft for this screen? ${_receiptDraft != null}");
+
       _loadDataForMonth(_focusedDay);
       _isInitialLoad = false;
     }
   }
 
-  void _handleDataChange() {
+  Future<void> _handleDataChange() {
     debugPrint("📱 [CalendarScreen] Data change detected! Refetching data...");
-    _loadDataForMonth(_focusedDay);
+    return _loadDataForMonth(_focusedDay);
   }
 
   Future<void> _loadDataForMonth(DateTime month) async {
@@ -172,14 +193,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
       context: context,
       builder: (_) => AppointmentAddDialog(
         initialDate: _selectedDay,
-        initialPatient: _chainedPatient ?? widget.initialPatient,
+        initialPatient: _chainedPatient,
       ),
-    ).then((result) {
+    ).then((result) async { 
+      debugPrint("💖 Laila Debug (Calendar): Dialog closed with result: $result");
+      
       if (result is Map<String, dynamic>) {
         final newAppointment = result['appointment'] as AppointmentModel;
         final newPatient = result['patient'] as Patient;
 
-        // 💖 ไลลาแก้ตรงนี้ให้เรียกชื่อให้ถูกต้องนะคะ
+        await _handleDataChange();
+
+        if (!mounted) return;
+
+        if (_receiptDraft != null) {
+          // --- Flow การรักษา ---
+          debugPrint("💖 Laila Debug (Calendar): Refresh complete! Popping with new appointment.");
+          Navigator.of(context).pop(newAppointment);
+          return; 
+        }
+
+        // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
+        debugPrint("💖 Laila Debug (Calendar): No receipt draft. Standard flow.");
         final slip = AppointmentSlipModel(
           clinic: const receipt.ClinicInfo(
             name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
@@ -202,13 +237,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           MaterialPageRoute(
             builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
           ),
-        ).then((_) {
-            _handleDataChange();
-        });
-
-        if (_receiptDraft != null) {
-          Navigator.of(context).pop(newAppointment);
-        }
+        );
       }
     });
   }

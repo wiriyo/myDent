@@ -1,8 +1,6 @@
 // ----------------------------------------------------------------
-// 📁 lib/widgets/appointment_card.dart (UPGRADED)
-// v1.2.0 - 💖 แก้ไขปัญหา Overflow และปรับปรุง Layout ให้ยืดหยุ่นขึ้น
+// 📁 lib/widgets/appointment_card.dart (v1.3.1 - 💖 The Final UI Fix!)
 // ----------------------------------------------------------------
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -108,6 +106,7 @@ class AppointmentCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // 💖✨ THE OVERFLOW FIX v1.3.1: ใช้ Expanded เพื่อให้ Column นี้ยืดหยุ่น
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,21 +120,19 @@ class AppointmentCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
                 ),
-                // ✨ FIX: ใช้ Flexible เพื่อให้ข้อความนี้ยืดหยุ่นและไม่ดันจนล้น
                 if (constraints.maxHeight > 38)
-                  Flexible(
-                    child: Text(
-                      '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.black.withOpacity(0.7)),
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
+                  Text(
+                    '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.black.withOpacity(0.7)),
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
                   ),
               ],
             ),
           ),
           const SizedBox(width: 8), 
+          // 💖✨ THE OVERFLOW FIX v1.3.1: ส่วนนี้จะถูกดันไปทางขวาเสมอ
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -232,7 +229,8 @@ class AppointmentCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Flexible(child: _buildStatusChip(status, 12)),
+                // 💖✨ THE OVERFLOW FIX v1.3.1: ใช้ Expanded เพื่อให้ Status ที่ยาวมากๆ ไม่ล้น
+                Expanded(child: _buildStatusChip(status, 12)),
                 const SizedBox(width: 4),
                 _buildCompactCallButton(context, phone, patientName),
               ],

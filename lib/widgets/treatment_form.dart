@@ -1,5 +1,6 @@
-// lib/screens/treatment_form.dart
-
+// ----------------------------------------------------------------
+// 📁 lib/widgets/treatment_form.dart (v2.4 - 💖 Laila's New Flow Fix!)
+// ----------------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -14,7 +15,7 @@ import '../services/treatment_master_service.dart';
 import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 
-import '../features/printing/render/receipt_mapper.dart' show ReceiptLineInput, buildReceiptModel, mapCalendarResultToApptInfo;
+import '../features/printing/render/receipt_mapper.dart' show ReceiptLineInput, buildReceiptModel;
 import '../features/printing/render/preview_pages.dart' as pv;
 import '../features/printing/domain/receipt_model.dart' as receipt;
 
@@ -116,10 +117,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
     return '';
   }
 
-  // ✨ NEW: ฟังก์ชันสำหรับดึงข้อมูลคนไข้ฉบับเต็ม
   Future<Patient?> _getPatientForScheduling() async {
     try {
-      // ใช้ PatientService เพื่อดึงข้อมูลทั้งหมดของคนไข้จาก ID
       return await PatientService().getPatientById(widget.patientId);
     } catch (e) {
       debugPrint("Error fetching patient for scheduling: $e");
@@ -205,8 +204,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
-  void _handleSave(TreatmentProvider provider) async {
+  void _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final provider = context.read<TreatmentProvider>();
 
     final treatmentData = Treatment(
       id: widget.treatment?.id ?? '',
@@ -226,6 +227,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       isEditing: _isEditing,
       images: _newImages,
     );
+    debugPrint("💖 Laila Debug: Treatment saved successfully: $success");
 
     if (!mounted) return;
 
@@ -247,12 +249,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
           ],
         ),
       );
+      debugPrint("💖 Laila Debug: User wants to schedule: $shouldSchedule");
 
       if (!mounted) return;
       final nav = Navigator.of(context);
 
       if (shouldSchedule == true) {
-        // ✨ FIX: ดึงข้อมูลคนไข้ฉบับเต็มก่อนส่งไปหน้าปฏิทิน
         final patientForScheduling = await _getPatientForScheduling();
         if (patientForScheduling == null) {
           if (mounted) _showErrorSnackBar(context, 'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้');
@@ -260,30 +262,29 @@ class _TreatmentFormState extends State<TreatmentForm> {
         }
 
         final receipt = await _buildReceiptFromForm();
-        nav.pop(true);
-        final calendarResult = await nav.pushNamed(
+        debugPrint("💖 Laila Debug: Replacing current route with CalendarScreen.");
+        
+        // 💖✨ THE NEW FLOW FIX v2.4: ใช้ pushReplacementNamed เพื่อ "สลับหน้า"
+        // วิธีนี้จะปิดหน้าฟอร์มปัจจุบันทิ้ง แล้วเอาหน้าปฏิทินเข้ามาแทนที่
+        // ทำให้ Flow การทำงานถูกต้องและไม่เกิดข้อผิดพลาดค่ะ
+        nav.pushReplacementNamed(
           '/calendar',
           arguments: {
-            // ✨ FIX: ส่งข้อมูลคนไข้ฉบับเต็ม (ที่มี prefix) ไป
             'initialPatient': patientForScheduling,
             'receiptDraft': receipt,
           },
         );
-        if (calendarResult == null) {
-          await nav.push(MaterialPageRoute(builder: (_) => pv.ReceiptPreviewPage(receipt: receipt)));
-          return;
-        }
-        final appt = mapCalendarResultToApptInfo(calendarResult);
-        await nav.push(
-          MaterialPageRoute(
-            builder: (_) => pv.ReceiptPreviewPage(receipt: receipt, showNextAppt: true, nextAppt: appt),
-          ),
-        );
         return;
+
       } else {
+        debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
         final receipt = await _buildReceiptFromForm();
-        nav.pop(true);
         await nav.push(MaterialPageRoute(builder: (_) => pv.ReceiptPreviewPage(receipt: receipt)));
+        
+        debugPrint("💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.");
+        if (mounted) {
+          nav.pop(true);
+        }
         return;
       }
     } else {
@@ -291,7 +292,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
     }
   }
 
-  void _handleDeleteExistingImage(TreatmentProvider provider, String imageUrl) async {
+  void _handleDeleteExistingImage(String imageUrl) async {
+    final provider = context.read<TreatmentProvider>();
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -465,12 +468,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-            _buildImageSection(treatmentProvider),
+            _buildImageSection(),
             const SizedBox(height: 24),
             Row(children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => _handleSave(treatmentProvider),
+                  onPressed: _handleSave,
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent.shade100, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
                   child: treatmentProvider.isLoading
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black54))
@@ -511,7 +514,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
-  Widget _buildImageSection(TreatmentProvider provider) {
+  Widget _buildImageSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -537,7 +540,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
               itemBuilder: (context, index) {
                 if (index < _existingImageUrls.length) {
                   final imageUrl = _existingImageUrls[index];
-                  return _buildImageThumbnail(imageProvider: NetworkImage(imageUrl), onRemove: _isEditing ? () => _handleDeleteExistingImage(provider, imageUrl) : null);
+                  return _buildImageThumbnail(imageProvider: NetworkImage(imageUrl), onRemove: _isEditing ? () => _handleDeleteExistingImage(imageUrl) : null);
                 } else {
                   final imageIndex = index - _existingImageUrls.length;
                   final imageFile = _newImages[imageIndex];

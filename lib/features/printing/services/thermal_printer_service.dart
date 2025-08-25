@@ -2,7 +2,6 @@
 // อัปเดตครั้งสุดท้าย: เพิ่มการขอ Permission.location โดยตรง
 
 import 'dart:io' show Platform;
-import 'dart:typed_data';
 // ✨ FIX: แก้ไข typo จาก package.flutter -> package:flutter ค่ะ
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import '../features/printing/render/preview_pages.dart' as pv;
 
 // Domain models needed for creating sample data
-import '../features/printing/domain/receipt_model.dart';
 import '../features/printing/domain/appointment_slip_model.dart';
 
 // Mapper สร้างโมเดลทดสอบสำหรับใบเสร็จ/ใบนัด

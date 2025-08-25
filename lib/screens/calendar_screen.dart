@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v2.1 - 💖 Laila's Routing Fix!)
+// 📁 lib/screens/calendar_screen.dart (v2.4 - � Laila's New Flow Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -24,9 +24,11 @@ import 'weekly_calendar_screen.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
 import '../features/printing/domain/appointment_slip_model.dart';
 import '../features/printing/render/appointment_slip_preview_page.dart';
+import '../features/printing/render/combined_slip_preview_page.dart';
+import '../features/printing/render/receipt_mapper.dart';
+
 
 class CalendarScreen extends StatefulWidget {
-  // These are now optional, as data can come from ModalRoute
   final bool showReset;
   final Patient? initialPatient;
   final receipt.ReceiptModel? receiptDraft;
@@ -42,7 +44,7 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObserver {
   final AppointmentService _appointmentService = AppointmentService();
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
@@ -57,7 +59,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   bool _isLoading = true;
   bool _isInitialLoad = true;
   
-  // State variables that will hold the final data
   Patient? _chainedPatient;
   receipt.ReceiptModel? _receiptDraft;
 
@@ -65,26 +66,39 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    // We will now read properties in didChangeDependencies to have access to context
+    WidgetsBinding.instance.addObserver(this);
     debugPrint("💖 Laila Debug (Calendar): initState - initial patient from widget: ${widget.initialPatient?.name}");
     debugPrint("💖 Laila Debug (Calendar): initState - initial receipt from widget? ${widget.receiptDraft != null}");
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      debugPrint("💖 Laila Debug (Calendar): App resumed, forcing data refresh.");
+      if (!_isInitialLoad) {
+        _handleDataChange();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInitialLoad) {
-      // 💖✨ THE ROUTING FIX v2.1: Read arguments from ModalRoute
-      // This allows the screen to work with both pushNamed and MaterialPageRoute
       final arguments = ModalRoute.of(context)?.settings.arguments;
       
       if (arguments is Map) {
-        // This handles the case from the new treatment_form using pushNamed
         _chainedPatient = arguments['initialPatient'] as Patient?;
         _receiptDraft = arguments['receiptDraft'] as receipt.ReceiptModel?;
         debugPrint("💖 Laila Debug (Calendar): Received arguments via ModalRoute!");
       } else {
-        // This is a fallback for direct calls using MaterialPageRoute
         _chainedPatient = widget.initialPatient;
         _receiptDraft = widget.receiptDraft;
         debugPrint("💖 Laila Debug (Calendar): No ModalRoute args, using widget properties.");
@@ -202,42 +216,51 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final newAppointment = result['appointment'] as AppointmentModel;
         final newPatient = result['patient'] as Patient;
 
+        // 💖✨ THE NEW FLOW v2.4: บันทึกและรีเฟรชก่อนเสมอ
         await _handleDataChange();
-
         if (!mounted) return;
 
         if (_receiptDraft != null) {
           // --- Flow การรักษา ---
-          debugPrint("💖 Laila Debug (Calendar): Refresh complete! Popping with new appointment.");
-          Navigator.of(context).pop(newAppointment);
-          return; 
+          debugPrint("💖 Laila Debug (Calendar): Refresh complete! Navigating to Combined Slip.");
+          final apptInfo = mapCalendarResultToApptInfo(newAppointment);
+          
+          // ✨ FIX: ไปหน้า CombinedSlipPreviewPage โดยตรง
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CombinedSlipPreviewPage(
+                receipt: _receiptDraft!,
+                nextAppointment: apptInfo,
+              ),
+            ),
+          );
+        } else {
+          // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
+          debugPrint("💖 Laila Debug (Calendar): No receipt draft. Standard flow.");
+          final slip = AppointmentSlipModel(
+            clinic: const receipt.ClinicInfo(
+              name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+              address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+              phone: '094-5639334',
+            ),
+            patient: receipt.PatientInfo(
+              name: newPatient.name,
+              hn: newPatient.hnNumber ?? '',
+            ),
+            appointment: AppointmentInfo(
+              startAt: newAppointment.startTime,
+              note: newAppointment.notes?.trim().isEmpty ?? true
+                  ? newAppointment.treatment
+                  : newAppointment.notes,
+            ),
+          );
+
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
+            ),
+          );
         }
-
-        // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
-        debugPrint("💖 Laila Debug (Calendar): No receipt draft. Standard flow.");
-        final slip = AppointmentSlipModel(
-          clinic: const receipt.ClinicInfo(
-            name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
-            address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
-            phone: '094-5639334',
-          ),
-          patient: receipt.PatientInfo(
-            name: newPatient.name,
-            hn: newPatient.hnNumber ?? '',
-          ),
-          appointment: AppointmentInfo(
-            startAt: newAppointment.startTime,
-            note: newAppointment.notes?.trim().isEmpty ?? true
-                ? newAppointment.treatment
-                : newAppointment.notes,
-          ),
-        );
-
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
-          ),
-        );
       }
     });
   }

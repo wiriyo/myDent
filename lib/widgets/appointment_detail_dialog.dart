@@ -99,7 +99,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final patientName = widget.patient.name;
     final String hn = '';
     final DateTime startAt = widget.appointment.startTime;
-    final String? note = _reasonController.text.trim().isEmpty
+    final String note = _reasonController.text.trim().isEmpty
         ? widget.appointment.treatment // ถ้าไม่มีโน้ต ให้ใช้ชื่อ treatment แทน
         : _reasonController.text.trim();
 

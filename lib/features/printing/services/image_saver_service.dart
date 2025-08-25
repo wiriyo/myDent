@@ -1,7 +1,6 @@
 // lib/features/printing/services/image_saver_service.dart
 // หน่วยปฏิบัติการพิเศษสำหรับบันทึกภาพลงแกลเลอรี (Final Upgrade)
 
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 // ✨ NEW: import กุญแจ Master Key ดอกใหม่ของเรา!
 import 'package:gal/gal.dart';

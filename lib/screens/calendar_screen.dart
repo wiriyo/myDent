@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v2.5 - 💖 Laila's Patient Clearing Fix!)
+// 📁 lib/screens/calendar_screen.dart (v2.6 - 💖 Laila's Combined Appointment Flow!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -202,12 +202,16 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     return days[weekday - 1];
   }
 
-  void _onAddAppointmentPressed() {
+  // 💖✨ START: THE COMBINED FLOW FIX v2.6 ✨💖
+  // ไลลารวมฟังก์ชันการเพิ่มนัดให้เป็นฟังก์ชันเดียวเลยค่ะ
+  // โดยสามารถรับ `initialStartTime` ที่อาจจะถูกส่งมาจาก TimelineView ได้ด้วย
+  void _handleAddAppointment({DateTime? initialStartTime}) {
     showDialog(
       context: context,
       builder: (_) => AppointmentAddDialog(
         initialDate: _selectedDay,
         initialPatient: _chainedPatient,
+        initialStartTime: initialStartTime, // ส่งเวลาเริ่มต้นไปให้หน้าต่างเพิ่มนัด
       ),
     ).then((result) async { 
       debugPrint("💖 Laila Debug (Calendar): Dialog closed with result: $result");
@@ -216,12 +220,11 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         final newAppointment = result['appointment'] as AppointmentModel;
         final newPatient = result['patient'] as Patient;
 
-        // 💖✨ THE NEW FLOW v2.4: บันทึกและรีเฟรชก่อนเสมอ
         await _handleDataChange();
         if (!mounted) return;
 
         if (_receiptDraft != null) {
-          // --- Flow การรักษา ---
+          // --- Flow การรักษา (ไปหน้า Combined Slip) ---
           debugPrint("💖 Laila Debug (Calendar): Refresh complete! Navigating to Combined Slip.");
           final apptInfo = mapCalendarResultToApptInfo(newAppointment);
           
@@ -234,10 +237,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
             ),
           );
 
-          // 💖✨ START: THE BUG FIX v2.5 ✨💖
-          // หลังจากพิมพ์ใบนัดและใบเสร็จเรียบร้อยแล้ว
-          // เราจะเคลียร์ข้อมูลคนไข้และใบเสร็จที่ค้างอยู่ออกจากระบบค่ะ
-          // เหมือนการเช็ดโต๊ะให้สะอาดเอี่ยม พร้อมสำหรับคนไข้คนต่อไปเลยค่ะ!
+          // เคลียร์คนไข้ที่ค้างอยู่หลังจากพิมพ์เสร็จ
           if (mounted) {
             setState(() {
               _chainedPatient = null;
@@ -245,7 +245,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
               debugPrint("💖 Laila Debug (Calendar): Chained patient and receipt draft cleared!");
             });
           }
-          // 💖✨ END: THE BUG FIX v2.5 ✨💖
 
         } else {
           // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
@@ -277,6 +276,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       }
     });
   }
+  // 💖✨ END: THE COMBINED FLOW FIX v2.6 ✨💖
+
 
   @override
   Widget build(BuildContext context) {
@@ -521,13 +522,20 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                             patients: _patientsForAppointments,
                             workingHours: _selectedDayWorkingHours!,
                             onDataChanged: _handleDataChange,
-                            initialPatient: widget.initialPatient,
+                            initialPatient: _chainedPatient, // ส่งคนไข้ที่เชื่อมมาไปให้ Timeline
+                            // 💖✨ START: THE COMBINED FLOW FIX v2.6 ✨💖
+                            // นี่คือ "ทางเชื่อมวิเศษ" ของเราค่ะ
+                            // เราส่งฟังก์ชัน `_handleAddAppointment` ไปให้ TimelineView
+                            // เพื่อให้ GapCard สามารถเรียกใช้ได้โดยตรงเลยค่ะ
+                            onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
+                            // 💖✨ END: THE COMBINED FLOW FIX v2.6 ✨💖
                           ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _onAddAppointmentPressed,
+        // 💖✨ THE COMBINED FLOW FIX v2.6: ปุ่ม + ก็จะเรียกใช้ฟังก์ชันกลางตัวเดียวกันค่ะ
+        onPressed: () => _handleAddAppointment(),
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

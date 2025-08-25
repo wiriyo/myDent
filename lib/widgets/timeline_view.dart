@@ -1,6 +1,6 @@
-// v2.7.0 - ✨ Removed Internal Scrolling
-// 📁 lib/widgets/timeline_view.dart
-
+// ----------------------------------------------------------------
+// 📁 lib/widgets/timeline_view.dart (v2.9 - 💖 Laila's Centralized Logic Fix!)
+// ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -39,6 +39,10 @@ class TimelineView extends StatelessWidget {
   final double hourHeight;
   final VoidCallback onDataChanged;
   final Patient? initialPatient;
+  // 💖✨ START: THE CENTRALIZED LOGIC FIX v2.9 ✨💖
+  // เพิ่ม callback ตัวใหม่สำหรับรับ "คำสั่ง" จาก GapCard ค่ะ
+  final Function(DateTime startTime)? onGapAddTapped;
+  // 💖✨ END: THE CENTRALIZED LOGIC FIX v2.9 ✨💖
 
   const TimelineView({
     super.key,
@@ -49,6 +53,7 @@ class TimelineView extends StatelessWidget {
     required this.onDataChanged,
     this.hourHeight = 120.0,
     this.initialPatient,
+    this.onGapAddTapped, // เพิ่มใน constructor ด้วยนะคะ
   });
   
   DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
@@ -142,8 +147,6 @@ class TimelineView extends StatelessWidget {
     const double bottomPadding = 14.0; 
     final containerHeight = totalHeight + topPadding + bottomPadding;
 
-    // ✨ [LANDSCAPE-FIX v2.7.0] เอา SingleChildScrollView ออก
-    // เพราะหน้าที่ในการเลื่อนจะถูกจัดการโดย Parent (ListView) แล้วค่ะ
     return LayoutBuilder(
       builder: (context, constraints) {
         return Padding(
@@ -242,13 +245,12 @@ class TimelineView extends StatelessWidget {
           top: top, left: 0, right: 0, height: height, 
           child: GapCard(
             gapStart: itemStart, gapEnd: itemEnd, 
-            onTap: () => showDialog(
-              context: context,
-              builder: (_) => AppointmentAddDialog(
-                  initialDate: selectedDate,
-                  initialStartTime: itemStart,
-                  initialPatient: initialPatient),
-            ).then((value) { if (value == true) { onDataChanged(); } })
+            // 💖✨ START: THE CENTRALIZED LOGIC FIX v2.9 ✨💖
+            // ตอนนี้ GapCard จะไม่เปิดหน้าต่างเองแล้วค่ะ
+            // แต่จะเรียกใช้ `onGapAddTapped` ที่ได้รับมาจาก calendar_screen แทน
+            // เป็นการส่งสัญญาณกลับไปให้ "หัวหน้า" จัดการค่ะ
+            onTap: () => onGapAddTapped?.call(itemStart),
+            // 💖✨ END: THE CENTRALIZED LOGIC FIX v2.9 ✨💖
           )
         ));
       } else {

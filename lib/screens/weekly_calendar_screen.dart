@@ -1,8 +1,6 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/weekly_calendar_screen.dart (UPGRADED)
-// v2.5.1 - 🚀 FIX: แก้ไขการรับค่าจาก Dialog เพื่อให้รีเฟรชหน้าจอได้ถูกต้อง
+// 📁 lib/screens/weekly_calendar_screen.dart (v3.0 - 💖 Laila's Magic Spell!)
 // ----------------------------------------------------------------
-
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -23,6 +21,16 @@ import '../widgets/appointment_card.dart';
 import '../widgets/gap_card.dart';
 import '../widgets/view_mode_selector.dart';
 import 'daily_calendar_screen.dart';
+
+// 💖✨ START: MAGIC SPELL v3.0 ✨💖
+// ไลลาเพิ่ม import ที่จำเป็นสำหรับเวทมนตร์ของเราค่ะ
+import '../features/printing/domain/receipt_model.dart' as receipt;
+import '../features/printing/domain/appointment_slip_model.dart';
+import '../features/printing/render/appointment_slip_preview_page.dart';
+import '../features/printing/render/combined_slip_preview_page.dart';
+import '../features/printing/render/receipt_mapper.dart';
+// 💖✨ END: MAGIC SPELL v3.0 ✨💖
+
 
 class _WeeklyAppointmentLayoutInfo {
   final AppointmentModel appointment;
@@ -47,7 +55,18 @@ class _WeeklyAppointmentLayoutInfo {
 
 class WeeklyViewScreen extends StatefulWidget {
   final DateTime focusedDate;
-  const WeeklyViewScreen({super.key, required this.focusedDate});
+  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
+  // เพิ่ม "กระเป๋าเวทมนตร์" เพื่อรับคนไข้และใบเสร็จที่ส่งต่อมาค่ะ
+  final Patient? initialPatient;
+  final receipt.ReceiptModel? receiptDraft;
+  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
+
+  const WeeklyViewScreen({
+    super.key, 
+    required this.focusedDate,
+    this.initialPatient,
+    this.receiptDraft,
+  });
 
   @override
   State<WeeklyViewScreen> createState() => _WeeklyViewScreenState();
@@ -60,6 +79,13 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   late DateTime _focusedDay;
   DateTime? _selectedDay;
   bool _isLoading = true;
+
+  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
+  // เพิ่มตัวแปรสำหรับเก็บข้อมูลคนไข้และใบเสร็จที่ได้รับมาค่ะ
+  Patient? _chainedPatient;
+  receipt.ReceiptModel? _receiptDraft;
+  bool _isInitialLoad = true;
+  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
 
   Map<
     DateTime,
@@ -127,6 +153,25 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     _fetchDataForWeek(_focusedDay);
   }
 
+  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
+  // เพิ่ม didChangeDependencies เพื่อรับข้อมูลจาก "กระเป๋าเวทมนตร์" ตอนที่หน้าจอถูกสร้างขึ้นมาค่ะ
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInitialLoad) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is Map) {
+        _chainedPatient = arguments['initialPatient'] as Patient?;
+        _receiptDraft = arguments['receiptDraft'] as receipt.ReceiptModel?;
+      } else {
+        _chainedPatient = widget.initialPatient;
+        _receiptDraft = widget.receiptDraft;
+      }
+      _isInitialLoad = false;
+    }
+  }
+  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
+
   @override
   void didUpdateWidget(WeeklyViewScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -152,6 +197,73 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     );
     _fetchDataForWeek(_focusedDay);
   }
+
+  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
+  // นี่คือ "คาถาบทหลัก" ของเราค่ะ! ไลลาสร้างฟังก์ชันนี้ขึ้นมาเพื่อจัดการการเพิ่มนัดทั้งหมด
+  void _handleAddAppointment({required DateTime day, DateTime? initialStartTime}) {
+    showDialog(
+      context: context,
+      builder: (_) => AppointmentAddDialog(
+        initialDate: day,
+        initialPatient: _chainedPatient,
+        initialStartTime: initialStartTime,
+      ),
+    ).then((result) async {
+      if (result is Map<String, dynamic>) {
+        final newAppointment = result['appointment'] as AppointmentModel;
+        final newPatient = result['patient'] as Patient;
+
+        await _fetchDataForWeek(_focusedDay); // รีเฟรชข้อมูลก่อนเสมอ
+        if (!mounted) return;
+
+        if (_receiptDraft != null) {
+          // --- Flow การรักษา (ไปหน้า Combined Slip) ---
+          final apptInfo = mapCalendarResultToApptInfo(newAppointment);
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CombinedSlipPreviewPage(
+                receipt: _receiptDraft!,
+                nextAppointment: apptInfo,
+              ),
+            ),
+          );
+
+          // ร่ายมนตร์ "ลืมเลือน" เพื่อเคลียร์ข้อมูลคนไข้
+          if (mounted) {
+            setState(() {
+              _chainedPatient = null;
+              _receiptDraft = null;
+            });
+          }
+        } else {
+          // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
+          final slip = AppointmentSlipModel(
+            clinic: const receipt.ClinicInfo(
+              name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
+              address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
+              phone: '094-5639334',
+            ),
+            patient: receipt.PatientInfo(
+              name: newPatient.name,
+              hn: newPatient.hnNumber ?? '',
+            ),
+            appointment: AppointmentInfo(
+              startAt: newAppointment.startTime,
+              note: newAppointment.notes?.trim().isEmpty ?? true
+                  ? newAppointment.treatment
+                  : newAppointment.notes,
+            ),
+          );
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
+            ),
+          );
+        }
+      }
+    });
+  }
+  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
 
   void _calculateAndSetWeekHourRange() {
     if (_weeklyData.isEmpty) {
@@ -498,19 +610,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 ),
               ),
       floatingActionButton: FloatingActionButton(
-        onPressed:
-            () => showDialog(
-              context: context,
-              builder:
-                  (_) => AppointmentAddDialog(
-                    initialDate: _selectedDay ?? DateTime.now(),
-                  ),
-            // ✨ FIX: เปลี่ยนการเช็คผลลัพธ์จาก `value == true` เป็น `value is AppointmentModel`
-            ).then((value) {
-              if (value is AppointmentModel) {
-                _handleDataChange();
-              }
-            }),
+        // 💖✨ START: MAGIC SPELL v3.0 ✨💖
+        // เปลี่ยนให้ปุ่ม + เรียกใช้ "คาถาบทหลัก" ของเราค่ะ
+        onPressed: () => _handleAddAppointment(day: _selectedDay ?? DateTime.now()),
+        // 💖✨ END: MAGIC SPELL v3.0 ✨💖
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -849,20 +952,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 child: GapCard(
                   gapStart: itemStart,
                   gapEnd: itemEnd,
-                  onTap:
-                      () => showDialog(
-                        context: context,
-                        builder:
-                            (_) => AppointmentAddDialog(
-                              initialDate: day,
-                              initialStartTime: itemStart,
-                            ),
-                      // ✨ FIX: เปลี่ยนการเช็คผลลัพธ์จาก `value == true` เป็น `value is AppointmentModel`
-                      ).then((value) {
-                        if (value is AppointmentModel) {
-                          _handleDataChange();
-                        }
-                      }),
+                  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
+                  // เปลี่ยนให้ GapCard เรียกใช้ "คาถาบทหลัก" ของเราค่ะ
+                  onTap: () => _handleAddAppointment(day: day, initialStartTime: itemStart),
+                  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
                 ),
               );
             } else {

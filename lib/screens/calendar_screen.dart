@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v2.4 - � Laila's New Flow Fix!)
+// 📁 lib/screens/calendar_screen.dart (v2.5 - 💖 Laila's Patient Clearing Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -225,7 +225,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
           debugPrint("💖 Laila Debug (Calendar): Refresh complete! Navigating to Combined Slip.");
           final apptInfo = mapCalendarResultToApptInfo(newAppointment);
           
-          // ✨ FIX: ไปหน้า CombinedSlipPreviewPage โดยตรง
           await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => CombinedSlipPreviewPage(
@@ -234,6 +233,20 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
               ),
             ),
           );
+
+          // 💖✨ START: THE BUG FIX v2.5 ✨💖
+          // หลังจากพิมพ์ใบนัดและใบเสร็จเรียบร้อยแล้ว
+          // เราจะเคลียร์ข้อมูลคนไข้และใบเสร็จที่ค้างอยู่ออกจากระบบค่ะ
+          // เหมือนการเช็ดโต๊ะให้สะอาดเอี่ยม พร้อมสำหรับคนไข้คนต่อไปเลยค่ะ!
+          if (mounted) {
+            setState(() {
+              _chainedPatient = null;
+              _receiptDraft = null;
+              debugPrint("💖 Laila Debug (Calendar): Chained patient and receipt draft cleared!");
+            });
+          }
+          // 💖✨ END: THE BUG FIX v2.5 ✨💖
+
         } else {
           // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
           debugPrint("💖 Laila Debug (Calendar): No receipt draft. Standard flow.");

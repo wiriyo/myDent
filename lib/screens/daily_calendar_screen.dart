@@ -1,8 +1,6 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/daily_calendar_screen.dart (UPGRADED)
-// v2.5.4 - 🚀 FIX: แก้ไขการรับค่าจาก Dialog เพื่อให้รีเฟรชหน้าจอได้ถูกต้อง
+// 📁 lib/screens/daily_calendar_screen.dart (v3.0 - 💖 Laila's Final Magic Spell!)
 // ----------------------------------------------------------------
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -18,12 +16,28 @@ import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
-import 'appointment_add.dart';
+
+// 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+// เราจะ import ผู้ช่วยคนใหม่และสิ่งที่จำเป็นเข้ามาค่ะ
+import '../services/appointment_flow_service.dart';
+import '../features/printing/domain/receipt_model.dart' as receipt;
+// 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
 
 
 class DailyCalendarScreen extends StatefulWidget {
   final DateTime selectedDate;
-  const DailyCalendarScreen({super.key, required this.selectedDate});
+  // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+  // เพิ่ม "กระเป๋าเวทมนตร์" ให้น้อง Daily ค่ะ
+  final Patient? initialPatient;
+  final receipt.ReceiptModel? receiptDraft;
+  // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
+
+  const DailyCalendarScreen({
+    super.key, 
+    required this.selectedDate,
+    this.initialPatient,
+    this.receiptDraft,
+  });
 
   @override
   State<DailyCalendarScreen> createState() => _DailyCalendarScreenState();
@@ -41,12 +55,38 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   DayWorkingHours? _selectedDayWorkingHours;
   bool _isLoading = true;
 
+  // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+  // เพิ่มตัวแปรสำหรับเก็บข้อมูลที่ได้รับมาค่ะ
+  Patient? _chainedPatient;
+  receipt.ReceiptModel? _receiptDraft;
+  bool _isInitialLoad = true;
+  // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
+
   @override
   void initState() {
     super.initState();
     _currentDate = widget.selectedDate;
     _fetchDataForSelectedDay(_currentDate);
   }
+
+  // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+  // เพิ่ม didChangeDependencies เพื่อรับข้อมูลจาก "กระเป๋าเวทมนตร์" ค่ะ
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInitialLoad) {
+      final arguments = ModalRoute.of(context)?.settings.arguments;
+      if (arguments is Map) {
+        _chainedPatient = arguments['initialPatient'] as Patient?;
+        _receiptDraft = arguments['receiptDraft'] as receipt.ReceiptModel?;
+      } else {
+        _chainedPatient = widget.initialPatient;
+        _receiptDraft = widget.receiptDraft;
+      }
+      _isInitialLoad = false;
+    }
+  }
+  // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
 
   @override
   void didUpdateWidget(DailyCalendarScreen oldWidget) {
@@ -63,6 +103,34 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     debugPrint("📱 [DailyCalendarScreen] Data change detected! Refetching data...");
     _fetchDataForSelectedDay(_currentDate);
   }
+
+  // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+  // ฟังก์ชันนี้จะถูกเรียกโดยผู้ช่วยของเรา เมื่อ Flow การทำงานเสร็จสิ้น
+  void _onAppointmentFlowComplete({bool clearPatient = false}) {
+    if (clearPatient && mounted) {
+      setState(() {
+        _chainedPatient = null;
+        _receiptDraft = null;
+      });
+    }
+    _handleDataChange();
+  }
+
+  // คาถาบทหลักสำหรับเรียกใช้ผู้ช่วยคนเก่งของเราค่ะ
+  void _handleAddAppointment({DateTime? initialStartTime}) {
+    final flowService = AppointmentFlowService(
+      context: context,
+      onFlowComplete: _onAppointmentFlowComplete,
+    );
+
+    flowService.startAddAppointmentFlow(
+      day: _currentDate,
+      initialStartTime: initialStartTime,
+      chainedPatient: _chainedPatient,
+      receiptDraft: _receiptDraft,
+    );
+  }
+  // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
 
   Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
     if (!mounted) return;
@@ -175,38 +243,34 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                             padding: const EdgeInsets.only(top: 48.0),
                             child: Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily))),
                           )
+                        // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+                        // อัปเกรด TimelineView ให้ส่งต่อข้อมูลและคำสั่งได้
                         : TimelineView(
                             selectedDate: _currentDate,
                             appointments: _appointments,
                             patients: _patients,
                             workingHours: _selectedDayWorkingHours!,
                             onDataChanged: _handleDataChange,
+                            initialPatient: _chainedPatient,
+                            onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
                           ),
+                        // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
                   ),
           ),
         ],
       ),
-      floatingActionButton: _buildFloatingActionButton(),
+      // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
+      // เปลี่ยนให้ปุ่ม + เรียกใช้ "คาถาบทหลัก" ของเราค่ะ
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _handleAddAppointment(),
+        backgroundColor: AppTheme.primary,
+        tooltip: 'เพิ่มนัดหมายใหม่',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        child: const Icon(Icons.add, color: Colors.white, size: 36),
+      ),
+      // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
-    );
-  }
-
-  Widget _buildFloatingActionButton() {
-    return FloatingActionButton(
-      onPressed: () => showDialog(
-        context: context, 
-        builder: (context) => AppointmentAddDialog(initialDate: _currentDate)
-      // ✨ FIX: เปลี่ยนการเช็คผลลัพธ์จาก `value == true` เป็น `value is AppointmentModel`
-      ).then((value) {
-        if (value is AppointmentModel) {
-          _handleDataChange();
-        }
-      }),
-      backgroundColor: AppTheme.primary,
-      tooltip: 'เพิ่มนัดหมายใหม่',
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      child: const Icon(Icons.add, color: Colors.white, size: 36),
     );
   }
 }

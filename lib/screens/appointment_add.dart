@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/appointment_add.dart (v1.7 - 💖 Laila's Final Fix!)
+// 📁 lib/screens/appointment_add.dart (v1.8 - 💖 Laila's Treatment Info Upgrade!)
 // ----------------------------------------------------------------
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +18,11 @@ class AppointmentAddDialog extends StatefulWidget {
   final DateTime? initialDate;
   final DateTime? initialStartTime;
   final Patient? initialPatient;
+  // 💖✨ START: TREATMENT INFO UPGRADE v1.8 ✨💖
+  // เพิ่ม "ช่องรับโพย" สำหรับข้อมูลการรักษาเริ่มต้นค่ะ
+  final String? initialTreatment;
+  final String? initialTeeth;
+  // 💖✨ END: TREATMENT INFO UPGRADE v1.8 ✨💖
 
   const AppointmentAddDialog({
     super.key,
@@ -25,6 +30,8 @@ class AppointmentAddDialog extends StatefulWidget {
     this.initialDate,
     this.initialStartTime,
     this.initialPatient,
+    this.initialTreatment, // เพิ่มใน constructor
+    this.initialTeeth,     // เพิ่มใน constructor
   });
 
   @override
@@ -74,10 +81,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
     
     _patientController = TextEditingController(text: initialPatientName);
-    _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? '');
+    // 💖✨ START: TREATMENT INFO UPGRADE v1.8 ✨💖
+    // ใช้ข้อมูลจาก "โพย" ที่ได้รับมาเพื่อกรอกข้อมูลเริ่มต้นค่ะ
+    _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? widget.initialTreatment ?? '');
+    _teethController = TextEditingController(text: initialAppointment?.teeth?.join(', ') ?? widget.initialTeeth ?? '');
+    // 💖✨ END: TREATMENT INFO UPGRADE v1.8 ✨💖
     _durationController = TextEditingController(text: initialAppointment?.duration.toString() ?? '30');
     _notesController = TextEditingController(text: initialAppointment?.notes ?? '');
-    _teethController = TextEditingController(text: initialAppointment?.teeth?.join(', ') ?? '');
     _status = initialAppointment?.status ?? 'รอยืนยัน';
     _selectedDate = initialAppointment?.startTime ?? widget.initialDate ?? DateTime.now();
     
@@ -294,7 +304,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         await _appointmentService.addAppointment(appointment);
       }
       if (mounted) {
-        // 💖✨ THE FIX v1.7: ส่งข้อมูลกลับไปเป็น Map ที่มีทั้ง appointment และ patient ค่ะ!
         Navigator.of(context).pop({
           'appointment': appointment,
           'patient': _selectedPatient!,

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v2.6 - 💖 Laila's Combined Appointment Flow!)
+// 📁 lib/screens/calendar_screen.dart (v3.1 - 💖 Laila's Daily Link Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -18,14 +18,10 @@ import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
-import 'appointment_add.dart';
 import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
-import '../features/printing/domain/appointment_slip_model.dart';
-import '../features/printing/render/appointment_slip_preview_page.dart';
-import '../features/printing/render/combined_slip_preview_page.dart';
-import '../features/printing/render/receipt_mapper.dart';
+import '../services/appointment_flow_service.dart';
 
 
 class CalendarScreen extends StatefulWidget {
@@ -67,15 +63,12 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     super.initState();
     _selectedDay = _focusedDay;
     WidgetsBinding.instance.addObserver(this);
-    debugPrint("💖 Laila Debug (Calendar): initState - initial patient from widget: ${widget.initialPatient?.name}");
-    debugPrint("💖 Laila Debug (Calendar): initState - initial receipt from widget? ${widget.receiptDraft != null}");
   }
   
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      debugPrint("💖 Laila Debug (Calendar): App resumed, forcing data refresh.");
       if (!_isInitialLoad) {
         _handleDataChange();
       }
@@ -97,31 +90,23 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       if (arguments is Map) {
         _chainedPatient = arguments['initialPatient'] as Patient?;
         _receiptDraft = arguments['receiptDraft'] as receipt.ReceiptModel?;
-        debugPrint("💖 Laila Debug (Calendar): Received arguments via ModalRoute!");
       } else {
         _chainedPatient = widget.initialPatient;
         _receiptDraft = widget.receiptDraft;
-        debugPrint("💖 Laila Debug (Calendar): No ModalRoute args, using widget properties.");
       }
       
-      debugPrint("💖 Laila Debug (Calendar): Final patient for this screen: ${_chainedPatient?.name}");
-      debugPrint("💖 Laila Debug (Calendar): Final receipt draft for this screen? ${_receiptDraft != null}");
-
       _loadDataForMonth(_focusedDay);
       _isInitialLoad = false;
     }
   }
 
   Future<void> _handleDataChange() {
-    debugPrint("📱 [CalendarScreen] Data change detected! Refetching data...");
     return _loadDataForMonth(_focusedDay);
   }
 
   Future<void> _loadDataForMonth(DateTime month) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() { _isLoading = true; });
 
     final firstDayOfMonth = DateTime(month.year, month.month, 1);
     final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
@@ -131,9 +116,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     for (int i = 0; i < lastDayOfMonth.day; i++) {
       final day = firstDayOfMonth.add(Duration(days: i));
       fetchTasks.add(
-        _appointmentService.getAppointmentsByDate(day).then((
-          dailyAppointments,
-        ) {
+        _appointmentService.getAppointmentsByDate(day).then((dailyAppointments) {
           if (dailyAppointments.isNotEmpty) {
             final dayKey = DateTime.utc(day.year, day.month, day.day);
             events[dayKey] = dailyAppointments;
@@ -145,9 +128,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     await Future.wait(fetchTasks);
     if (!mounted) return;
     
-    setState(() {
-      _events = events;
-    });
+    setState(() { _events = events; });
     
     await _populateTimelineForDay(_selectedDay);
   }
@@ -173,9 +154,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     DayWorkingHours? dayWorkingHours;
     try {
       final allWorkingHours = await _workingHoursService.loadWorkingHours();
-      dayWorkingHours = allWorkingHours.firstWhere(
-        (d) => d.dayName == _getThaiDayName(day.weekday),
-      );
+      dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
     } catch (e) {
       dayWorkingHours = null;
     }
@@ -190,94 +169,34 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   }
 
   String _getThaiDayName(int weekday) {
-    const days = [
-      'จันทร์',
-      'อังคาร',
-      'พุธ',
-      'พฤหัสบดี',
-      'ศุกร์',
-      'เสาร์',
-      'อาทิตย์',
-    ];
+    const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
     return days[weekday - 1];
   }
 
-  // 💖✨ START: THE COMBINED FLOW FIX v2.6 ✨💖
-  // ไลลารวมฟังก์ชันการเพิ่มนัดให้เป็นฟังก์ชันเดียวเลยค่ะ
-  // โดยสามารถรับ `initialStartTime` ที่อาจจะถูกส่งมาจาก TimelineView ได้ด้วย
-  void _handleAddAppointment({DateTime? initialStartTime}) {
-    showDialog(
-      context: context,
-      builder: (_) => AppointmentAddDialog(
-        initialDate: _selectedDay,
-        initialPatient: _chainedPatient,
-        initialStartTime: initialStartTime, // ส่งเวลาเริ่มต้นไปให้หน้าต่างเพิ่มนัด
-      ),
-    ).then((result) async { 
-      debugPrint("💖 Laila Debug (Calendar): Dialog closed with result: $result");
-      
-      if (result is Map<String, dynamic>) {
-        final newAppointment = result['appointment'] as AppointmentModel;
-        final newPatient = result['patient'] as Patient;
-
-        await _handleDataChange();
-        if (!mounted) return;
-
-        if (_receiptDraft != null) {
-          // --- Flow การรักษา (ไปหน้า Combined Slip) ---
-          debugPrint("💖 Laila Debug (Calendar): Refresh complete! Navigating to Combined Slip.");
-          final apptInfo = mapCalendarResultToApptInfo(newAppointment);
-          
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CombinedSlipPreviewPage(
-                receipt: _receiptDraft!,
-                nextAppointment: apptInfo,
-              ),
-            ),
-          );
-
-          // เคลียร์คนไข้ที่ค้างอยู่หลังจากพิมพ์เสร็จ
-          if (mounted) {
-            setState(() {
-              _chainedPatient = null;
-              _receiptDraft = null;
-              debugPrint("💖 Laila Debug (Calendar): Chained patient and receipt draft cleared!");
-            });
-          }
-
-        } else {
-          // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
-          debugPrint("💖 Laila Debug (Calendar): No receipt draft. Standard flow.");
-          final slip = AppointmentSlipModel(
-            clinic: const receipt.ClinicInfo(
-              name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
-              address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
-              phone: '094-5639334',
-            ),
-            patient: receipt.PatientInfo(
-              name: newPatient.name,
-              hn: newPatient.hnNumber ?? '',
-            ),
-            appointment: AppointmentInfo(
-              startAt: newAppointment.startTime,
-              note: newAppointment.notes?.trim().isEmpty ?? true
-                  ? newAppointment.treatment
-                  : newAppointment.notes,
-            ),
-          );
-
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
-            ),
-          );
-        }
-      }
-    });
+  void _onAppointmentFlowComplete({bool clearPatient = false}) {
+    if (clearPatient && mounted) {
+      setState(() {
+        _chainedPatient = null;
+        _receiptDraft = null;
+        debugPrint("💖 Laila Debug (Calendar): Chained patient and receipt draft cleared by Helper!");
+      });
+    }
+    _handleDataChange();
   }
-  // 💖✨ END: THE COMBINED FLOW FIX v2.6 ✨💖
 
+  void _handleAddAppointment({DateTime? initialStartTime}) {
+    final flowService = AppointmentFlowService(
+      context: context,
+      onFlowComplete: _onAppointmentFlowComplete,
+    );
+
+    flowService.startAddAppointmentFlow(
+      day: _selectedDay,
+      initialStartTime: initialStartTime,
+      chainedPatient: _chainedPatient,
+      receiptDraft: _receiptDraft,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -287,16 +206,12 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         !_selectedDayWorkingHours!.isClosed &&
         _selectedDayWorkingHours!.timeSlots.isNotEmpty) {
       final dayStartTime = DateTime(
-        _selectedDay.year,
-        _selectedDay.month,
-        _selectedDay.day,
+        _selectedDay.year, _selectedDay.month, _selectedDay.day,
         _selectedDayWorkingHours!.timeSlots.first.openTime.hour,
         _selectedDayWorkingHours!.timeSlots.first.openTime.minute,
       );
       final dayEndTime = DateTime(
-        _selectedDay.year,
-        _selectedDay.month,
-        _selectedDay.day,
+        _selectedDay.year, _selectedDay.month, _selectedDay.day,
         _selectedDayWorkingHours!.timeSlots.last.closeTime.hour,
         _selectedDayWorkingHours!.timeSlots.last.closeTime.minute,
       );
@@ -304,12 +219,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       final double pixelsPerMinute = hourHeight / 60.0;
       const double verticalPadding = 28.0;
 
-      timelineHeight =
-          max(
-            0.0,
-            dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute,
-          ) +
-          verticalPadding;
+      timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
     }
 
     return Scaffold(
@@ -322,10 +232,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         actions: [
           if (widget.showReset)
             IconButton(
-              icon: const Icon(
-                Icons.developer_mode,
-                color: AppTheme.textSecondary,
-              ),
+              icon: const Icon(Icons.developer_mode, color: AppTheme.textSecondary),
               tooltip: 'ออกจากโหมดข้ามล็อกอิน',
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
@@ -356,29 +263,32 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder:
-                          (context) =>
-                              WeeklyViewScreen(focusedDate: _focusedDay),
+                      builder: (context) => WeeklyViewScreen(
+                        focusedDate: _focusedDay,
+                        initialPatient: _chainedPatient,
+                        receiptDraft: _receiptDraft,
+                      ),
                     ),
                   ).then((_) => _handleDataChange());
                 } else {
                   if (_calendarFormat != format) {
-                    setState(() {
-                      _calendarFormat = format;
-                    });
+                    setState(() { _calendarFormat = format; });
                   }
                 }
               },
+              // 💖✨ START: DAILY LINK FIX v3.1 ✨💖
+              // ตอนนี้เราจะส่ง "กระเป๋าเวทมนตร์" ให้น้อง Daily ด้วยค่ะ
               onDailyViewTapped: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder:
-                        (context) =>
-                            DailyCalendarScreen(selectedDate: _selectedDay),
-                  ),
+                  MaterialPageRoute(builder: (context) => DailyCalendarScreen(
+                    selectedDate: _selectedDay,
+                    initialPatient: _chainedPatient,
+                    receiptDraft: _receiptDraft,
+                  )),
                 ).then((_) => _handleDataChange());
               },
+              // 💖✨ END: DAILY LINK FIX v3.1 ✨💖
             ),
           ),
           Padding(
@@ -388,13 +298,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
               ),
               child: TableCalendar(
                 locale: 'th_TH',
@@ -411,27 +315,13 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
-                  titleTextStyle: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: AppTheme.fontFamily,
-                  ),
+                  titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
                 ),
                 calendarBuilders: CalendarBuilders(
                   headerTitleBuilder: (context, date) {
                     final year = date.year + 543;
                     final month = DateFormat.MMMM('th_TH').format(date);
-                    return Center(
-                      child: Text(
-                        '$month $year',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: AppTheme.fontFamily,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    );
+                    return Center(child: Text('$month $year', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)));
                   },
                   markerBuilder: (context, day, events) {
                     if (events.isNotEmpty) {
@@ -440,26 +330,9 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                         bottom: 1,
                         child: Container(
                           padding: const EdgeInsets.all(1.0),
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFFF06292),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${events.length}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: AppTheme.fontFamily,
-                              ),
-                            ),
-                          ),
+                          decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Center(child: Text('${events.length}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily))),
                         ),
                       );
                     }
@@ -467,14 +340,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   },
                 ),
                 calendarStyle: CalendarStyle(
-                  todayDecoration: BoxDecoration(
-                    color: AppTheme.primaryLight.withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  selectedDecoration: const BoxDecoration(
-                    color: AppTheme.primary,
-                    shape: BoxShape.circle,
-                  ),
+                  todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
+                  selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
                 ),
                 onDaySelected: (selectedDay, focusedDay) {
                   if (!isSameDay(_selectedDay, selectedDay)) {
@@ -499,42 +366,23 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
           const SizedBox(height: 12),
           SizedBox(
             height: timelineHeight,
-            child:
-                _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AppTheme.primary),
-                      )
-                    : (_selectedDayWorkingHours == null ||
-                            _selectedDayWorkingHours!.isClosed)
-                        ? Center(
-                            child: Text(
-                              'คลินิกปิดทำการ',
-                              style: TextStyle(
-                                color: AppTheme.textDisabled,
-                                fontSize: 16,
-                                fontFamily: AppTheme.fontFamily,
-                              ),
-                            ),
-                          )
-                        : TimelineView(
-                            selectedDate: _selectedDay,
-                            appointments: _selectedAppointments,
-                            patients: _patientsForAppointments,
-                            workingHours: _selectedDayWorkingHours!,
-                            onDataChanged: _handleDataChange,
-                            initialPatient: _chainedPatient, // ส่งคนไข้ที่เชื่อมมาไปให้ Timeline
-                            // 💖✨ START: THE COMBINED FLOW FIX v2.6 ✨💖
-                            // นี่คือ "ทางเชื่อมวิเศษ" ของเราค่ะ
-                            // เราส่งฟังก์ชัน `_handleAddAppointment` ไปให้ TimelineView
-                            // เพื่อให้ GapCard สามารถเรียกใช้ได้โดยตรงเลยค่ะ
-                            onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
-                            // 💖✨ END: THE COMBINED FLOW FIX v2.6 ✨💖
-                          ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+                : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
+                    ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
+                    : TimelineView(
+                        selectedDate: _selectedDay,
+                        appointments: _selectedAppointments,
+                        patients: _patientsForAppointments,
+                        workingHours: _selectedDayWorkingHours!,
+                        onDataChanged: _handleDataChange,
+                        initialPatient: _chainedPatient,
+                        onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
+                      ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        // 💖✨ THE COMBINED FLOW FIX v2.6: ปุ่ม + ก็จะเรียกใช้ฟังก์ชันกลางตัวเดียวกันค่ะ
         onPressed: () => _handleAddAppointment(),
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',

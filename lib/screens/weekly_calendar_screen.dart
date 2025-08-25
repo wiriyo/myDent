@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/weekly_calendar_screen.dart (v3.0 - 💖 Laila's Magic Spell!)
+// 📁 lib/screens/weekly_calendar_screen.dart (v4.2 - 💖 Laila's Daily Link Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -22,14 +22,9 @@ import '../widgets/gap_card.dart';
 import '../widgets/view_mode_selector.dart';
 import 'daily_calendar_screen.dart';
 
-// 💖✨ START: MAGIC SPELL v3.0 ✨💖
-// ไลลาเพิ่ม import ที่จำเป็นสำหรับเวทมนตร์ของเราค่ะ
+// 💖✨ Imports for Magic Spell
 import '../features/printing/domain/receipt_model.dart' as receipt;
-import '../features/printing/domain/appointment_slip_model.dart';
-import '../features/printing/render/appointment_slip_preview_page.dart';
-import '../features/printing/render/combined_slip_preview_page.dart';
-import '../features/printing/render/receipt_mapper.dart';
-// 💖✨ END: MAGIC SPELL v3.0 ✨💖
+import '../services/appointment_flow_service.dart';
 
 
 class _WeeklyAppointmentLayoutInfo {
@@ -55,11 +50,8 @@ class _WeeklyAppointmentLayoutInfo {
 
 class WeeklyViewScreen extends StatefulWidget {
   final DateTime focusedDate;
-  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
-  // เพิ่ม "กระเป๋าเวทมนตร์" เพื่อรับคนไข้และใบเสร็จที่ส่งต่อมาค่ะ
   final Patient? initialPatient;
   final receipt.ReceiptModel? receiptDraft;
-  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
 
   const WeeklyViewScreen({
     super.key, 
@@ -80,12 +72,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   DateTime? _selectedDay;
   bool _isLoading = true;
 
-  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
-  // เพิ่มตัวแปรสำหรับเก็บข้อมูลคนไข้และใบเสร็จที่ได้รับมาค่ะ
   Patient? _chainedPatient;
   receipt.ReceiptModel? _receiptDraft;
   bool _isInitialLoad = true;
-  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
 
   Map<
     DateTime,
@@ -153,8 +142,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     _fetchDataForWeek(_focusedDay);
   }
 
-  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
-  // เพิ่ม didChangeDependencies เพื่อรับข้อมูลจาก "กระเป๋าเวทมนตร์" ตอนที่หน้าจอถูกสร้างขึ้นมาค่ะ
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -170,7 +157,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       _isInitialLoad = false;
     }
   }
-  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
 
   @override
   void didUpdateWidget(WeeklyViewScreen oldWidget) {
@@ -198,72 +184,29 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     _fetchDataForWeek(_focusedDay);
   }
 
-  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
-  // นี่คือ "คาถาบทหลัก" ของเราค่ะ! ไลลาสร้างฟังก์ชันนี้ขึ้นมาเพื่อจัดการการเพิ่มนัดทั้งหมด
-  void _handleAddAppointment({required DateTime day, DateTime? initialStartTime}) {
-    showDialog(
-      context: context,
-      builder: (_) => AppointmentAddDialog(
-        initialDate: day,
-        initialPatient: _chainedPatient,
-        initialStartTime: initialStartTime,
-      ),
-    ).then((result) async {
-      if (result is Map<String, dynamic>) {
-        final newAppointment = result['appointment'] as AppointmentModel;
-        final newPatient = result['patient'] as Patient;
-
-        await _fetchDataForWeek(_focusedDay); // รีเฟรชข้อมูลก่อนเสมอ
-        if (!mounted) return;
-
-        if (_receiptDraft != null) {
-          // --- Flow การรักษา (ไปหน้า Combined Slip) ---
-          final apptInfo = mapCalendarResultToApptInfo(newAppointment);
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CombinedSlipPreviewPage(
-                receipt: _receiptDraft!,
-                nextAppointment: apptInfo,
-              ),
-            ),
-          );
-
-          // ร่ายมนตร์ "ลืมเลือน" เพื่อเคลียร์ข้อมูลคนไข้
-          if (mounted) {
-            setState(() {
-              _chainedPatient = null;
-              _receiptDraft = null;
-            });
-          }
-        } else {
-          // --- Flow ปกติ (สร้างนัดจากหน้าปฏิทิน) ---
-          final slip = AppointmentSlipModel(
-            clinic: const receipt.ClinicInfo(
-              name: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
-              address: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
-              phone: '094-5639334',
-            ),
-            patient: receipt.PatientInfo(
-              name: newPatient.name,
-              hn: newPatient.hnNumber ?? '',
-            ),
-            appointment: AppointmentInfo(
-              startAt: newAppointment.startTime,
-              note: newAppointment.notes?.trim().isEmpty ?? true
-                  ? newAppointment.treatment
-                  : newAppointment.notes,
-            ),
-          );
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
-            ),
-          );
-        }
-      }
-    });
+  void _onAppointmentFlowComplete({bool clearPatient = false}) {
+    if (clearPatient && mounted) {
+      setState(() {
+        _chainedPatient = null;
+        _receiptDraft = null;
+      });
+    }
+    _fetchDataForWeek(_focusedDay);
   }
-  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
+
+  void _handleAddAppointment({required DateTime day, DateTime? initialStartTime}) {
+    final flowService = AppointmentFlowService(
+      context: context,
+      onFlowComplete: _onAppointmentFlowComplete,
+    );
+
+    flowService.startAddAppointmentFlow(
+      day: day,
+      initialStartTime: initialStartTime,
+      chainedPatient: _chainedPatient,
+      receiptDraft: _receiptDraft,
+    );
+  }
 
   void _calculateAndSetWeekHourRange() {
     if (_weeklyData.isEmpty) {
@@ -552,18 +495,22 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                             Navigator.pop(context);
                           }
                         },
+                        // 💖✨ START: DAILY LINK FIX v4.2 ✨💖
+                        // ตอนนี้เราจะส่ง "กระเป๋าเวทมนตร์" ให้น้อง Daily ด้วยค่ะ
                         onDailyViewTapped: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder:
                                   (context) => DailyCalendarScreen(
-                                    selectedDate:
-                                        _selectedDay ?? DateTime.now(),
+                                    selectedDate: _selectedDay ?? DateTime.now(),
+                                    initialPatient: _chainedPatient,
+                                    receiptDraft: _receiptDraft,
                                   ),
                             ),
-                          ).then((_) => _handleDataChange());
+                          ).then((_) => _fetchDataForWeek(_focusedDay));
                         },
+                        // 💖✨ END: DAILY LINK FIX v4.2 ✨💖
                       ),
                     ),
                     _buildCalendar(),
@@ -610,10 +557,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 ),
               ),
       floatingActionButton: FloatingActionButton(
-        // 💖✨ START: MAGIC SPELL v3.0 ✨💖
-        // เปลี่ยนให้ปุ่ม + เรียกใช้ "คาถาบทหลัก" ของเราค่ะ
         onPressed: () => _handleAddAppointment(day: _selectedDay ?? DateTime.now()),
-        // 💖✨ END: MAGIC SPELL v3.0 ✨💖
         backgroundColor: AppTheme.primary,
         tooltip: 'เพิ่มนัดหมายใหม่',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -952,10 +896,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 child: GapCard(
                   gapStart: itemStart,
                   gapEnd: itemEnd,
-                  // 💖✨ START: MAGIC SPELL v3.0 ✨💖
-                  // เปลี่ยนให้ GapCard เรียกใช้ "คาถาบทหลัก" ของเราค่ะ
                   onTap: () => _handleAddAppointment(day: day, initialStartTime: itemStart),
-                  // 💖✨ END: MAGIC SPELL v3.0 ✨💖
                 ),
               );
             } else {

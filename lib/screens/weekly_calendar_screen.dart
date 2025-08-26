@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/weekly_calendar_screen.dart (v4.2 - 💖 Laila's Daily Link Fix!)
+// 📁 lib/screens/weekly_calendar_screen.dart (v4.3 - 💖 Laila's Navigation Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -15,7 +15,6 @@ import '../services/patient_service.dart';
 import '../services/working_hours_service.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
-import 'appointment_add.dart';
 import '../widgets/appointment_detail_dialog.dart';
 import '../widgets/appointment_card.dart';
 import '../widgets/gap_card.dart';
@@ -495,10 +494,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                             Navigator.pop(context);
                           }
                         },
-                        // 💖✨ START: DAILY LINK FIX v4.2 ✨💖
-                        // ตอนนี้เราจะส่ง "กระเป๋าเวทมนตร์" ให้น้อง Daily ด้วยค่ะ
-                        onDailyViewTapped: () {
-                          Navigator.push(
+                        // 💖✨ START: NAVIGATION FIX v4.3 ✨💖
+                        // เราจะรอ "คำตอบ" จากหน้าน้อง Daily ค่ะ
+                        onDailyViewTapped: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder:
@@ -508,9 +507,19 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                     receiptDraft: _receiptDraft,
                                   ),
                             ),
-                          ).then((_) => _fetchDataForWeek(_focusedDay));
+                          );
+
+                          // ถ้าคำตอบคือ "อยากไปหน้ารายเดือน"
+                          if (result is CalendarFormat && result == CalendarFormat.month) {
+                            if (!mounted) return;
+                            // เราก็จะใช้ประตูย้อนกลับไปได้เลยค่ะ เพราะหน้ารายเดือนอยู่ข้างใต้เราพอดี
+                            Navigator.pop(context);
+                          } else {
+                            // ถ้าไม่ใช่ ก็แค่รีเฟรชข้อมูลค่ะ
+                            _fetchDataForWeek(_focusedDay);
+                          }
                         },
-                        // 💖✨ END: DAILY LINK FIX v4.2 ✨💖
+                        // 💖✨ END: NAVIGATION FIX v4.3 ✨💖
                       ),
                     ),
                     _buildCalendar(),

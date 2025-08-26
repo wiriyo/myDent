@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v3.1 - 💖 Laila's Daily Link Fix!)
+// 📁 lib/screens/calendar_screen.dart (v3.2 - 💖 Laila's Navigation Fix!)
 // ----------------------------------------------------------------
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -276,19 +276,37 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   }
                 }
               },
-              // 💖✨ START: DAILY LINK FIX v3.1 ✨💖
-              // ตอนนี้เราจะส่ง "กระเป๋าเวทมนตร์" ให้น้อง Daily ด้วยค่ะ
-              onDailyViewTapped: () {
-                Navigator.push(
+              // 💖✨ START: NAVIGATION FIX v3.2 ✨💖
+              // เราจะรอ "คำตอบ" จากหน้าน้อง Daily ค่ะ
+              onDailyViewTapped: () async {
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => DailyCalendarScreen(
                     selectedDate: _selectedDay,
                     initialPatient: _chainedPatient,
                     receiptDraft: _receiptDraft,
                   )),
-                ).then((_) => _handleDataChange());
+                );
+
+                // ถ้าคำตอบคือ "อยากไปหน้ารายสัปดาห์"
+                if (result is CalendarFormat && result == CalendarFormat.week) {
+                  if (!mounted) return;
+                  // เราก็จะเปิดประตูมิติไปหน้ารายสัปดาห์ให้เลยค่ะ!
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WeeklyViewScreen(
+                        focusedDate: _focusedDay,
+                        initialPatient: _chainedPatient,
+                        receiptDraft: _receiptDraft,
+                      ),
+                    ),
+                  );
+                }
+                // ไม่ว่าจะเกิดอะไรขึ้น เราจะรีเฟรชข้อมูลเสมอค่ะ
+                _handleDataChange();
               },
-              // 💖✨ END: DAILY LINK FIX v3.1 ✨💖
+              // 💖✨ END: NAVIGATION FIX v3.2 ✨💖
             ),
           ),
           Padding(

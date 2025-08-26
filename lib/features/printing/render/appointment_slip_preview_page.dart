@@ -1,22 +1,21 @@
 // lib/features/printing/render/appointment_slip_preview_page.dart
+// v1.7.0 - The Perfect Solution! เพิ่มระบบ Printing Scale ที่ปรับขนาดได้
 // อัปเกรด: ปรับปรุง UI และเพิ่มฟังก์ชันการทำงานของปุ่มให้สมบูรณ์
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
-import 'package:flutter/services.dart' show rootBundle, ByteData;
-import '../utils/th_format.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import กล่องเก็บของวิเศษ
 import '../domain/appointment_slip_model.dart';
-// ✨ FIX: เพิ่ม import ที่ขาดไป เพื่อให้รู้จัก ClinicInfo และ PatientInfo
 import '../domain/receipt_model.dart';
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
-
+import '../utils/th_format.dart';
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
-  // ทำให้ slip เป็น optional และเพิ่ม useSampleData เพื่อให้หน้านี้แสดงตัวอย่างได้ง่าย
   final AppointmentSlipModel? slip;
   final bool useSampleData;
   const AppointmentSlipPreviewPage({super.key, this.slip, this.useSampleData = true});
@@ -33,6 +32,10 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   bool _busyCapture = false;
   bool _isLoading = true;
 
+  // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่า Printing Scale
+  double _printingScale = 1.0;
+  static const String _scaleKey = 'mydent.printing.scale';
+
   @override
   void initState() {
     super.initState();
@@ -40,8 +43,11 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   }
 
   Future<void> _prepare() async {
+    // 💖 NEW: โหลดค่า scale ที่เคยบันทึกไว้
+    final prefs = await SharedPreferences.getInstance();
+    final savedScale = prefs.getDouble(_scaleKey) ?? 1.0;
+
     try {
-      // ใช้ข้อมูลตัวอย่างถ้าถูกร้องขอ หรือถ้าไม่มีข้อมูลจริงส่งเข้ามา
       final data = (widget.useSampleData || widget.slip == null)
           ? _sampleData()
           : widget.slip!;
@@ -49,8 +55,9 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
       final logo = await rootBundle.load('assets/images/logo_clinic.png');
       if (mounted) {
         setState(() {
+          _printingScale = savedScale; // นำค่าที่โหลดมาใช้
           _logo = logo;
-          _data = data; // เซ็ตข้อมูลสำหรับแสดงผล
+          _data = data;
         });
       }
     } catch (_) {
@@ -58,6 +65,18 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+  
+  // 💖 NEW: ฟังก์ชันสำหรับปรับและบันทึกค่า Scale
+  Future<void> _updateScale(double newScale) async {
+    final prefs = await SharedPreferences.getInstance();
+    // ทำให้ค่า scale ไม่น้อยกว่า 0.5 และไม่มากกว่า 2.0
+    final clampedScale = newScale.clamp(0.5, 2.0);
+    await prefs.setDouble(_scaleKey, clampedScale);
+    setState(() {
+      _printingScale = clampedScale;
+      _lastPng = null; // เคลียร์ภาพเก่าทิ้งเพื่อให้สร้างใหม่ตาม scale ใหม่
+    });
   }
 
   @override
@@ -72,53 +91,47 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     final slipData = _data!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('พรีวิวใบนัด')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: RepaintBoundary(
-            key: _boundaryKey,
-            child: _SlipWidget(width: 576, slip: slipData, logoBytes: _logo),
-          ),
-        ),
+      appBar: AppBar(title: Text('พรีวิวใบนัด (Scale: ${_printingScale.toStringAsFixed(1)})')),
+      // 💖 FIX v1.7.0: ใช้ค่า _printingScale ที่ปรับได้
+      body: Builder(
+        builder: (bodyContext) {
+          return MediaQuery(
+            data: MediaQuery.of(bodyContext).copyWith(textScaleFactor: _printingScale),
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: RepaintBoundary(
+                  key: _boundaryKey,
+                  child: _SlipWidget(width: 576, slip: slipData, logoBytes: _logo),
+                ),
+              ),
+            ),
+          );
+        },
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 110,
-                height: 72,
-                child: FilledButton(
-                  onPressed: _busyCapture ? null : _captureAndSavePng,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Color(0xFFE8F5E9),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: Image.asset('assets/icons/picture.png', width: 36, height: 36),
-                ),
+              // 💖 NEW: ปุ่มทดสอบสำหรับลด Scale
+              _buildScaleButton(Icons.remove, () => _updateScale(_printingScale - 0.1)),
+              const Spacer(),
+              _buildIconButton(
+                onPressed: _busyCapture ? null : _captureAndSavePng,
+                bgColor: const Color(0xFFE8F5E9),
+                iconAsset: 'assets/icons/picture.png',
               ),
               const SizedBox(width: 24),
-              SizedBox(
-                width: 110,
-                height: 72,
-                child: FilledButton(
-                  onPressed: _busyCapture ? null : _print,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Color(0xFFFFF3E0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: Image.asset('assets/icons/printer.png', width: 36, height: 36),
-                ),
+              _buildIconButton(
+                onPressed: _busyCapture ? null : _print,
+                bgColor: const Color(0xFFFFF3E0),
+                iconAsset: 'assets/icons/printer.png',
               ),
+              const Spacer(),
+              // 💖 NEW: ปุ่มทดสอบสำหรับเพิ่ม Scale
+              _buildScaleButton(Icons.add, () => _updateScale(_printingScale + 0.1)),
             ],
           ),
         ),
@@ -126,7 +139,43 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     );
   }
 
-  // สร้างข้อมูลตัวอย่างเพื่อให้แสดงผลได้ถูกต้องตามที่ต้องการ
+  // 💖 NEW: Helper widget สำหรับสร้างปุ่ม Print/Save
+  Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset}) {
+    return SizedBox(
+      width: 110,
+      height: 72,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: bgColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: EdgeInsets.zero,
+        ),
+        child: Image.asset(iconAsset, width: 36, height: 36),
+      ),
+    );
+  }
+  
+  // 💖 NEW: Helper widget สำหรับสร้างปุ่มปรับ Scale
+  Widget _buildScaleButton(IconData icon, VoidCallback onPressed) {
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.grey.shade200,
+          foregroundColor: Colors.black,
+          shape: const CircleBorder(),
+          padding: EdgeInsets.zero,
+        ),
+        child: Icon(icon, size: 28),
+      ),
+    );
+  }
+
   AppointmentSlipModel _sampleData() {
     return AppointmentSlipModel(
       clinic: const ClinicInfo(
@@ -140,13 +189,14 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
       ),
       appointment: AppointmentInfo(
         startAt: DateTime(2025, 8, 22, 11, 0),
-        note: 'ถอน(#21)', // หัตถการตามที่ขอ
+        note: 'ถอน(#21)',
       ),
     );
   }
 
   Future<void> _captureAndSavePng() async {
-    if (_busyCapture) return; setState(() => _busyCapture = true);
+    if (_busyCapture) return; 
+    setState(() => _busyCapture = true);
     try {
       final obj = _boundaryKey.currentContext?.findRenderObject();
       if (obj is! RenderRepaintBoundary) throw Exception('ไม่พบ RepaintBoundary');
@@ -277,7 +327,7 @@ class _SlipWidget extends StatelessWidget {
             const SizedBox(height: 24),
             
             Column(
-              children: [
+              children: const [
                 Text(
                   'กรุณามาก่อนเวลานัด 10-15 นาที',
                   style: TextStyle(fontSize: 16),

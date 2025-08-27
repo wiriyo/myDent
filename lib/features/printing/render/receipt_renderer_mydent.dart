@@ -1,13 +1,12 @@
 // lib/features/printing/render/receipt_renderer_mydent.dart
-// v1.2.0 - The Perfect Solution! เพิ่มระบบ Printing Scale ที่ปรับขนาดได้
-// Renderer สำหรับใบเสร็จ MyDent
+// v1.3.0 - Final Cleanup! ลบปุ่มปรับค่าและเปลี่ยนมาใช้ค่าที่บันทึกไว้อัตโนมัติ
 
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
-import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import กล่องเก็บของวิเศษ
+import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import เพื่ออ่านค่า
 import '../utils/th_format.dart';
 import '../services/thermal_printer_service.dart';
 import '../domain/receipt_model.dart';
@@ -40,9 +39,13 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   bool _busyCapture = false;
   bool _isLoading = true;
 
-  // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่า Printing Scale
+  // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่าที่อ่านมาจาก SharedPreferences
   double _printingScale = 1.0;
-  static const String _scaleKey = 'mydent.printing.scale'; // ใช้ key เดียวกันเพื่อให้จำค่าเดียวกันทั้งแอป
+  int _printingPostFeed = 3;
+  int _printingHeaderSpace = 0;
+  static const String _scaleKey = 'mydent.printing.scale';
+  static const String _postFeedKey = 'mydent.printing.postfeed';
+  static const String _headerSpaceKey = 'mydent.printing.headerspace';
 
   @override
   void initState() {
@@ -51,9 +54,11 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   Future<void> _prepare() async {
-    // 💖 NEW: โหลดค่า scale ที่เคยบันทึกไว้
+    // 💖 NEW: อ่านค่าการตั้งค่าทั้งหมดจาก SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final savedScale = prefs.getDouble(_scaleKey) ?? 1.0;
+    final savedPostFeed = prefs.getInt(_postFeedKey) ?? 3;
+    final savedHeaderSpace = prefs.getInt(_headerSpaceKey) ?? 0;
 
     try {
       final data = (widget.useSampleData || widget.receipt == null)
@@ -64,7 +69,10 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       if (!mounted) return;
 
       setState(() {
-        _printingScale = savedScale; // นำค่าที่โหลดมาใช้
+        // 💖 NEW: นำค่าที่อ่านได้มาใช้งาน
+        _printingScale = savedScale;
+        _printingPostFeed = savedPostFeed;
+        _printingHeaderSpace = savedHeaderSpace;
         _data = data;
         _logo = logo;
         _isLoading = false;
@@ -78,17 +86,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         });
       }
     }
-  }
-  
-  // 💖 NEW: ฟังก์ชันสำหรับปรับและบันทึกค่า Scale
-  Future<void> _updateScale(double newScale) async {
-    final prefs = await SharedPreferences.getInstance();
-    final clampedScale = newScale.clamp(0.5, 2.0);
-    await prefs.setDouble(_scaleKey, clampedScale);
-    setState(() {
-      _printingScale = clampedScale;
-      _lastPng = null; // เคลียร์ภาพเก่าทิ้งเพื่อให้สร้างใหม่ตาม scale ใหม่
-    });
   }
 
   Future<ByteData?> _loadLogo() async {
@@ -153,7 +150,8 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       }
       
       if (_lastPng != null) {
-        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
+        // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
+        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) {
           Navigator.of(context).pop();
         }
@@ -186,12 +184,12 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('พรีวิวใบเสร็จ (Scale: ${_printingScale.toStringAsFixed(1)})'),
+        title: const Text('พรีวิวใบเสร็จ'),
       ),
-      // 💖 FIX v1.2.0: ใช้ค่า _printingScale ที่ปรับได้
       body: Builder(
         builder: (bodyContext) {
           return MediaQuery(
+            // 💖 NEW: ใช้ค่า scale ที่อ่านมา
             data: MediaQuery.of(bodyContext).copyWith(textScaleFactor: _printingScale),
             child: Center(
               child: SingleChildScrollView(
@@ -205,6 +203,8 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                       width: 576,
                       showNextAppt: widget.showNextAppt,
                       nextAppointment: widget.nextAppt,
+                      // 💖 NEW: ใช้ค่า headerSpace ที่อ่านมา
+                      headerSpace: _printingHeaderSpace.toDouble(),
                     ),
                   ),
                 ),
@@ -213,15 +213,13 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
           );
         },
       ),
+      // 💖 FIX: เอาปุ่มปรับค่าออก เหลือแค่ปุ่มหลัก
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 💖 NEW: ปุ่มทดสอบสำหรับลด Scale
-              _buildScaleButton(Icons.remove, () => _updateScale(_printingScale - 0.1)),
-              const Spacer(),
               _buildIconButton(
                 onPressed: _busyCapture ? null : _captureAndSavePng,
                 bgColor: const Color(0xFFE8F5E9),
@@ -233,9 +231,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                 bgColor: const Color(0xFFFFF3E0),
                 iconAsset: 'assets/icons/printer.png',
               ),
-              const Spacer(),
-              // 💖 NEW: ปุ่มทดสอบสำหรับเพิ่ม Scale
-              _buildScaleButton(Icons.add, () => _updateScale(_printingScale + 0.1)),
             ],
           ),
         ),
@@ -243,7 +238,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     );
   }
   
-  // 💖 NEW: Helper widget สำหรับสร้างปุ่ม Print/Save
   Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset}) {
     return SizedBox(
       width: 110,
@@ -261,24 +255,6 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       ),
     );
   }
-  
-  // 💖 NEW: Helper widget สำหรับสร้างปุ่มปรับ Scale
-  Widget _buildScaleButton(IconData icon, VoidCallback onPressed) {
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.grey.shade200,
-          foregroundColor: Colors.black,
-          shape: const CircleBorder(),
-          padding: EdgeInsets.zero,
-        ),
-        child: Icon(icon, size: 28),
-      ),
-    );
-  }
 
   ReceiptModel _sampleData() {
     return ReceiptModel(
@@ -289,7 +265,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       ),
       bill: BillInfo(
         billNo: '68-001',
-        issuedAt: DateTime(2025, 8, 15, 14, 30),
+        issuedAt: DateTime.now(),
       ),
       patient: const PatientInfo(
         name: 'นาย อรุณ วิริโยคุณ',
@@ -315,6 +291,7 @@ class _ReceiptWidget extends StatelessWidget {
   final double width;
   final bool showNextAppt;
   final AppointmentInfo? nextAppointment;
+  final double headerSpace; // 💖 NEW: รับค่า headerSpace
 
   const _ReceiptWidget({
     required this.data,
@@ -322,6 +299,7 @@ class _ReceiptWidget extends StatelessWidget {
     required this.width,
     this.showNextAppt = false,
     this.nextAppointment,
+    this.headerSpace = 0.0, // 💖 NEW: ค่าเริ่มต้น
   });
 
   static const double _labelWidth = 150;
@@ -331,13 +309,15 @@ class _ReceiptWidget extends StatelessWidget {
     return Container(
       width: width,
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: DefaultTextStyle(
         style: const TextStyle(fontSize: 22, color: Colors.black, height: 1.25),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 💖 NEW: ใช้ค่า headerSpace ที่รับมา
+            SizedBox(height: headerSpace),
             if (logoBytes != null) ...[
               Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium),
               const SizedBox(height: 6),

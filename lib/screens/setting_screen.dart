@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+// 💖 NEW: import หน้าตั้งค่าการพิมพ์ที่เราเพิ่งสร้างเข้ามา
+import '../features/printing/render/printer_settings_page.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -50,14 +52,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             _buildSettingCard(
               context,
-              icon: Icons.access_time, // ไอคอนสำหรับเวลาทำการ
+              icon: Icons.access_time,
               title: "เวลาทำการ",
               subtitle: "ตั้งค่าเวลาเปิด-ปิดคลินิกแต่ละวัน",
               onTap: () {
                 Navigator.pushNamed(context, '/working_hours');
               },
             ),
-            // เพิ่มเมนูอื่น ๆ ได้อีกในอนาคต
+            // 💖 NEW: เพิ่มเมนู "ตั้งค่าการพิมพ์" เข้าไปตรงนี้เลยค่า
+            _buildSettingCard(
+              context,
+              icon: Icons.print, // ไอคอนรูปเครื่องพิมพ์น่ารักๆ
+              title: "ตั้งค่าการพิมพ์",
+              subtitle: "ปรับขนาดและระยะห่างของสลิป",
+              onTap: () {
+                // ใช้ Navigator.push ธรรมดาเพื่อเปิดหน้าใหม่ขึ้นมาทับ
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrinterSettingsPage()),
+                );
+              },
+            ),
           ],
         ),
       ),

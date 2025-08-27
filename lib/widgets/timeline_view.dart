@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/working_hours_model.dart';
-import '../screens/appointment_add.dart';
 import '../models/appointment_model.dart';
 import '../models/patient.dart';
 import 'appointment_card.dart';

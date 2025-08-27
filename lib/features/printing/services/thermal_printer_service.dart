@@ -1,8 +1,7 @@
 // lib/features/printing/services/thermal_printer_service.dart
-// อัปเดตครั้งสุดท้าย: เพิ่มการขอ Permission.location โดยตรง
+// v1.1.0 - ปรับปรุงการเว้นบรรทัดท้ายกระดาษ (Post-Print Feed)
 
 import 'dart:io' show Platform;
-// ✨ FIX: แก้ไข typo จาก package.flutter -> package:flutter ค่ะ
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,12 +26,10 @@ class ThermalPrinterService {
   CapabilityProfile? _profile;
   Future<CapabilityProfile> _loadProfile() async => _profile ??= await CapabilityProfile.load();
 
-  // ✨ FINAL FIX: อัปเกรดฟังก์ชันขออนุญาตให้สมบูรณ์แบบที่สุด!
   Future<bool> _requestPermissions() async {
     Map<Permission, PermissionStatus> statuses = await [
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
-      // เพิ่มการขอ Location เข้าไปโดยตรง เพราะบาง OS ผูกติดกัน
       Permission.location, 
     ].request();
 
@@ -104,7 +101,6 @@ class ThermalPrinterService {
   }
 
   Future<PrinterDevice?> _showPickerDialog(BuildContext context) async {
-    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     final devices = await discoverPaired();
     if (!mounted(context)) return null;
 
@@ -146,7 +142,6 @@ class ThermalPrinterService {
   }
 
   Future<void> printPng(Uint8List pngBytes, {int feed = 3, bool cut = true, PosAlign align = PosAlign.center}) async {
-    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     final profile = await _loadProfile();
     final gen = Generator(PaperSize.mm80, profile);
 
@@ -156,14 +151,18 @@ class ThermalPrinterService {
 
     final bytes = <int>[];
     bytes.addAll(gen.imageRaster(src, align: align, highDensityHorizontal: true, highDensityVertical: true));
+    
+    // 💖 FIX v1.1.0: ทำให้ feed เป็นตัวควบคุมระยะห่างท้ายกระดาษทั้งหมด
     if (feed > 0) bytes.addAll(gen.feed(feed));
-    if (cut) { bytes.addAll(gen.cut(mode: PosCutMode.full)); bytes.addAll(gen.feed(2)); }
+    if (cut) { 
+      bytes.addAll(gen.cut(mode: PosCutMode.full)); 
+      // เอา feed(2) ที่เคย hardcode ไว้ออก เพื่อให้ตั้งค่าจากข้างนอกได้ 100%
+    }
 
     await PrintBluetoothThermal.writeBytes(bytes);
   }
 
   Future<void> ensureConnectAndPrintPng(BuildContext context, Uint8List pngBytes, {int feed = 3, bool cut = true}) async {
-    // ... (ส่วนนี้เหมือนเดิมค่ะ)
     if (!Platform.isAndroid) { _toast(context, 'โหมดนี้รองรับ Android ก่อนนะคะ'); return; }
     final ok = await ensureConnectedOrPick(context);
     if (!mounted(context)) return;

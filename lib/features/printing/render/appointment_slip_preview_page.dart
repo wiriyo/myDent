@@ -1,6 +1,5 @@
 // lib/features/printing/render/appointment_slip_preview_page.dart
-// v1.7.0 - The Perfect Solution! เพิ่มระบบ Printing Scale ที่ปรับขนาดได้
-// อัปเกรด: ปรับปรุง UI และเพิ่มฟังก์ชันการทำงานของปุ่มให้สมบูรณ์
+// v1.8.0 - Final Cleanup! ลบปุ่มปรับค่าและเปลี่ยนมาใช้ค่าที่บันทึกไว้อัตโนมัติ
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -8,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import กล่องเก็บของวิเศษ
+import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import เพื่ออ่านค่า
 import '../domain/appointment_slip_model.dart';
 import '../domain/receipt_model.dart';
 import '../services/image_saver_service.dart';
@@ -32,9 +31,13 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   bool _busyCapture = false;
   bool _isLoading = true;
 
-  // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่า Printing Scale
+  // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่าที่อ่านมาจาก SharedPreferences
   double _printingScale = 1.0;
+  int _printingPostFeed = 3;
+  int _printingHeaderSpace = 0;
   static const String _scaleKey = 'mydent.printing.scale';
+  static const String _postFeedKey = 'mydent.printing.postfeed';
+  static const String _headerSpaceKey = 'mydent.printing.headerspace';
 
   @override
   void initState() {
@@ -43,9 +46,11 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   }
 
   Future<void> _prepare() async {
-    // 💖 NEW: โหลดค่า scale ที่เคยบันทึกไว้
+    // 💖 NEW: อ่านค่าการตั้งค่าทั้งหมดจาก SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final savedScale = prefs.getDouble(_scaleKey) ?? 1.0;
+    final savedPostFeed = prefs.getInt(_postFeedKey) ?? 3;
+    final savedHeaderSpace = prefs.getInt(_headerSpaceKey) ?? 0;
 
     try {
       final data = (widget.useSampleData || widget.slip == null)
@@ -55,9 +60,12 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
       final logo = await rootBundle.load('assets/images/logo_clinic.png');
       if (mounted) {
         setState(() {
-          _printingScale = savedScale; // นำค่าที่โหลดมาใช้
-          _logo = logo;
+          // 💖 NEW: นำค่าที่อ่านได้มาใช้งาน
+          _printingScale = savedScale;
+          _printingPostFeed = savedPostFeed;
+          _printingHeaderSpace = savedHeaderSpace;
           _data = data;
+          _logo = logo;
         });
       }
     } catch (_) {
@@ -65,18 +73,6 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-  
-  // 💖 NEW: ฟังก์ชันสำหรับปรับและบันทึกค่า Scale
-  Future<void> _updateScale(double newScale) async {
-    final prefs = await SharedPreferences.getInstance();
-    // ทำให้ค่า scale ไม่น้อยกว่า 0.5 และไม่มากกว่า 2.0
-    final clampedScale = newScale.clamp(0.5, 2.0);
-    await prefs.setDouble(_scaleKey, clampedScale);
-    setState(() {
-      _printingScale = clampedScale;
-      _lastPng = null; // เคลียร์ภาพเก่าทิ้งเพื่อให้สร้างใหม่ตาม scale ใหม่
-    });
   }
 
   @override
@@ -91,33 +87,32 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     final slipData = _data!;
 
     return Scaffold(
-      appBar: AppBar(title: Text('พรีวิวใบนัด (Scale: ${_printingScale.toStringAsFixed(1)})')),
-      // 💖 FIX v1.7.0: ใช้ค่า _printingScale ที่ปรับได้
+      appBar: AppBar(title: const Text('พรีวิวใบนัด')),
       body: Builder(
         builder: (bodyContext) {
           return MediaQuery(
+            // 💖 NEW: ใช้ค่า scale ที่อ่านมา
             data: MediaQuery.of(bodyContext).copyWith(textScaleFactor: _printingScale),
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(12),
                 child: RepaintBoundary(
                   key: _boundaryKey,
-                  child: _SlipWidget(width: 576, slip: slipData, logoBytes: _logo),
+                  // 💖 NEW: ใช้ค่า headerSpace ที่อ่านมา
+                  child: _SlipWidget(width: 576, slip: slipData, logoBytes: _logo, headerSpace: _printingHeaderSpace.toDouble()),
                 ),
               ),
             ),
           );
         },
       ),
+      // 💖 FIX: เอาปุ่มปรับค่าออก เหลือแค่ปุ่มหลัก
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 💖 NEW: ปุ่มทดสอบสำหรับลด Scale
-              _buildScaleButton(Icons.remove, () => _updateScale(_printingScale - 0.1)),
-              const Spacer(),
               _buildIconButton(
                 onPressed: _busyCapture ? null : _captureAndSavePng,
                 bgColor: const Color(0xFFE8F5E9),
@@ -129,17 +124,13 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
                 bgColor: const Color(0xFFFFF3E0),
                 iconAsset: 'assets/icons/printer.png',
               ),
-              const Spacer(),
-              // 💖 NEW: ปุ่มทดสอบสำหรับเพิ่ม Scale
-              _buildScaleButton(Icons.add, () => _updateScale(_printingScale + 0.1)),
             ],
           ),
         ),
       ),
     );
   }
-
-  // 💖 NEW: Helper widget สำหรับสร้างปุ่ม Print/Save
+  
   Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset}) {
     return SizedBox(
       width: 110,
@@ -157,24 +148,6 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
       ),
     );
   }
-  
-  // 💖 NEW: Helper widget สำหรับสร้างปุ่มปรับ Scale
-  Widget _buildScaleButton(IconData icon, VoidCallback onPressed) {
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.grey.shade200,
-          foregroundColor: Colors.black,
-          shape: const CircleBorder(),
-          padding: EdgeInsets.zero,
-        ),
-        child: Icon(icon, size: 28),
-      ),
-    );
-  }
 
   AppointmentSlipModel _sampleData() {
     return AppointmentSlipModel(
@@ -188,7 +161,7 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
         hn: 'HN54321',
       ),
       appointment: AppointmentInfo(
-        startAt: DateTime(2025, 8, 22, 11, 0),
+        startAt: DateTime.now().add(const Duration(days: 7)),
         note: 'ถอน(#21)',
       ),
     );
@@ -240,7 +213,8 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
       }
       
       if (_lastPng != null) {
-        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: 3, cut: true);
+        // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
+        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) {
           Navigator.of(context).pop();
         }
@@ -265,7 +239,9 @@ class _SlipWidget extends StatelessWidget {
   final double width;
   final AppointmentSlipModel slip;
   final ByteData? logoBytes;
-  const _SlipWidget({required this.width, required this.slip, this.logoBytes});
+  final double headerSpace; // 💖 NEW: รับค่า headerSpace
+
+  const _SlipWidget({required this.width, required this.slip, this.logoBytes, this.headerSpace = 0.0});
 
   static const double _labelWidth = 150;
 
@@ -274,13 +250,15 @@ class _SlipWidget extends StatelessWidget {
     return Container(
       width: width,
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: DefaultTextStyle(
         style: const TextStyle(fontSize: 22, color: Colors.black, height: 1.25),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 💖 NEW: ใช้ค่า headerSpace ที่รับมา
+            SizedBox(height: headerSpace),
             if (logoBytes != null) ...[
               Image.memory(
                 logoBytes!.buffer.asUint8List(),

@@ -1,6 +1,8 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v3.2 - 💖 Laila's Navigation Fix!)
+// 📁 lib/screens/calendar_screen.dart (v3.3 - 💖 Laila's Dev Preview Removal!)
 // ----------------------------------------------------------------
+// ไลลาได้นำปุ่ม 'Dev Preview' ที่ใช้สำหรับการดีบักออกไปแล้วนะคะ
+// เพื่อให้หน้าจอสะอาดตาและพร้อมสำหรับการใช้งานจริงค่ะ!
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -242,14 +244,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 }
               },
             ),
-          if (kDebugMode)
-            IconButton(
-              icon: const Icon(Icons.bug_report, color: AppTheme.textSecondary),
-              tooltip: 'Dev Preview',
-              onPressed: () {
-                Navigator.pushNamed(context, '/dev/preview');
-              },
-            ),
+          // 💖 ไลลาเอาปุ่ม Dev Preview ออกแล้วนะคะ!
         ],
       ),
       body: ListView(

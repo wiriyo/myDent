@@ -190,7 +190,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         builder: (bodyContext) {
           return MediaQuery(
             // 💖 NEW: ใช้ค่า scale ที่อ่านมา
-            data: MediaQuery.of(bodyContext).copyWith(textScaleFactor: _printingScale),
+            data: MediaQuery.of(bodyContext).copyWith(textScaler: TextScaler.linear(_printingScale)),
             child: Center(
               child: SingleChildScrollView(
                 child: ColoredBox(

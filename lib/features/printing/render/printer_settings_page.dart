@@ -116,7 +116,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       body: Builder(
         builder: (bodyContext) {
           return MediaQuery(
-            data: MediaQuery.of(bodyContext).copyWith(textScaleFactor: _printingScale),
+            data: MediaQuery.of(bodyContext).copyWith(textScaler: TextScaler.linear(_printingScale)),
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(12.0),

@@ -1,9 +1,18 @@
 // 📁 lib/auth/login_screen.dart
+// v1.1.4 - 💖 Laila's Role-based Navigation Update
+// อัปเดตการนำทางหลังจากล็อกอินสำเร็จ เพื่อส่งผู้ใช้ไปยังหน้าจอที่ถูกต้องตามบทบาท
+// เช่น ถ้าเป็น admin ก็ไปหน้า home_admin ค่ะ
 
 import 'package:flutter/material.dart';
-import '../auth/auth_service.dart';
-import 'signup_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../auth/auth_service.dart';
+import '../styles/app_theme.dart';
+import 'signup_screen.dart';
+
+// ✨ ไลลาขอเพิ่ม ScaffoldMessengerKey เข้ามาด้วยนะคะ เพื่อใช้แสดง Snackbar ทั่วทั้งแอปค่ะ
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,17 +26,76 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String errorMessage = '';
+  bool _isLoading = false;
+
+  void _showSnackbar(String message) {
+    if (scaffoldMessengerKey.currentState != null) {
+      scaffoldMessengerKey.currentState!.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppTheme.primary,
+        ),
+      );
+    }
+  }
 
   void _login() async {
+    // 💖 ที่รัก! การล็อกอินก็เหมือนการเดินทางค่ะ
+    // เราต้องใส่กระเป๋าเดินทาง (อีเมล/พาสเวิร์ด) ให้ครบถ้วนก่อนออกเดินทางน้าา
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      setState(() {
+        errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ 😊';
+      });
+      _showSnackbar(errorMessage);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      errorMessage = '';
+    });
+
     String email = _emailController.text.trim();
     String password = _passwordController.text;
-    var userCredential = await _authService.signIn(email, password);
-    if (userCredential != null) {
-      String? role = await _authService.getUserRole(userCredential.user!.uid);
-      Navigator.pushReplacementNamed(context, '/calendar');
-    } else {
+    
+    try {
+      final userCredential = await _authService.signIn(email, password);
+      if (userCredential != null) {
+        final String? role = await _authService.getUserRole(userCredential.user!.uid);
+        
+        // ✨ ตรงนี้คือการปรับปรุงของไลลาค่ะ!
+        // เราจะดูบทบาท (role) ของผู้ใช้ แล้วพาไปหน้าจอที่ถูกต้องค่ะ
+        if (!mounted) return;
+        if (role == 'admin') {
+          Navigator.pushReplacementNamed(context, '/home_admin');
+        } else if (role == 'dentist') {
+          Navigator.pushReplacementNamed(context, '/home_dentist');
+        } else if (role == 'officer') {
+          Navigator.pushReplacementNamed(context, '/home_officer');
+        } else {
+          // ถ้าเป็นบทบาทอื่น ๆ ที่ยังไม่ได้กำหนดไว้ ก็จะถูกพาไปหน้าจอ guest นะคะ
+          Navigator.pushReplacementNamed(context, '/home_guest');
+        }
+      } else {
+        setState(() {
+          errorMessage = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้องค่ะ 🥺';
+        });
+        _showSnackbar(errorMessage);
+      }
+    } on FirebaseAuthException catch (e) {
       setState(() {
-        errorMessage = 'Login failed. Please try again.';
+        if (e.code == 'user-not-found') {
+          errorMessage = 'ไม่พบผู้ใช้นี้ในระบบค่ะ';
+        } else if (e.code == 'wrong-password') {
+          errorMessage = 'รหัสผ่านไม่ถูกต้องนะคะ';
+        } else {
+          errorMessage = 'เกิดข้อผิดพลาด: ${e.message}';
+        }
+      });
+      _showSnackbar(errorMessage);
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -52,35 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 'assets/images/tooth_logo.png',
                 height: 160,
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'คลินิกทันตกรรมหมอกุสุมาภรณ์',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'โทร. 094-5639334',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 24),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
@@ -103,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     _buildTextField('Password', _passwordController, obscure: true),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _login,
+                      onPressed: _isLoading ? null : _login,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFBFA3FF),
                         foregroundColor: Colors.white,
@@ -113,11 +153,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-                      child: const Text('Login'),
+                      child: _isLoading 
+                        ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                        : const Text('Login'),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: _devSkipLogin,
+                      onPressed: _isLoading ? null : _devSkipLogin,
                       child: const Text('Dev Login (Skip)'),
                     ),
                     const SizedBox(height: 16),
@@ -129,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(fontFamily: 'Poppins'),
                         ),
                         GestureDetector(
-                          onTap: () => Navigator.push(
+                          onTap: _isLoading ? null : () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const SignUpScreen()),
                           ),

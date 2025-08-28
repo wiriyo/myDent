@@ -1,61 +1,81 @@
-// lib/auth/auth_service.dart
+// 📁 lib/auth/auth_service.dart
+// v1.1.4 - Laila's Get User Name Method
+// เพิ่มฟังก์ชันสำหรับดึงชื่อผู้ใช้จาก Firestore
+// เพื่อให้หน้าจอแสดงชื่อผู้ใช้ที่ถูกต้องค่ะ
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<UserCredential?> signUp(String email, String password) async {
+  // Sign up with email and password
+  Future<UserCredential?> signUp(String email, String password, String name) async {
     try {
-      print("🚀 Calling createUserWithEmailAndPassword...");
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-      print("✅ Sign up success: ${result.user?.uid}");
-
-      await _firestore
-          .collection('users')
-          .doc(result.user?.uid)
-          .set({
-            'email': email,
-            'role': 'guest',
-            'createdAt': FieldValue.serverTimestamp(),
-          })
-          .catchError((e) {
-            print("🔥 Firestore write failed: $e");
-          });
-
-      return result;
-    } catch (e) {
-      print("🔥 Sign up error: $e");
-      return null;
+      if (userCredential.user != null) {
+        await _firestore.collection('users').doc(userCredential.user!.uid).set({
+          'name': name,
+          'email': email,
+          'role': 'guest',
+        });
+      }
+      return userCredential;
+    } on FirebaseAuthException {
+      rethrow;
     }
   }
 
+  // Sign in with email and password
   Future<UserCredential?> signIn(String email, String password) async {
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      return result;
+      return userCredential;
+    } on FirebaseAuthException {
+      rethrow;
+    }
+  }
+
+  // Get user role from Firestore
+  Future<String?> getUserRole(String uid) async {
+    try {
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        return userDoc.get('role');
+      }
+      return null;
     } catch (e) {
-      print("🔥 Sign in error: $e");
       return null;
     }
   }
 
-  Future<String?> getUserRole(String uid) async {
+  // Laila's new method to get user name from Firestore
+  Future<String?> getUserName(String uid) async {
     try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(uid).get();
-      return userDoc['role'];
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        return userDoc.get('name');
+      }
+      return null;
     } catch (e) {
-      print("🔥 Get role error: $e");
       return null;
     }
+  }
+
+  // Sign out
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  // Laila's new method to reset password
+  Future<void> resetPassword(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
   }
 }

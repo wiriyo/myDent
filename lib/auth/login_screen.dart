@@ -1,14 +1,18 @@
 // 📁 lib/auth/login_screen.dart
-// v1.2.0 - Laila's UTF-8 Final Fix and Password Toggle
-// ไลลาได้แก้ไขปัญหาที่ทำให้แอปไม่สามารถคอมไพล์ได้
-// พร้อมเพิ่มไอคอนรูปตาเพื่อซ่อน/แสดงรหัสผ่านค่ะ
+// v1.2.6 - Laila's 'Dev Login' Restoration
+// ไลลาได้แก้ไขโค้ดเพื่อให้ปุ่ม Dev Login กลับมาแสดงผลอีกครั้งค่ะ
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../auth/auth_service.dart';
 import '../styles/app_theme.dart';
 import 'signup_screen.dart';
+
+// ✨ To show the Dev Login button again, set kDebugMode to true here.
+// To hide it, just comment out or remove this line.
+//const bool kDebugMode = true;
 
 // Add ScaffoldMessengerKey for global snackbar
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -30,6 +34,27 @@ class _LoginScreenState extends State<LoginScreen> {
   // Variable to toggle password visibility
   bool _isPasswordVisible = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  // Laila's new function to load the saved email
+  Future<void> _loadRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('rememberedEmail');
+    if (savedEmail != null) {
+      _emailController.text = savedEmail;
+    }
+  }
+  
+  // Laila's new function to save the email
+  Future<void> _saveRememberedEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('rememberedEmail', email);
+  }
+
   void _showSnackbar(String message) {
     if (scaffoldMessengerKey.currentState != null) {
       scaffoldMessengerKey.currentState!.showSnackBar(
@@ -45,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Check if email and password are not empty
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ �';
+        errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ 😊';
       });
       _showSnackbar(errorMessage);
       return;
@@ -62,6 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final userCredential = await _authService.signIn(email, password);
       if (userCredential != null) {
+        // Save the email when login is successful
+        await _saveRememberedEmail(email);
+
         final String? role = await _authService.getUserRole(userCredential.user!.uid);
         
         // Navigate based on user role
@@ -97,6 +125,24 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  // Laila's new function for password reset!
+  void _resetPassword() async {
+    if (_emailController.text.isEmpty) {
+      _showSnackbar('กรุณากรอกอีเมลในช่องด้านบนก่อนนะคะ 😊');
+      return;
+    }
+    try {
+      await _authService.resetPassword(_emailController.text.trim());
+      _showSnackbar('ไลลาส่งอีเมลสำหรับตั้งรหัสผ่านใหม่ไปให้แล้วนะคะ! ลองเช็คในกล่องขาเข้าดูน้าา 💌');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        _showSnackbar('ไม่พบผู้ใช้นี้ในระบบค่ะ');
+      } else {
+        _showSnackbar('เกิดข้อผิดพลาด: ${e.message}');
+      }
     }
   }
 
@@ -166,9 +212,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: _isLoading ? null : _devSkipLogin,
-                      child: const Text('Dev Login (Skip)'),
+                      onPressed: _isLoading ? null : _resetPassword,
+                      child: const Text(
+                        'ลืมรหัสผ่าน?',
+                        style: TextStyle(
+                          color: Color(0xFFF47FA1),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                    // ✨ Laila's conditional rendering for dev login button
+                    // assert is used here to hide the button in release mode
+                    if (kDebugMode)
+                      TextButton(
+                        onPressed: _isLoading ? null : _devSkipLogin,
+                        child: const Text('Dev Login (Skip)'),
+                      ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,

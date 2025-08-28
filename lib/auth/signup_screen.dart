@@ -1,8 +1,13 @@
-// lib/auth/signup_screen.dart
+// 📁 lib/auth/signup_screen.dart
+// v1.0.1 - Laila's Sign Up Fix
+// แก้ไขโค้ดเพื่อให้เรียกใช้ฟังก์ชัน signUp ได้อย่างถูกต้อง
+// โดยส่งค่า name เพิ่มเข้าไปด้วยค่ะ
 
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../auth/auth_service.dart';
+import '../styles/app_theme.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -13,20 +18,62 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   final AuthService _authService = AuthService();
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String errorMessage = '';
+  bool _isLoading = false;
+
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.primary,
+      ),
+    );
+  }
 
   void _signUp() async {
-    String email = _emailController.text.trim();
-    String password = _passwordController.text;
-    var userCredential = await _authService.signUp(email, password);
-    if (userCredential != null) {
-      String? role = await _authService.getUserRole(userCredential.user!.uid);
-      Navigator.pushReplacementNamed(context, '/home', arguments: role);
-    } else {
+    // Check all fields are filled
+    if (_nameController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        errorMessage = 'Sign up failed. Please try again.';
+        errorMessage = 'กรุณากรอกข้อมูลให้ครบถ้วนนะคะ 😊';
+      });
+      _showSnackbar(errorMessage);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      errorMessage = '';
+    });
+
+    try {
+      // Corrected call to signUp function with all 3 arguments
+      final userCredential = await _authService.signUp(
+        _emailController.text.trim(),
+        _passwordController.text,
+        _nameController.text.trim(), // <--- Added 'name' here
+      );
+      if (userCredential != null) {
+        if (!mounted) return;
+        _showSnackbar('สมัครสมาชิกสำเร็จแล้วค่ะ! ยินดีต้อนรับสู่ MyDent! 🎉');
+        Navigator.pop(context);
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        if (e.code == 'email-already-in-use') {
+          errorMessage = 'อีเมลนี้ถูกใช้ไปแล้วค่ะ 🥺';
+        } else if (e.code == 'weak-password') {
+          errorMessage = 'รหัสผ่านอ่อนเกินไปนะคะ ควรมี 6 ตัวอักษรขึ้นไปค่ะ';
+        } else {
+          errorMessage = 'เกิดข้อผิดพลาด: ${e.message}';
+        }
+      });
+      _showSnackbar(errorMessage);
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -44,35 +91,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 'assets/images/tooth_logo.png',
                 height: 160,
               ),
-              // const SizedBox(height: 8),
-              // const Text(
-              //   'คลินิกทันตกรรมหมอกุสุมาภรณ์',
-              //   textAlign: TextAlign.center,
-              //   style: TextStyle(
-              //     fontFamily: 'Poppins',
-              //     fontSize: 20,
-              //     fontWeight: FontWeight.bold,
-              //   ),
-              // ),
-              // const SizedBox(height: 4),
-              // const Text(
-              //   '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
-              //   textAlign: TextAlign.center,
-              //   style: TextStyle(
-              //     fontFamily: 'Poppins',
-              //     fontSize: 14,
-              //   ),
-              // ),
-              // const SizedBox(height: 4),
-              // const Text(
-              //   'โทร. 094-5639334',
-              //   textAlign: TextAlign.center,
-              //   style: TextStyle(
-              //     fontFamily: 'Poppins',
-              //     fontSize: 14,
-              //   ),
-              // ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 24),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
@@ -83,21 +102,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 10,
-                      offset: Offset(0, 4),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const Text(
+                      'สร้างบัญชีใหม่',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6A4DBA),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField('ชื่อ', _nameController),
+                    const SizedBox(height: 16),
                     _buildTextField('Email', _emailController),
                     const SizedBox(height: 16),
                     _buildTextField('Password', _passwordController, obscure: true),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _signUp,
+                      onPressed: _isLoading ? null : _signUp,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFBFA3FF),
+                        backgroundColor: const Color(0xFFF47FA1),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -105,7 +135,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-                      child: const Text('Sign Up'),
+                      child: _isLoading 
+                        ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                        : const Text('Sign Up'),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -116,14 +155,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           style: TextStyle(fontFamily: 'Poppins'),
                         ),
                         GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const LoginScreen()),
-                          ),
+                          onTap: _isLoading ? null : () => Navigator.pop(context),
                           child: const Text(
-                            "Log In",
+                            "Login",
                             style: TextStyle(
-                              color: Color(0xFFF47FA1),
+                              color: Color(0xFFBFA3FF),
                               fontWeight: FontWeight.bold,
                               fontFamily: 'Poppins',
                             ),

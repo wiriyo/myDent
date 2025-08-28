@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 // 💖 NEW: import หน้าตั้งค่าการพิมพ์ที่เราเพิ่งสร้างเข้ามา
 import '../features/printing/render/printer_settings_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +27,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Navigator.pushReplacementNamed(context, '/appointment_search');
     } else if (index == 4) {
       // stay on settings
+    }
+  }
+
+  // Laila's new logout function
+  Future<void> _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('skipLogin'); // Clear skip login flag
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+        (Route<dynamic> route) => false,
+      );
+    } catch (e) {
+      // TODO: Handle logout error
+      print(e);
     }
   }
 
@@ -72,6 +92,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   MaterialPageRoute(builder: (context) => const PrinterSettingsPage()),
                 );
               },
+            ),
+            const SizedBox(height: 32),
+            // 💖 NEW: Laila's logout button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _logout,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF47FA1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.logout),
+                label: const Text(
+                  'ออกจากระบบ',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

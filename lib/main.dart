@@ -1,5 +1,7 @@
-// v1.1.0 - ✨ Fully Enabled Thai Localization
 // 📁 lib/main.dart
+// v1.1.5 - Laila's 'Dev Login' Hiding Feature
+// ไลลาได้ซ่อนปุ่ม Dev Login เพื่อให้แอปดูพร้อมใช้งานจริง
+// โดยจะแสดงผลเฉพาะในโหมด Debug เท่านั้นค่ะ
 
 // Dart & Flutter Packages
 import 'package:flutter/material.dart';
@@ -23,6 +25,10 @@ import 'screens/working_hours_screen.dart';
 import 'screens/appointment_search_screen.dart';
 import 'models/patient.dart';
 import 'dev/dev_entry.dart';
+import 'home/home_admin.dart'; 
+import 'home/home_dentist.dart'; 
+import 'home/home_officer.dart'; 
+import 'home/home_guest.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -55,10 +61,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
       
-      
-      // ✨ [พ.ศ. FIX] การตั้งค่า localization ที่สมบูรณ์แบบค่ะ
-      // การตั้งค่าชุดนี้จะทำให้ทุกส่วนของแอป รวมถึง DatePicker
-      // แสดงผลเป็นภาษาไทยและปี พ.ศ. ได้อย่างถูกต้องค่ะ
+      // การตั้งค่า localization ที่สมบูรณ์แบบค่ะ
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -109,10 +112,14 @@ class MyApp extends StatelessWidget {
         '/treatment_list': (context) => const TreatmentListScreen(),
         '/working_hours': (context) => const WorkingHoursScreen(),
         '/appointment_search': (context) => const AppointmentSearchScreen(),
-        if (kDebugMode) '/dev/preview': (_) => const DevEntry(),
-  
+        // ✨ Only show this route in debug mode
+        if (kDebugMode)
+          '/dev/preview': (_) => const DevEntry(),
+        '/home_admin': (context) => const HomeAdminScreen(), 
+        '/home_dentist': (context) => const HomeDentistScreen(),
+        '/home_officer': (context) => const HomeOfficerScreen(),
+        '/home_guest': (context) => const HomeGuestScreen(),
       },
-      
     );
   }
 }

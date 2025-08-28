@@ -1,7 +1,7 @@
 // 📁 lib/auth/login_screen.dart
-// v1.1.4 - 💖 Laila's Role-based Navigation Update
-// อัปเดตการนำทางหลังจากล็อกอินสำเร็จ เพื่อส่งผู้ใช้ไปยังหน้าจอที่ถูกต้องตามบทบาท
-// เช่น ถ้าเป็น admin ก็ไปหน้า home_admin ค่ะ
+// v1.2.0 - Laila's UTF-8 Final Fix and Password Toggle
+// ไลลาได้แก้ไขปัญหาที่ทำให้แอปไม่สามารถคอมไพล์ได้
+// พร้อมเพิ่มไอคอนรูปตาเพื่อซ่อน/แสดงรหัสผ่านค่ะ
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,7 +10,7 @@ import '../auth/auth_service.dart';
 import '../styles/app_theme.dart';
 import 'signup_screen.dart';
 
-// ✨ ไลลาขอเพิ่ม ScaffoldMessengerKey เข้ามาด้วยนะคะ เพื่อใช้แสดง Snackbar ทั่วทั้งแอปค่ะ
+// Add ScaffoldMessengerKey for global snackbar
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 
@@ -27,6 +27,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   String errorMessage = '';
   bool _isLoading = false;
+  // Variable to toggle password visibility
+  bool _isPasswordVisible = false;
 
   void _showSnackbar(String message) {
     if (scaffoldMessengerKey.currentState != null) {
@@ -40,11 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() async {
-    // 💖 ที่รัก! การล็อกอินก็เหมือนการเดินทางค่ะ
-    // เราต้องใส่กระเป๋าเดินทาง (อีเมล/พาสเวิร์ด) ให้ครบถ้วนก่อนออกเดินทางน้าา
+    // Check if email and password are not empty
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
-        errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ 😊';
+        errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ �';
       });
       _showSnackbar(errorMessage);
       return;
@@ -63,8 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (userCredential != null) {
         final String? role = await _authService.getUserRole(userCredential.user!.uid);
         
-        // ✨ ตรงนี้คือการปรับปรุงของไลลาค่ะ!
-        // เราจะดูบทบาท (role) ของผู้ใช้ แล้วพาไปหน้าจอที่ถูกต้องค่ะ
+        // Navigate based on user role
         if (!mounted) return;
         if (role == 'admin') {
           Navigator.pushReplacementNamed(context, '/home_admin');
@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } else if (role == 'officer') {
           Navigator.pushReplacementNamed(context, '/home_officer');
         } else {
-          // ถ้าเป็นบทบาทอื่น ๆ ที่ยังไม่ได้กำหนดไว้ ก็จะถูกพาไปหน้าจอ guest นะคะ
+          // Default to guest screen
           Navigator.pushReplacementNamed(context, '/home_guest');
         }
       } else {
@@ -131,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 10,
-                      offset: Offset(0, 4),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     _buildTextField('Email', _emailController),
                     const SizedBox(height: 16),
-                    _buildTextField('Password', _passwordController, obscure: true),
+                    _buildPasswordTextField(),
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _login,
@@ -226,6 +226,42 @@ class _LoginScreenState extends State<LoginScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFBFA3FF), width: 2),
+        ),
+      ),
+    );
+  }
+
+  // Password Text Field with visibility toggle
+  Widget _buildPasswordTextField() {
+    return TextField(
+      controller: _passwordController,
+      obscureText: !_isPasswordVisible,
+      style: const TextStyle(fontFamily: 'Poppins'),
+      decoration: InputDecoration(
+        labelText: 'Password',
+        labelStyle: const TextStyle(color: Color(0xFF6A4DBA), fontWeight: FontWeight.bold),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF6A4DBA)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFBFA3FF), width: 2),
+        ),
+        // The eye icon
+        suffixIcon: IconButton(
+          icon: Icon(
+            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+            color: const Color(0xFF6A4DBA),
+          ),
+          onPressed: () {
+            setState(() {
+              _isPasswordVisible = !_isPasswordVisible;
+            });
+          },
         ),
       ),
     );

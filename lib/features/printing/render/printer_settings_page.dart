@@ -2,7 +2,6 @@
 // v1.0.4 - อัปเกรดปุ่มพิมพ์ทดสอบให้ใช้งานได้จริง!
 // เพิ่มฟังก์ชัน 'บันทึกเป็นภาพ' และ 'พิมพ์' เหมือนหน้าพรีวิว
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

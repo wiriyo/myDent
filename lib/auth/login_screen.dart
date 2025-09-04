@@ -1,20 +1,20 @@
 // 📁 lib/auth/login_screen.dart
-// v1.2.6 - Laila's 'Dev Login' Restoration
-// ไลลาได้แก้ไขโค้ดเพื่อให้ปุ่ม Dev Login กลับมาแสดงผลอีกครั้งค่ะ
+// v2.2.0 - Laila's kDebugMode Fix
+// ไลลาได้ลบการประกาศตัวแปร const bool kDebugMode ออกไป
+// เพื่อแก้ไขปัญหาชื่อซ้ำ (ambiguous import) ค่ะ 💖
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'; // เราจะใช้ kDebugMode จากที่นี่ค่ะ
 import '../auth/auth_service.dart';
+import '../auth/auth_provider.dart';
 import '../styles/app_theme.dart';
 import 'signup_screen.dart';
 
-// ✨ To show the Dev Login button again, set kDebugMode to true here.
-// To hide it, just comment out or remove this line.
-//const bool kDebugMode = true;
+// --- ✨💖 ไลลาลบบรรทัด 'const bool kDebugMode = true;' ออกจากตรงนี้แล้วนะคะ 💖✨ ---
 
-// Add ScaffoldMessengerKey for global snackbar
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 
@@ -31,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   String errorMessage = '';
   bool _isLoading = false;
-  // Variable to toggle password visibility
   bool _isPasswordVisible = false;
 
   @override
@@ -40,7 +39,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadRememberedEmail();
   }
 
-  // Laila's new function to load the saved email
   Future<void> _loadRememberedEmail() async {
     final prefs = await SharedPreferences.getInstance();
     final savedEmail = prefs.getString('rememberedEmail');
@@ -49,7 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
   
-  // Laila's new function to save the email
   Future<void> _saveRememberedEmail(String email) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('rememberedEmail', email);
@@ -67,7 +64,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() async {
-    // Check if email and password are not empty
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
         errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ 😊';
@@ -85,50 +81,38 @@ class _LoginScreenState extends State<LoginScreen> {
     String password = _passwordController.text;
     
     try {
-      final userCredential = await _authService.signIn(email, password);
-      if (userCredential != null) {
-        // Save the email when login is successful
+      final String? clinicId = await _authService.signIn(email, password);
+
+      if (clinicId != null && clinicId.isNotEmpty) {
         await _saveRememberedEmail(email);
 
-        final String? role = await _authService.getUserRole(userCredential.user!.uid);
-        
-        // Navigate based on user role
         if (!mounted) return;
-        if (role == 'admin') {
-          Navigator.pushReplacementNamed(context, '/home_admin');
-        } else if (role == 'dentist') {
-          Navigator.pushReplacementNamed(context, '/home_dentist');
-        } else if (role == 'officer') {
-          Navigator.pushReplacementNamed(context, '/home_officer');
-        } else {
-          // Default to guest screen
-          Navigator.pushReplacementNamed(context, '/home_guest');
-        }
+        
+        Provider.of<AppAuthProvider>(context, listen: false).setClinicVerified(clinicId);
+
+        // (เราต้องไปสร้างหน้า /staff_login กันต่อนะคะ)
+        Navigator.pushReplacementNamed(context, '/staff_login');
+
       } else {
         setState(() {
-          errorMessage = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้องค่ะ 🥺';
+          errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้องค่ะ 🥺';
         });
         _showSnackbar(errorMessage);
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
-        if (e.code == 'user-not-found') {
-          errorMessage = 'ไม่พบผู้ใช้นี้ในระบบค่ะ';
-        } else if (e.code == 'wrong-password') {
-          errorMessage = 'รหัสผ่านไม่ถูกต้องนะคะ';
-        } else {
-          errorMessage = 'เกิดข้อผิดพลาด: ${e.message}';
-        }
+        errorMessage = 'เกิดข้อผิดพลาด: ${e.message}';
       });
       _showSnackbar(errorMessage);
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // Laila's new function for password reset!
   void _resetPassword() async {
     if (_emailController.text.isEmpty) {
       _showSnackbar('กรุณากรอกอีเมลในช่องด้านบนก่อนนะคะ 😊');
@@ -184,6 +168,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const Text(
+                      'เข้าสู่ระบบคลินิก',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6A4DBA),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     _buildTextField('Email', _emailController),
                     const SizedBox(height: 16),
                     _buildPasswordTextField(),
@@ -223,9 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // ✨ Laila's conditional rendering for dev login button
-                    // assert is used here to hide the button in release mode
-                    if (kDebugMode)
+                    if (kDebugMode) // <-- ตอนนี้ kDebugMode จะหมายถึงตัวแปรของ Flutter เสมอค่ะ
                       TextButton(
                         onPressed: _isLoading ? null : _devSkipLogin,
                         child: const Text('Dev Login (Skip)'),
@@ -235,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          "Don't have an account? ",
+                          "ยังไม่มีบัญชี? ",
                           style: TextStyle(fontFamily: 'Poppins'),
                         ),
                         GestureDetector(
@@ -292,7 +283,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Password Text Field with visibility toggle
   Widget _buildPasswordTextField() {
     return TextField(
       controller: _passwordController,
@@ -312,7 +302,6 @@ class _LoginScreenState extends State<LoginScreen> {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFBFA3FF), width: 2),
         ),
-        // The eye icon
         suffixIcon: IconButton(
           icon: Icon(
             _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
@@ -328,3 +317,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

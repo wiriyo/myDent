@@ -1,7 +1,8 @@
 // 📁 lib/auth/signup_screen.dart
-// v1.0.1 - Laila's Sign Up Fix
-// แก้ไขโค้ดเพื่อให้เรียกใช้ฟังก์ชัน signUp ได้อย่างถูกต้อง
-// โดยส่งค่า name เพิ่มเข้าไปด้วยค่ะ
+// v2.0.0 - Laila's Multi-Tenant Update (Phase 1)
+// ไลลาได้ปรับปรุงหน้าจอนี้เพื่อรองรับการสมัครสมาชิกของ "เจ้าของคลินิก" ค่ะ
+// - เพิ่มช่องสำหรับกรอก "ชื่อคลินิก" (Clinic Name)
+// - อัปเดตฟังก์ชัน _signUp ให้ส่งข้อมูล clinicName ไปที่ AuthService
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,6 +19,8 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   final AuthService _authService = AuthService();
   final TextEditingController _nameController = TextEditingController();
+  // ✨ ไลลาเพิ่ม Controller สำหรับชื่อคลินิกค่ะ
+  final TextEditingController _clinicNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   String errorMessage = '';
@@ -33,8 +36,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _signUp() async {
-    // Check all fields are filled
-    if (_nameController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    // 💖 ไลลาอัปเดตการเช็คข้อมูลให้ครบถ้วนค่ะ
+    if (_nameController.text.isEmpty ||
+        _clinicNameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
       setState(() {
         errorMessage = 'กรุณากรอกข้อมูลให้ครบถ้วนนะคะ 😊';
       });
@@ -48,12 +54,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     try {
-      // Corrected call to signUp function with all 3 arguments
+      // 💖 ไลลาอัปเดตการเรียกใช้ฟังก์ชัน signUp ให้ส่ง clinicName ไปด้วยค่ะ
       final userCredential = await _authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
-        _nameController.text.trim(), // <--- Added 'name' here
+        _nameController.text.trim(),
+        _clinicNameController.text.trim(), // <--- ส่งชื่อคลินิกไปด้วยน้าา
       );
+
       if (userCredential != null) {
         if (!mounted) return;
         _showSnackbar('สมัครสมาชิกสำเร็จแล้วค่ะ! ยินดีต้อนรับสู่ MyDent! 🎉');
@@ -109,7 +117,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'สร้างบัญชีใหม่',
+                      'สร้างบัญชีเจ้าของคลินิก', // 💖 ไลลาเปลี่ยนข้อความนิดหน่อยค่ะ
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -117,7 +125,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField('ชื่อ', _nameController),
+                    _buildTextField('ชื่อผู้สมัคร', _nameController), // 💖
+                    const SizedBox(height: 16),
+                    // ✨ ไลลาเพิ่มช่องกรอกชื่อคลินิกตรงนี้ค่ะ
+                    _buildTextField('ชื่อคลินิก', _clinicNameController),
                     const SizedBox(height: 16),
                     _buildTextField('Email', _emailController),
                     const SizedBox(height: 16),
@@ -134,16 +145,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-                      child: _isLoading 
-                        ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                        : const Text('Sign Up'),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('Sign Up'),
                     ),
                     const SizedBox(height: 16),
                     Row(

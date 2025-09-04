@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import '../styles/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../auth/auth_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeAdminScreen extends StatefulWidget {
   const HomeAdminScreen({super.key});

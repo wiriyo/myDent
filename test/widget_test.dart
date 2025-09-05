@@ -8,12 +8,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mydent_app/main.dart';
+import 'package:mydent_app/main.dart'; // ตรวจสอบ path ให้ถูกต้องนะคะ
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp(skipLogin: false)); // ✨ ไลลาเพิ่ม skipLogin: false ตรงนี้นะคะ
+    // ✨💖 แก้ไขตรงนี้ให้เรียก MyApp() แบบไม่มีพารามิเตอร์ค่ะ 💖✨
+    await tester.pumpWidget(const MyApp());
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

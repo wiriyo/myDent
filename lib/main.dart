@@ -1,19 +1,19 @@
 // 📁 lib/main.dart
-// v1.1.5 - Laila's 'Dev Login' Hiding Feature
-// ไลลาได้ซ่อนปุ่ม Dev Login เพื่อให้แอปดูพร้อมใช้งานจริง
-// โดยจะแสดงผลเฉพาะในโหมด Debug เท่านั้นค่ะ
+// v2.0.0 - Laila's Multi-Tenant Setup
+// ไลลาได้เพิ่มการตั้งค่า Provider และ AuthWrapper
+// เพื่อรองรับระบบ Login 2 ชั้นของเราค่ะ 💖
 
 // Dart & Flutter Packages
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:provider/provider.dart'; // ✨ 1. Import provider มาก่อนเลยค่ะ
 
 // Project Files
 import 'firebase_options.dart';
+import 'auth/auth_provider.dart'; // ✨ 2. Import "กระเป๋า" ของเรามาด้วย
 import 'auth/login_screen.dart';
+// import 'auth/staff_login_screen.dart'; // เดี๋ยวเราต้องมาสร้างหน้านี้กันต่อนะคะ
 import 'screens/calendar_screen.dart';
 import 'screens/patient_add.dart';
 import 'screens/patient_detail.dart';
@@ -25,34 +25,31 @@ import 'screens/working_hours_screen.dart';
 import 'screens/appointment_search_screen.dart';
 import 'models/patient.dart';
 import 'dev/dev_entry.dart';
-import 'home/home_admin.dart'; 
-import 'home/home_dentist.dart'; 
-import 'home/home_officer.dart'; 
+import 'home/home_admin.dart';
+import 'home/home_dentist.dart';
+import 'home/home_officer.dart';
 import 'home/home_guest.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
+// GlobalKey ยังคงอยู่เหมือนเดิมค่ะ
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  final prefs = await SharedPreferences.getInstance();
-  final skipLogin = prefs.getBool('skipLogin') ?? false;
-
-  if (FirebaseAuth.instance.currentUser == null) {
-    try {
-      await FirebaseAuth.instance.signInAnonymously();
-      print('🎉 Anonymous sign-in success!');
-    } catch (e) {
-      print('❌ Failed to sign in anonymously: $e');
-    }
-  }
-
-  runApp(MyApp(skipLogin: skipLogin));
+  
+  // ✨ 3. เราจะเปลี่ยนการรันแอปมาอยู่ในรูปแบบใหม่ที่รองรับ Provider ค่ะ
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => AppAuthProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  final bool skipLogin;
-  const MyApp({super.key, required this.skipLogin});
+  // ไม่ต้องรับค่า skipLogin แล้วนะคะ เพราะ AuthWrapper จะจัดการให้เอง
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -61,18 +58,19 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
       
-      // การตั้งค่า localization ที่สมบูรณ์แบบค่ะ
+      // การตั้งค่า localization ยังอยู่ครบถ้วนค่ะ
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('th', 'TH'), // ภาษาไทย
-        Locale('en', 'US'), // ภาษาอังกฤษ (สำรอง)
+        Locale('th', 'TH'),
+        Locale('en', 'US'),
       ],
-      locale: const Locale('th', 'TH'), // ตั้งค่าภาษาหลักเป็นภาษาไทย
+      locale: const Locale('th', 'TH'),
 
+      // Theme สวยๆ ของเราก็ยังอยู่ครบค่ะ
       theme: ThemeData(
         primaryColor: const Color(0xFFE0BBFF),
         scaffoldBackgroundColor: const Color(0xFFFFF5FC),
@@ -94,16 +92,19 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.black87),
         ),
       ),
-      initialRoute: '/',
+      
+      // ✨ 4. เราจะให้ AuthWrapper เป็นหน้าจอเริ่มต้นเสมอ
+      home: const AuthWrapper(),
+
+      // Routes ทั้งหมดยังคงอยู่เหมือนเดิม เพื่อให้หน้าอื่น ๆ ทำงานได้ปกติ
       routes: {
-        '/': (context) => skipLogin ? CalendarScreen(showReset: true) : const LoginScreen(),
+        '/login': (context) => const LoginScreen(),
         '/calendar': (context) {
           final args =
               ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           final patient = args != null ? args['initialPatient'] as Patient? : null;
           return CalendarScreen(initialPatient: patient);
         },
-        '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),
         '/add_patient': (context) => const PatientAddScreen(),
         '/reports': (context) => const ReportsScreen(),
@@ -112,14 +113,64 @@ class MyApp extends StatelessWidget {
         '/treatment_list': (context) => const TreatmentListScreen(),
         '/working_hours': (context) => const WorkingHoursScreen(),
         '/appointment_search': (context) => const AppointmentSearchScreen(),
-        // ✨ Only show this route in debug mode
         if (kDebugMode)
           '/dev/preview': (_) => const DevEntry(),
         '/home_admin': (context) => const HomeAdminScreen(), 
         '/home_dentist': (context) => const HomeDentistScreen(),
         '/home_officer': (context) => const HomeOfficerScreen(),
         '/home_guest': (context) => const HomeGuestScreen(),
+        // '/staff_login': (context) => const StaffLoginScreen(), // <-- เดี๋ยวเราต้องมาสร้างหน้านี้กันค่ะ
       },
     );
   }
 }
+
+// ✨ 5. นี่คือ "ยามเฝ้าประตู" คนใหม่ของเราค่ะ!
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // ให้ AuthWrapper คอย "ฟัง" การเปลี่ยนแปลงใน AppAuthProvider
+    final authProvider = Provider.of<AppAuthProvider>(context);
+
+    // ใช้ switch-case เพื่อจัดการสถานะที่แตกต่างกัน
+    switch (authProvider.status) {
+      case AuthStatus.loggedOut:
+        // ถ้ายังไม่ได้ Login เลย -> ไปหน้า LoginScreen
+        return const LoginScreen();
+      case AuthStatus.clinicVerified:
+        // ถ้าผ่านด่านแรกแล้ว -> ไปหน้า StaffLoginScreen (ที่เรากำลังจะสร้าง)
+        // ✨💖 สำหรับตอนนี้ ให้แสดงหน้าจอชั่วคราวไปก่อนนะคะ 💖✨
+        return const Scaffold(
+          backgroundColor: Color(0xFFEFE0FF),
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Phase 1 สำเร็จแล้วค่ะ! 🥳',
+                  style: TextStyle(fontSize: 22, color: Color(0xFF6A4DBA), fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 20),
+                Text(
+                  'กำลังเตรียมตัวไปหน้า Staff Login...',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF6A4DBA)),
+                ),
+                SizedBox(height: 20),
+                CircularProgressIndicator(color: Color(0xFFF47FA1)),
+              ],
+            ),
+          ),
+        );
+      case AuthStatus.loggedIn:
+        // ถ้า Login ครบ 2 ด่านแล้ว -> ไปหน้า HomeAdminScreen (หรือหน้าหลักอื่น ๆ)
+        // เดี๋ยวเราจะมาทำ Logic เลือกหน้าตาม Role ตรงนี้กันอีกทีนะคะ
+        return const HomeAdminScreen();
+      default:
+        // กรณีอื่น ๆ ให้กลับไปหน้า Login ก่อน
+        return const LoginScreen();
+    }
+  }
+}
+

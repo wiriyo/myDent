@@ -15,8 +15,8 @@ import 'signup_screen.dart';
 
 // --- ✨💖 ไลลาลบบรรทัด 'const bool kDebugMode = true;' ออกจากตรงนี้แล้วนะคะ 💖✨ ---
 
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _emailController.text = savedEmail;
     }
   }
-  
+
   Future<void> _saveRememberedEmail(String email) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('rememberedEmail', email);
@@ -55,10 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showSnackbar(String message) {
     if (scaffoldMessengerKey.currentState != null) {
       scaffoldMessengerKey.currentState!.showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: AppTheme.primary,
-        ),
+        SnackBar(content: Text(message), backgroundColor: AppTheme.primary),
       );
     }
   }
@@ -79,20 +76,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
     String email = _emailController.text.trim();
     String password = _passwordController.text;
-    
+
     try {
       final String? clinicId = await _authService.signIn(email, password);
+      print('🕵️‍♀️ Laila Debug: Clinic ID from AuthService is: $clinicId');
 
       if (clinicId != null && clinicId.isNotEmpty) {
         await _saveRememberedEmail(email);
 
         if (!mounted) return;
-        
-        Provider.of<AppAuthProvider>(context, listen: false).setClinicVerified(clinicId);
+
+        Provider.of<AppAuthProvider>(
+          context,
+          listen: false,
+        ).setClinicVerified(clinicId);
+
+        final authProvider = Provider.of<AppAuthProvider>(
+          context,
+          listen: false,
+        );
+        print(
+          '🕵️‍♀️ Laila Debug: Status in Provider is now: ${authProvider.status}',
+        );
 
         // (เราต้องไปสร้างหน้า /staff_login กันต่อนะคะ)
         Navigator.pushReplacementNamed(context, '/staff_login');
-
       } else {
         setState(() {
           errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้องค่ะ 🥺';
@@ -120,7 +128,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     try {
       await _authService.resetPassword(_emailController.text.trim());
-      _showSnackbar('ไลลาส่งอีเมลสำหรับตั้งรหัสผ่านใหม่ไปให้แล้วนะคะ! ลองเช็คในกล่องขาเข้าดูน้าา 💌');
+      _showSnackbar(
+        'ไลลาส่งอีเมลสำหรับตั้งรหัสผ่านใหม่ไปให้แล้วนะคะ! ลองเช็คในกล่องขาเข้าดูน้าา 💌',
+      );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         _showSnackbar('ไม่พบผู้ใช้นี้ในระบบค่ะ');
@@ -146,14 +156,14 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              Image.asset(
-                'assets/images/tooth_logo.png',
-                height: 160,
-              ),
+              Image.asset('assets/images/tooth_logo.png', height: 160),
               const SizedBox(height: 24),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 64,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFBEAFF),
                   borderRadius: BorderRadius.circular(32),
@@ -186,22 +196,29 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFBFA3FF),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 100,
+                          vertical: 14,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(32),
                         ),
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      child: _isLoading 
-                        ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                        : const Text('Login'),
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Text('Login'),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
@@ -230,10 +247,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(fontFamily: 'Poppins'),
                         ),
                         GestureDetector(
-                          onTap: _isLoading ? null : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const SignUpScreen()),
-                          ),
+                          onTap:
+                              _isLoading
+                                  ? null
+                                  : () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder:
+                                          (context) => const SignUpScreen(),
+                                    ),
+                                  ),
                           child: const Text(
                             "Sign Up",
                             style: TextStyle(
@@ -248,7 +271,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (errorMessage.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Text(errorMessage, style: const TextStyle(color: Colors.red)),
+                        child: Text(
+                          errorMessage,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ),
                   ],
                 ),
@@ -260,17 +286,27 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool obscure = false}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    bool obscure = false,
+  }) {
     return TextField(
       controller: controller,
       obscureText: obscure,
       style: const TextStyle(fontFamily: 'Poppins'),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF6A4DBA), fontWeight: FontWeight.bold),
+        labelStyle: const TextStyle(
+          color: Color(0xFF6A4DBA),
+          fontWeight: FontWeight.bold,
+        ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF6A4DBA)),
@@ -290,10 +326,16 @@ class _LoginScreenState extends State<LoginScreen> {
       style: const TextStyle(fontFamily: 'Poppins'),
       decoration: InputDecoration(
         labelText: 'Password',
-        labelStyle: const TextStyle(color: Color(0xFF6A4DBA), fontWeight: FontWeight.bold),
+        labelStyle: const TextStyle(
+          color: Color(0xFF6A4DBA),
+          fontWeight: FontWeight.bold,
+        ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF6A4DBA)),
@@ -317,4 +359,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

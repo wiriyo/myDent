@@ -102,7 +102,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
             children: [
               const SizedBox(height: 20),
               Image.asset(
-                'assets/images/staff_icon.png', // อาจจะต้องหาไอคอนน่ารักๆ มาใส่ตรงนี้นะคะ
+                'assets/images/tooth_logo.png', // อาจจะต้องหาไอคอนน่ารักๆ มาใส่ตรงนี้นะคะ
                 height: 160,
               ),
               const SizedBox(height: 24),

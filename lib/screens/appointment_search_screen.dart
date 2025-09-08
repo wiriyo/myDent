@@ -114,10 +114,12 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     }
 
     try {
+      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
       final result = await _appointmentSearchService.searchAppointments(
         query: query,
         limit: _limit,
         lastDocument: _lastDocument,
+        clinicId: clinicId,
       );
 
       final newAppointments = result['appointments'] as List<AppointmentSearchModel>;

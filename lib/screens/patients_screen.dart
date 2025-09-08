@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/patient.dart';
 import '../services/patient_service.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 
@@ -43,7 +45,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
       _isLoading = true;
     });
     try {
-      final result = await _patientService.fetchPatientsOnce();
+      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+      final result = (clinicId != null && clinicId.isNotEmpty)
+          ? await PatientService(clinicId: clinicId).fetchPatientsOnce()
+          : await _patientService.fetchPatientsOnce();
       setState(() {
         _allPatients = result;
         _allPatients.sort((a, b) => a.name.compareTo(b.name));

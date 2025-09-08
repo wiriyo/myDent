@@ -9,6 +9,7 @@ class AppointmentModel {
   final String userId;
   final String patientId;
   final String patientName;
+  final String? clinicId; // multi-tenant support (flat)
   final String? hnNumber;
   final String? patientPhone;
   final String treatment;
@@ -25,6 +26,7 @@ class AppointmentModel {
     required this.userId,
     required this.patientId,
     required this.patientName,
+    this.clinicId,
     this.hnNumber,
     this.patientPhone,
     required this.treatment,
@@ -39,6 +41,7 @@ class AppointmentModel {
 
   Map<String, dynamic> toMap() {
     return {
+      'clinicId': clinicId,
       'userId': userId,
       'patientId': patientId,
       'patientName': patientName,
@@ -87,6 +90,7 @@ class AppointmentModel {
       userId: data['userId'] ?? '',
       patientId: data['patientId'] ?? '',
       patientName: data['patientName'] ?? 'N/A',
+      clinicId: data['clinicId'] as String?,
       hnNumber: data['hn_number'],
       patientPhone: data['patientPhone'],
       treatment: data['treatment'] ?? '',

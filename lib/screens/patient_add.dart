@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../models/patient.dart';
 import '../models/prefix.dart';
 import '../providers/patient_provider.dart';
+import '../auth/auth_provider.dart';
 import '../services/prefix_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
@@ -234,7 +235,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => PatientProvider(),
+      create: (_) {
+        final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+        return PatientProvider(clinicId: clinicId);
+      },
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,

@@ -110,7 +110,12 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Future<void> _loadInitialData() async {
-    final patientsFuture = _patientService.fetchPatientsOnce();
+    // ใช้ clinicId เพื่อดึงรายชื่อคนไข้เฉพาะคลินิก
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    final patientsFuture = (clinicId != null && clinicId.isNotEmpty)
+        ? PatientService(clinicId: clinicId).fetchPatientsOnce()
+        : _patientService.fetchPatientsOnce();
     final treatmentsFuture = TreatmentMasterService.getAllTreatments().first;
     final results = await Future.wait([patientsFuture, treatmentsFuture]);
     if (mounted) {
@@ -296,11 +301,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
     final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
+    final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
     final appointment = AppointmentModel(
       appointmentId: widget.appointment?.appointmentId ?? '',
       userId: userId,
       patientId: _selectedPatient!.patientId,
       patientName: _selectedPatient!.name,
+      clinicId: clinicId,
       hnNumber: _selectedPatient!.hnNumber,
       patientPhone: _selectedPatient!.telephone,
       treatment: _treatmentController.text.trim(),

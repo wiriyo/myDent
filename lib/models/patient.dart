@@ -8,6 +8,7 @@ class Patient {
   final String patientId;
   final String name;
   final String prefix;
+  final String? clinicId; // multi-tenant support (flat)
   final String? hnNumber;
   final String? telephone;
   final String? address;
@@ -23,6 +24,7 @@ class Patient {
     required this.patientId,
     required this.name,
     required this.prefix,
+    this.clinicId,
     this.hnNumber,
     this.telephone,
     this.address = '',
@@ -37,6 +39,7 @@ class Patient {
 
   Map<String, dynamic> toMap() {
     return {
+      'clinicId': clinicId,
       'name': name,
       'prefix': prefix,
       'hn_number': hnNumber,
@@ -64,6 +67,7 @@ class Patient {
       patientId: id,
       name: map['name'] ?? '',
       prefix: map['prefix'] ?? '',
+      clinicId: map['clinicId'] as String?,
       hnNumber: map['hn_number'],
       telephone: map['telephone'],
       address: map['address'],

@@ -10,6 +10,8 @@ import 'medical_image_service.dart';
 
 class PatientService {
   static const String _collectionName = 'patients';
+  final String? clinicId;
+  PatientService({this.clinicId});
   final CollectionReference _patientsCollection =
       FirebaseFirestore.instance.collection(_collectionName);
   final MedicalImageService _medicalImageService = MedicalImageService();
@@ -17,7 +19,11 @@ class PatientService {
   // ---------- Read ----------
   Future<List<Patient>> fetchPatientsOnce() async {
     try {
-      final snapshot = await _patientsCollection.orderBy('name').get();
+      Query query = _patientsCollection.orderBy('name');
+      if (clinicId != null && clinicId!.isNotEmpty) {
+        query = _patientsCollection.where('clinicId', isEqualTo: clinicId).orderBy('name');
+      }
+      final snapshot = await query.get();
       return snapshot.docs.map(_mapDocToPatient).toList();
     } catch (e) {
       debugPrint('❌ fetchPatientsOnce error: $e');
@@ -63,6 +69,7 @@ class PatientService {
         patientId: '', // จะใส่ docId ตอนอ่านกลับด้วย _mapDocToPatient
         name: patient.name,
         prefix: patient.prefix,
+        clinicId: clinicId ?? patient.clinicId,
         hnNumber: newHnNumber,
         telephone: patient.telephone,
         address: patient.address,
@@ -89,12 +96,19 @@ class PatientService {
     final yearPrefix = (buddhistYear % 100).toString().padLeft(2, '0');
     final hnPrefix = 'HN-$yearPrefix-';
 
-    final querySnapshot = await _patientsCollection
-        .where('hn_number', isGreaterThanOrEqualTo: hnPrefix)
-        .where('hn_number', isLessThan: 'HN-$yearPrefix-z')
-        .orderBy('hn_number', descending: true)
-        .limit(1)
-        .get();
+    // Use ascending order + startAt/endAt and limitToLast(1)
+    // This typically uses composite index: clinicId Asc, hn_number Asc
+    Query query = _patientsCollection.orderBy('hn_number')
+        .startAt([hnPrefix])
+        .endAt(['HN-$yearPrefix-\uf8ff']);
+    if (clinicId != null && clinicId!.isNotEmpty) {
+      query = _patientsCollection
+          .where('clinicId', isEqualTo: clinicId)
+          .orderBy('hn_number')
+          .startAt([hnPrefix])
+          .endAt(['HN-$yearPrefix-\uf8ff']);
+    }
+    final querySnapshot = await query.limitToLast(1).get();
 
     int nextNumber = 1;
     if (querySnapshot.docs.isNotEmpty) {

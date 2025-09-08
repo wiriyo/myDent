@@ -13,6 +13,7 @@ class AppointmentSearchService {
     required String query,
     required int limit,
     DocumentSnapshot? lastDocument,
+    String? clinicId,
   }) async {
     if (query.isEmpty) {
       return {'appointments': [], 'lastDocument': null};
@@ -23,6 +24,14 @@ class AppointmentSearchService {
           .where('searchKeywords', arrayContains: query.toLowerCase())
           .orderBy('startTime', descending: true)
           .limit(limit);
+
+      if (clinicId != null && clinicId.isNotEmpty) {
+        firestoreQuery = _appointmentsCollection
+            .where('clinicId', isEqualTo: clinicId)
+            .where('searchKeywords', arrayContains: query.toLowerCase())
+            .orderBy('startTime', descending: true)
+            .limit(limit);
+      }
 
       if (lastDocument != null) {
         firestoreQuery = firestoreQuery.startAfterDocument(lastDocument);

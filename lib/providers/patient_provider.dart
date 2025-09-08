@@ -8,7 +8,8 @@ import '../services/patient_service.dart';
 import '../services/prefix_service.dart';
 
 class PatientProvider with ChangeNotifier {
-  final PatientService _patientService = PatientService();
+  final PatientService _patientService;
+  PatientProvider({String? clinicId}) : _patientService = PatientService(clinicId: clinicId);
   bool _isLoading = false;
   String? _error;
 

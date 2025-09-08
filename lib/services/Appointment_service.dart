@@ -23,6 +23,7 @@ class AppointmentService {
       final docRef = _appointmentsCollection.doc();
       await docRef.set({
         ...appointment.toMap(), 
+        'clinicId': clinicId ?? appointment.clinicId,
         'appointmentId': docRef.id, 
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -37,6 +38,7 @@ class AppointmentService {
     try {
       await _appointmentsCollection.doc(appointment.appointmentId).update({
         ...appointment.toMap(),
+        'clinicId': clinicId ?? appointment.clinicId,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -67,10 +69,16 @@ class AppointmentService {
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
     try {
-      final snapshot = await _appointmentsCollection
+      Query query = _appointmentsCollection
           .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
-          .get();
+          .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+      if (clinicId != null && clinicId!.isNotEmpty) {
+        query = _appointmentsCollection
+            .where('clinicId', isEqualTo: clinicId)
+            .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+      }
+      final snapshot = await query.get();
 
       return snapshot.docs
           .map((doc) => AppointmentModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
@@ -83,10 +91,16 @@ class AppointmentService {
 
   Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
     try {
-      final querySnapshot = await _appointmentsCollection
+      Query query = _appointmentsCollection
         .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-        .where('endTime', isGreaterThan: Timestamp.fromDate(startTime))
-        .get();
+        .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+      if (clinicId != null && clinicId!.isNotEmpty) {
+        query = _appointmentsCollection
+          .where('clinicId', isEqualTo: clinicId)
+          .where('startTime', isLessThan: Timestamp.fromDate(endTime))
+          .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+      }
+      final querySnapshot = await query.get();
 
       if (querySnapshot.docs.isEmpty) {
         return false;
@@ -109,10 +123,18 @@ class AppointmentService {
     final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    return _appointmentsCollection
+    Query query = _appointmentsCollection
         .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
         .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
-        .orderBy('startTime')
+        .orderBy('startTime');
+    if (clinicId != null && clinicId!.isNotEmpty) {
+      query = _appointmentsCollection
+          .where('clinicId', isEqualTo: clinicId)
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
+          .orderBy('startTime');
+    }
+    return query
         .snapshots()
         .map((snapshot) {
           return snapshot.docs

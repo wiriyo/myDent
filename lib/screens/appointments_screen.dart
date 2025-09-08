@@ -11,6 +11,8 @@ import '../models/appointment_model.dart'; // ✨ 1. เราจะใช้ Mo
 import '../models/working_hours_model.dart';
 import '../services/appointment_service.dart';
 import '../services/working_hours_service.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 class AppointmentsScreen extends StatefulWidget {
   const AppointmentsScreen({super.key});
@@ -22,12 +24,19 @@ class AppointmentsScreen extends StatefulWidget {
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
   late Future<DayWorkingHours?> _todayWorkingHoursFuture;
   final WorkingHoursService _workingHoursService = WorkingHoursService();
-  final AppointmentService _appointmentService = AppointmentService(); // ✨ สร้าง instance ไว้ใช้ค่ะ
+  AppointmentService? _appointmentService; // ✨ จะสร้างภายหลังด้วย clinicId
 
   @override
   void initState() {
     super.initState();
     _todayWorkingHoursFuture = _loadTodayWorkingHours();
+    // ✅ สร้าง AppointmentService พร้อม clinicId จาก Provider
+    // ใช้ listen:false เพราะเราไม่ต้องการ rebuild จาก provider ตรงนี้
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _appointmentService = AppointmentService(clinicId: clinicId);
+    }
   }
 
   Future<void> _resetLogin(BuildContext context) async {
@@ -139,8 +148,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             // ✨ 2. เปลี่ยน StreamBuilder ให้รับ List<AppointmentModel> ค่ะ
             child: StreamBuilder<List<AppointmentModel>>(
               // ✨ 3. เรียกใช้ฟังก์ชันที่ถูกต้อง และส่งวันที่ของวันนี้เข้าไปค่ะ
-              stream: _appointmentService.getAppointmentsStreamByDate(DateTime.now()),
+              stream: _appointmentService?.getAppointmentsStreamByDate(DateTime.now()),
               builder: (context, snapshot) {
+                if (_appointmentService == null) {
+                  return const Center(child: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่'));
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }

@@ -22,6 +22,8 @@ import '../styles/app_theme.dart';
 import '../services/appointment_flow_service.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
 // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 
 class DailyCalendarScreen extends StatefulWidget {
@@ -44,7 +46,7 @@ class DailyCalendarScreen extends StatefulWidget {
 }
 
 class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
-  final AppointmentService _appointmentService = AppointmentService();
+  AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
@@ -66,7 +68,25 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   void initState() {
     super.initState();
     _currentDate = widget.selectedDate;
-    _fetchDataForSelectedDay(_currentDate);
+
+    // ✅ เตรียม AppointmentService ด้วย clinicId จาก Provider
+    // ใช้ listen:false ใน initState ได้
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _appointmentService = AppointmentService(clinicId: clinicId);
+      _fetchDataForSelectedDay(_currentDate);
+    } else {
+      // ถ้าไม่มี clinicId ให้หยุดโหลดและรอจนกว่าจะพร้อม
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+          );
+          setState(() { _isLoading = false; });
+        }
+      });
+    }
   }
 
   // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
@@ -136,8 +156,13 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     if (!mounted) return;
     setState(() { _isLoading = true; });
 
+    if (_appointmentService == null) {
+      setState(() { _isLoading = false; });
+      return;
+    }
+
     try {
-      final appointments = await _appointmentService.getAppointmentsByDate(selectedDay);
+      final appointments = await _appointmentService!.getAppointmentsByDate(selectedDay);
       final patientIds = appointments.map((appt) => appt.patientId).toSet();
       
       List<Patient> patients = [];

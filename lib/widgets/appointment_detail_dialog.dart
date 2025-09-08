@@ -16,6 +16,8 @@ import '../styles/app_theme.dart';
 import '../features/printing/domain/appointment_slip_model.dart';
 import '../features/printing/render/appointment_slip_preview_page.dart';
 import '../features/printing/render/receipt_mapper.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
@@ -35,7 +37,7 @@ class AppointmentDetailDialog extends StatefulWidget {
 }
 
 class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
-  final AppointmentService _appointmentService = AppointmentService();
+  AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   late String _currentStatus;
   late TextEditingController _reasonController;
@@ -57,6 +59,21 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     _reasonController = TextEditingController(
       text: widget.appointment.notes ?? '',
     );
+
+    // ✅ เตรียม AppointmentService ด้วย clinicId จาก Provider
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _appointmentService = AppointmentService(clinicId: clinicId);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -129,6 +146,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   }
 
   void _deleteAppointment() async {
+    if (_appointmentService == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบรหัสคลินิก ไม่สามารถลบนัดหมายได้')),
+        );
+      }
+      return;
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -149,7 +174,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
 
     if (confirm == true) {
       try {
-        await _appointmentService.deleteAppointment(widget.appointment.appointmentId);
+        await _appointmentService!.deleteAppointment(widget.appointment.appointmentId);
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -166,6 +191,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   }
 
   void _saveChanges() async {
+    if (_appointmentService == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบรหัสคลินิก ไม่สามารถบันทึกได้')),
+        );
+      }
+      return;
+    }
     try {
       final updatedAppointment = AppointmentModel(
         appointmentId: widget.appointment.appointmentId,
@@ -181,7 +214,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         notes: _reasonController.text.trim().isEmpty ? null : _reasonController.text.trim(),
       );
 
-      await _appointmentService.updateAppointment(updatedAppointment);
+      await _appointmentService!.updateAppointment(updatedAppointment);
 
       final currentRating = widget.patient.rating;
       final newRating = RatingService.calculateNewRating(

@@ -24,6 +24,8 @@ import 'daily_calendar_screen.dart';
 // 💖✨ Imports for Magic Spell
 import '../features/printing/domain/receipt_model.dart' as receipt;
 import '../services/appointment_flow_service.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 
 class _WeeklyAppointmentLayoutInfo {
@@ -64,7 +66,7 @@ class WeeklyViewScreen extends StatefulWidget {
 }
 
 class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
-  final AppointmentService _appointmentService = AppointmentService();
+  AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
   late DateTime _focusedDay;
@@ -138,7 +140,22 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       }
     });
 
-    _fetchDataForWeek(_focusedDay);
+    // ✅ เตรียม AppointmentService ด้วย clinicId จาก Provider
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _appointmentService = AppointmentService(clinicId: clinicId);
+      _fetchDataForWeek(_focusedDay);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+          );
+          setState(() { _isLoading = false; });
+        }
+      });
+    }
   }
 
   @override
@@ -266,6 +283,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   }
 
   Future<void> _fetchDataForWeek(DateTime focusedDay) async {
+    if (_appointmentService == null) {
+      setState(() { _isLoading = false; });
+      return;
+    }
     setState(() {
       _isLoading = true;
     });
@@ -296,7 +317,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       );
 
       fetchTasks.add(
-        _appointmentService.getAppointmentsByDate(currentDay).then((
+        _appointmentService!.getAppointmentsByDate(currentDay).then((
           dailyAppointments,
         ) async {
           final patientIds = dailyAppointments.map((a) => a.patientId).toSet();

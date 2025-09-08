@@ -23,6 +23,8 @@ import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
 import '../services/appointment_flow_service.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 
 class CalendarScreen extends StatefulWidget {
@@ -42,7 +44,7 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObserver {
-  final AppointmentService _appointmentService = AppointmentService();
+  AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
@@ -86,6 +88,13 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInitialLoad) {
+      // ✅ เตรียม AppointmentService ด้วย clinicId จาก Provider
+      final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+      final clinicId = authProvider.verifiedClinicId;
+      if (clinicId != null && clinicId.isNotEmpty) {
+        _appointmentService = AppointmentService(clinicId: clinicId);
+      }
+
       final arguments = ModalRoute.of(context)?.settings.arguments;
       
       if (arguments is Map) {
@@ -109,6 +118,17 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     if (!mounted) return;
     setState(() { _isLoading = true; });
 
+    if (_appointmentService == null) {
+      // หากยังไม่มี clinicId ให้หยุดและแจ้งเตือนสั้นๆ
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+        );
+      }
+      setState(() { _isLoading = false; });
+      return;
+    }
+
     final firstDayOfMonth = DateTime(month.year, month.month, 1);
     final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
     final List<Future> fetchTasks = [];
@@ -117,7 +137,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     for (int i = 0; i < lastDayOfMonth.day; i++) {
       final day = firstDayOfMonth.add(Duration(days: i));
       fetchTasks.add(
-        _appointmentService.getAppointmentsByDate(day).then((dailyAppointments) {
+        _appointmentService!.getAppointmentsByDate(day).then((dailyAppointments) {
           if (dailyAppointments.isNotEmpty) {
             final dayKey = DateTime.utc(day.year, day.month, day.day);
             events[dayKey] = dailyAppointments;

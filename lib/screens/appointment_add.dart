@@ -12,6 +12,8 @@ import '../services/patient_service.dart';
 import '../services/treatment_master_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_date_picker.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 class AppointmentAddDialog extends StatefulWidget {
   final AppointmentModel? appointment;
@@ -40,7 +42,7 @@ class AppointmentAddDialog extends StatefulWidget {
 
 class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   final _formKey = GlobalKey<FormState>();
-  final AppointmentService _appointmentService = AppointmentService();
+  AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   List<Patient> _allPatients = [];
   List<TreatmentMaster> _allTreatmentsMaster = [];
@@ -98,6 +100,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             : const TimeOfDay(hour: 9, minute: 0);
     _calculateEndTime();
     _durationController.addListener(_calculateEndTime);
+
+    // ✅ สร้าง AppointmentService พร้อม clinicId จาก Provider
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _appointmentService = AppointmentService(clinicId: clinicId);
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -259,6 +268,12 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Future<void> _saveAppointment() async {
+    if (_appointmentService == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -299,9 +314,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
     try {
       if (_isEditing) {
-        await _appointmentService.updateAppointment(appointment);
+        await _appointmentService!.updateAppointment(appointment);
       } else {
-        await _appointmentService.addAppointment(appointment);
+        await _appointmentService!.addAppointment(appointment);
       }
       if (mounted) {
         Navigator.of(context).pop({

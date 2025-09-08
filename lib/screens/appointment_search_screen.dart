@@ -15,6 +15,8 @@ import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/appointment_detail_dialog.dart'; // ✨ [ADDED] Import หน้าต่างรายละเอียด
 import '../widgets/custom_bottom_nav_bar.dart';
+import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
 
 class AppointmentSearchScreen extends StatefulWidget {
   const AppointmentSearchScreen({super.key});
@@ -28,8 +30,8 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   final _scrollController = ScrollController();
   final _appointmentSearchService = AppointmentSearchService();
   final _patientService = PatientService();
-  // ✨ [ADDED] สร้าง instance ของ AppointmentService เพื่อใช้ดึงข้อมูลฉบับเต็ม
-  final _appointmentServiceFull = AppointmentService();
+  // ✨ [UPDATED] สร้าง AppointmentService พร้อมส่ง clinicId ที่จำเป็น
+  AppointmentService? _appointmentServiceFull;
   Timer? _debounce;
 
   List<AppointmentSearchModel> _appointments = [];
@@ -47,6 +49,16 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     _loadPatientsForSuggestions();
     _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(_onScroll);
+
+    // ✅ ดึง clinicId จาก Provider และสร้าง AppointmentService ตาม requirement ใหม่
+    // หมายเหตุ: ถ้ายังไม่มี clinicId (เช่น ยังไม่ผ่านขั้น Login/Verify) จะเว้นไว้ก่อน
+    // แล้วค่อยแจ้งเตือนเมื่อผู้ใช้พยายามเรียกใช้งาน
+    // ignore: use_build_context_synchronously
+    final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+    final clinicId = authProvider.verifiedClinicId;
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _appointmentServiceFull = AppointmentService(clinicId: clinicId);
+    }
   }
 
   Future<void> _loadPatientsForSuggestions() async {
@@ -132,6 +144,15 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
   // ✨ [ADDED] ฟังก์ชันสำหรับจัดการเมื่อมีการคลิกที่การ์ดนัดหมาย
   Future<void> _showAppointmentDetails(AppointmentSearchModel searchModel) async {
+    // ถ้ายังไม่ได้เตรียม AppointmentService (เพราะไม่มี clinicId) ให้แจ้งเตือนและยกเลิก
+    if (_appointmentServiceFull == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+        );
+      }
+      return;
+    }
     // แสดง loading indicator ขณะดึงข้อมูล
     showDialog(
       context: context,
@@ -141,7 +162,7 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
     try {
       // ดึงข้อมูล Appointment และ Patient ฉบับเต็ม
-      final appointmentModel = await _appointmentServiceFull.getAppointmentById(searchModel.appointmentId);
+      final appointmentModel = await _appointmentServiceFull!.getAppointmentById(searchModel.appointmentId);
       final patientModel = await _patientService.getPatientById(searchModel.patientId);
 
       if (mounted) Navigator.of(context).pop(); // ปิด loading indicator

@@ -8,6 +8,9 @@ import '../models/patient.dart';
 import '../services/patient_service.dart';
 
 class AppointmentService {
+  // Optional clinic scoping if needed in future
+  final String? clinicId;
+  AppointmentService({this.clinicId});
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CollectionReference _appointmentsCollection = FirebaseFirestore.instance.collection('appointments');
 

@@ -7,23 +7,49 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/patient.dart';
 import 'medical_image_service.dart';
+import '../config/feature_flags.dart';
 
 class PatientService {
   static const String _collectionName = 'patients';
   final String? clinicId;
   PatientService({this.clinicId});
-  final CollectionReference _patientsCollection =
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CollectionReference _rootPatients =
       FirebaseFirestore.instance.collection(_collectionName);
   final MedicalImageService _medicalImageService = MedicalImageService();
+
+  CollectionReference<Map<String, dynamic>> get _primaryPatients {
+    if (FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty) {
+      return _firestore.collection('clinics').doc(clinicId).collection(_collectionName);
+    }
+    return _rootPatients.withConverter<Map<String, dynamic>>(
+      fromFirestore: (s, _) => s.data() ?? <String, dynamic>{},
+      toFirestore: (m, _) => m,
+    );
+  }
+
+  CollectionReference<Map<String, dynamic>>? get _nestedPatientsOrNull {
+    if (clinicId != null && clinicId!.isNotEmpty) {
+      return _firestore.collection('clinics').doc(clinicId).collection(_collectionName);
+    }
+    return null;
+  }
 
   // ---------- Read ----------
   Future<List<Patient>> fetchPatientsOnce() async {
     try {
-      Query query = _patientsCollection.orderBy('name');
-      if (clinicId != null && clinicId!.isNotEmpty) {
-        query = _patientsCollection.where('clinicId', isEqualTo: clinicId).orderBy('name');
+      Query query = _primaryPatients.orderBy('name');
+      if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
+        if (clinicId != null && clinicId!.isNotEmpty) {
+          query = _rootPatients.where('clinicId', isEqualTo: clinicId).orderBy('name');
+        }
       }
-      final snapshot = await query.get();
+      var snapshot = await query.get();
+
+      if (FeatureFlags.dualReadFallbackEnabled && snapshot.docs.isEmpty) {
+        final fbQuery = _rootPatients.where('clinicId', isEqualTo: clinicId).orderBy('name');
+        snapshot = await fbQuery.get();
+      }
       return snapshot.docs.map(_mapDocToPatient).toList();
     } catch (e) {
       debugPrint('❌ fetchPatientsOnce error: $e');
@@ -34,9 +60,13 @@ class PatientService {
   Future<Patient?> getPatientById(String patientId) async {
     if (patientId.isEmpty) return null;
     try {
-      final doc = await _patientsCollection.doc(patientId).get();
-      if (!doc.exists) return null;
-      return _mapDocToPatient(doc);
+      final primary = await _primaryPatients.doc(patientId).get();
+      if (primary.exists) return _mapDocToPatient(primary);
+      if (FeatureFlags.dualReadFallbackEnabled) {
+        final legacy = await _rootPatients.doc(patientId).get();
+        if (legacy.exists) return _mapDocToPatient(legacy);
+      }
+      return null;
     } catch (e) {
       debugPrint('❌ getPatientById($patientId) error: $e');
       return null;
@@ -54,7 +84,7 @@ class PatientService {
   /// ติดตามข้อมูลคนไข้แบบเรียลไทม์ (สะดวกกับหน้าบัตรคนไข้)
   Stream<Patient?> watchPatientById(String patientId) {
     if (patientId.isEmpty) return const Stream.empty();
-    return _patientsCollection.doc(patientId).snapshots().map((doc) {
+    return _primaryPatients.doc(patientId).snapshots().map((doc) {
       if (!doc.exists) return null;
       return _mapDocToPatient(doc);
     });
@@ -82,7 +112,18 @@ class PatientService {
         age: patient.age,
       );
 
-      await _patientsCollection.add(patientWithHn.toMap());
+      // Generate a single docId for dual-write consistency
+      final primaryRef = _primaryPatients;
+      final docRef = primaryRef.doc();
+      final map = patientWithHn.toMap();
+      final futures = <Future>[];
+      futures.add(docRef.set(map));
+      if (FeatureFlags.dualWriteEnabled) {
+        futures.add(_rootPatients.doc(docRef.id).set(map));
+        final nested = _nestedPatientsOrNull;
+        if (nested != null) futures.add(nested.doc(docRef.id).set(map));
+      }
+      await Future.wait(futures);
       debugPrint('✅ Added new patient with HN: $newHnNumber');
     } catch (e) {
       debugPrint('❌ addPatient error: $e');
@@ -98,15 +139,17 @@ class PatientService {
 
     // Use ascending order + startAt/endAt and limitToLast(1)
     // This typically uses composite index: clinicId Asc, hn_number Asc
-    Query query = _patientsCollection.orderBy('hn_number')
+    Query query = _primaryPatients.orderBy('hn_number')
         .startAt([hnPrefix])
         .endAt(['HN-$yearPrefix-\uf8ff']);
-    if (clinicId != null && clinicId!.isNotEmpty) {
-      query = _patientsCollection
-          .where('clinicId', isEqualTo: clinicId)
-          .orderBy('hn_number')
-          .startAt([hnPrefix])
-          .endAt(['HN-$yearPrefix-\uf8ff']);
+    if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
+      if (clinicId != null && clinicId!.isNotEmpty) {
+        query = _rootPatients
+            .where('clinicId', isEqualTo: clinicId)
+            .orderBy('hn_number')
+            .startAt([hnPrefix])
+            .endAt(['HN-$yearPrefix-\uf8ff']);
+      }
     }
     final querySnapshot = await query.limitToLast(1).get();
 
@@ -123,7 +166,14 @@ class PatientService {
   // ---------- Update / Delete ----------
   Future<void> updatePatient(Patient patient) async {
     try {
-      await _patientsCollection.doc(patient.patientId).update(patient.toMap());
+      final futures = <Future>[];
+      futures.add(_primaryPatients.doc(patient.patientId).update(patient.toMap()));
+      if (FeatureFlags.dualWriteEnabled) {
+        futures.add(_rootPatients.doc(patient.patientId).update(patient.toMap()));
+        final nested = _nestedPatientsOrNull;
+        if (nested != null) futures.add(nested.doc(patient.patientId).update(patient.toMap()));
+      }
+      await Future.wait(futures);
     } catch (e) {
       debugPrint('❌ updatePatient error: $e');
       rethrow;
@@ -135,11 +185,19 @@ class PatientService {
       throw ArgumentError('Patient ID cannot be empty.');
     }
     try {
-      final patientDocRef = _patientsCollection.doc(patientId);
+      final primaryRef = _primaryPatients.doc(patientId);
       await _medicalImageService.deleteAllPatientImages(patientId);
-      await _deleteSubcollection(patientDocRef, 'treatments');
-      await _deleteSubcollection(patientDocRef, 'medical_images');
-      await patientDocRef.delete();
+      await _deleteSubcollection(primaryRef, 'treatments');
+      await _deleteSubcollection(primaryRef, 'medical_images');
+
+      final futures = <Future>[];
+      futures.add(primaryRef.delete());
+      if (FeatureFlags.dualWriteEnabled) {
+        futures.add(_rootPatients.doc(patientId).delete());
+        final nested = _nestedPatientsOrNull;
+        if (nested != null) futures.add(nested.doc(patientId).delete());
+      }
+      await Future.wait(futures);
     } catch (e) {
       debugPrint('❌ deletePatient error: $e');
       rethrow;
@@ -159,7 +217,14 @@ class PatientService {
   Future<void> updatePatientRating(String patientId, double newRating) async {
     if (patientId.isEmpty) return;
     try {
-      await _patientsCollection.doc(patientId).update({'rating': newRating});
+      final futures = <Future>[];
+      futures.add(_primaryPatients.doc(patientId).update({'rating': newRating}));
+      if (FeatureFlags.dualWriteEnabled) {
+        futures.add(_rootPatients.doc(patientId).update({'rating': newRating}));
+        final nested = _nestedPatientsOrNull;
+        if (nested != null) futures.add(nested.doc(patientId).update({'rating': newRating}));
+      }
+      await Future.wait(futures);
       debugPrint('✅ Updated rating for patient $patientId to $newRating');
     } catch (e) {
       debugPrint('❌ updatePatientRating error: $e');

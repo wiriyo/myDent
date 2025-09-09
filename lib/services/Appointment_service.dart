@@ -6,13 +6,32 @@ import 'package:flutter/foundation.dart';
 import '../models/appointment_model.dart'; 
 import '../models/patient.dart';
 import '../services/patient_service.dart';
+import '../config/feature_flags.dart';
 
 class AppointmentService {
   // Optional clinic scoping if needed in future
   final String? clinicId;
   AppointmentService({this.clinicId});
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final CollectionReference _appointmentsCollection = FirebaseFirestore.instance.collection('appointments');
+  final CollectionReference _rootAppointments = FirebaseFirestore.instance.collection('appointments');
+
+  // Base reference depending on feature flags
+  CollectionReference<Map<String, dynamic>> get _primaryAppointments {
+    if (FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty) {
+      return _firestore.collection('clinics').doc(clinicId).collection('appointments');
+    }
+    return _rootAppointments.withConverter<Map<String, dynamic>>(
+      fromFirestore: (s, _) => s.data() ?? <String, dynamic>{},
+      toFirestore: (m, _) => m,
+    );
+  }
+
+  CollectionReference<Map<String, dynamic>>? get _nestedAppointmentsOrNull {
+    if (clinicId != null && clinicId!.isNotEmpty) {
+      return _firestore.collection('clinics').doc(clinicId).collection('appointments');
+    }
+    return null;
+  }
 
   Future<void> addAppointment(AppointmentModel appointment) async {
     // if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime)) {
@@ -20,14 +39,32 @@ class AppointmentService {
     // }
 
     try {
-      final docRef = _appointmentsCollection.doc();
-      await docRef.set({
-        ...appointment.toMap(), 
+      // Generate a single docId to be used across primary and legacy/root writes
+      final primaryRef = _primaryAppointments;
+      final docRef = primaryRef.doc();
+      final payload = {
+        ...appointment.toMap(),
         'clinicId': clinicId ?? appointment.clinicId,
-        'appointmentId': docRef.id, 
+        'appointmentId': docRef.id,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      final futures = <Future>[];
+      futures.add(docRef.set(payload));
+
+      // Dual-write: ensure both nested and root have the same document id and data
+      if (FeatureFlags.dualWriteEnabled) {
+        // Write to root
+        futures.add(_rootAppointments.doc(docRef.id).set(payload));
+        // Write to nested (if clinicId is available)
+        final nested = _nestedAppointmentsOrNull;
+        if (nested != null) {
+          futures.add(nested.doc(docRef.id).set(payload));
+        }
+      }
+
+      await Future.wait(futures);
     } catch (e) {
       debugPrint("Error adding appointment: $e");
       rethrow;
@@ -36,11 +73,24 @@ class AppointmentService {
 
   Future<void> updateAppointment(AppointmentModel appointment) async {
     try {
-      await _appointmentsCollection.doc(appointment.appointmentId).update({
+      final payload = {
         ...appointment.toMap(),
         'clinicId': clinicId ?? appointment.clinicId,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      final futures = <Future>[];
+      futures.add(_primaryAppointments.doc(appointment.appointmentId).update(payload));
+
+      if (FeatureFlags.dualWriteEnabled) {
+        futures.add(_rootAppointments.doc(appointment.appointmentId).update(payload));
+        final nested = _nestedAppointmentsOrNull;
+        if (nested != null) {
+          futures.add(nested.doc(appointment.appointmentId).update(payload));
+        }
+      }
+
+      await Future.wait(futures);
     } catch (e) {
       debugPrint("Error updating appointment: $e");
       rethrow;
@@ -51,12 +101,18 @@ class AppointmentService {
   // ฟังก์ชันนี้จำเป็นสำหรับหน้าค้นหา เพื่อให้สามารถเปิดดูรายละเอียดนัดหมายได้ค่ะ
   Future<AppointmentModel?> getAppointmentById(String appointmentId) async {
     try {
-      final docSnapshot = await _appointmentsCollection.doc(appointmentId).get();
-      if (docSnapshot.exists) {
-        // ถ้าเจอเอกสาร ก็แปลงข้อมูลเป็น AppointmentModel แล้วส่งกลับไปค่ะ
-        return AppointmentModel.fromFirestore(docSnapshot as DocumentSnapshot<Map<String, dynamic>>);
+      // Try primary path first
+      final primarySnap = await _primaryAppointments.doc(appointmentId).get();
+      if (primarySnap.exists) {
+        return AppointmentModel.fromFirestore(primarySnap as DocumentSnapshot<Map<String, dynamic>>);
       }
-      // ถ้าไม่เจอ ก็ส่งค่า null กลับไปค่ะ
+      // Fallback to root if enabled
+      if (FeatureFlags.dualReadFallbackEnabled) {
+        final rootSnap = await _rootAppointments.doc(appointmentId).get();
+        if (rootSnap.exists) {
+          return AppointmentModel.fromFirestore(rootSnap as DocumentSnapshot<Map<String, dynamic>>);
+        }
+      }
       return null;
     } catch (e) {
       debugPrint("Error fetching appointment by ID: $e");
@@ -69,16 +125,28 @@ class AppointmentService {
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
     try {
-      Query query = _appointmentsCollection
+      Query query = _primaryAppointments
           .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
-      if (clinicId != null && clinicId!.isNotEmpty) {
-        query = _appointmentsCollection
+      // When using root as primary, keep clinic filter if provided
+      if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
+        if (clinicId != null && clinicId!.isNotEmpty) {
+          query = _rootAppointments
+              .where('clinicId', isEqualTo: clinicId)
+              .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+              .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+        }
+      }
+      var snapshot = await query.get();
+
+      // Fallback to root if nested primary returns empty
+      if (FeatureFlags.dualReadFallbackEnabled && snapshot.docs.isEmpty) {
+        final fbQuery = _rootAppointments
             .where('clinicId', isEqualTo: clinicId)
             .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
             .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+        snapshot = await fbQuery.get();
       }
-      final snapshot = await query.get();
 
       return snapshot.docs
           .map((doc) => AppointmentModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
@@ -91,16 +159,26 @@ class AppointmentService {
 
   Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
     try {
-      Query query = _appointmentsCollection
+      Query query = _primaryAppointments
         .where('startTime', isLessThan: Timestamp.fromDate(endTime))
         .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
-      if (clinicId != null && clinicId!.isNotEmpty) {
-        query = _appointmentsCollection
-          .where('clinicId', isEqualTo: clinicId)
-          .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-          .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+      if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
+        if (clinicId != null && clinicId!.isNotEmpty) {
+          query = _rootAppointments
+            .where('clinicId', isEqualTo: clinicId)
+            .where('startTime', isLessThan: Timestamp.fromDate(endTime))
+            .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+        }
       }
-      final querySnapshot = await query.get();
+      var querySnapshot = await query.get();
+
+      if (FeatureFlags.dualReadFallbackEnabled && querySnapshot.docs.isEmpty) {
+        final fbQuery = _rootAppointments
+            .where('clinicId', isEqualTo: clinicId)
+            .where('startTime', isLessThan: Timestamp.fromDate(endTime))
+            .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+        querySnapshot = await fbQuery.get();
+      }
 
       if (querySnapshot.docs.isEmpty) {
         return false;
@@ -123,16 +201,18 @@ class AppointmentService {
     final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    Query query = _appointmentsCollection
+    Query query = _primaryAppointments
         .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
         .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
         .orderBy('startTime');
-    if (clinicId != null && clinicId!.isNotEmpty) {
-      query = _appointmentsCollection
-          .where('clinicId', isEqualTo: clinicId)
-          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
-          .orderBy('startTime');
+    if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
+      if (clinicId != null && clinicId!.isNotEmpty) {
+        query = _rootAppointments
+            .where('clinicId', isEqualTo: clinicId)
+            .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
+            .orderBy('startTime');
+      }
     }
     return query
         .snapshots()
@@ -144,13 +224,22 @@ class AppointmentService {
   }
 
   Future<Patient?> getPatientById(String patientId) async {
-    final PatientService patientService = PatientService();
+    final PatientService patientService = PatientService(clinicId: clinicId);
     return await patientService.getPatientById(patientId);
   }
 
   Future<void> deleteAppointment(String appointmentId) async {
     try {
-      await _appointmentsCollection.doc(appointmentId).delete();
+      final futures = <Future>[];
+      futures.add(_primaryAppointments.doc(appointmentId).delete());
+      if (FeatureFlags.dualWriteEnabled) {
+        futures.add(_rootAppointments.doc(appointmentId).delete());
+        final nested = _nestedAppointmentsOrNull;
+        if (nested != null) {
+          futures.add(nested.doc(appointmentId).delete());
+        }
+      }
+      await Future.wait(futures);
     } catch (e) {
       debugPrint('เกิดข้อผิดพลาดในการลบนัดหมาย: $e');
       rethrow;

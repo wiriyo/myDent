@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isClinicMember(clinicId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/clinics/$(clinicId)/members/$(request.auth.uid));
+    }
+
+    // Scoped access under clinics/{clinicId}
+    match /clinics/{clinicId} {
+      allow read, write: if isClinicMember(clinicId);
+
+      match /patients/{patientId} {
+        allow read, write: if isClinicMember(clinicId);
+      }
+
+      match /appointments/{appointmentId} {
+        allow read, write: if isClinicMember(clinicId);
+      }
+
+      match /settings/{document=**} {
+        allow read, write: if isClinicMember(clinicId);
+      }
+    }
+
+    // Legacy root collections (migration phase)
+    match /patients/{patientId} {
+      allow read: if isSignedIn();
+      // After migration complete, consider setting to false
+      allow write: if false;
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isSignedIn();
+      // After migration complete, consider setting to false
+      allow write: if false;
+    }
+  }
+}
+

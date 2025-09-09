@@ -1,24 +1,29 @@
-// v1.1.0 - Added getAppointmentById function
+// v1.2.0 - Nested collections + dual path support
 // 📁 lib/services/appointment_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../models/appointment_model.dart'; 
+import '../models/appointment_model.dart';
 import '../models/patient.dart';
 import '../services/patient_service.dart';
 import '../config/feature_flags.dart';
+import '../config/clinic_context.dart';
 
 class AppointmentService {
-  // Optional clinic scoping if needed in future
-  final String? clinicId;
+  final String? clinicId; // optional: if null, fallback to ClinicContext
   AppointmentService({this.clinicId});
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final CollectionReference _rootAppointments = FirebaseFirestore.instance.collection('appointments');
 
-  // Base reference depending on feature flags
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CollectionReference _rootAppointments =
+      FirebaseFirestore.instance.collection('appointments');
+
+  String? get _effectiveClinicId => clinicId ?? ClinicContext.activeClinicId;
+
+  // Primary base ref depends on flags + clinic scope
   CollectionReference<Map<String, dynamic>> get _primaryAppointments {
-    if (FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty) {
-      return _firestore.collection('clinics').doc(clinicId).collection('appointments');
+    final id = _effectiveClinicId;
+    if (FeatureFlags.useNestedCollections && id != null && id.isNotEmpty) {
+      return _firestore.collection('clinics').doc(id).collection('appointments');
     }
     return _rootAppointments.withConverter<Map<String, dynamic>>(
       fromFirestore: (s, _) => s.data() ?? <String, dynamic>{},
@@ -27,24 +32,20 @@ class AppointmentService {
   }
 
   CollectionReference<Map<String, dynamic>>? get _nestedAppointmentsOrNull {
-    if (clinicId != null && clinicId!.isNotEmpty) {
-      return _firestore.collection('clinics').doc(clinicId).collection('appointments');
+    final id = _effectiveClinicId;
+    if (id != null && id.isNotEmpty) {
+      return _firestore.collection('clinics').doc(id).collection('appointments');
     }
     return null;
   }
 
   Future<void> addAppointment(AppointmentModel appointment) async {
-    // if (await _isTimeSlotConflict(appointment.startTime, appointment.endTime)) {
-    //   throw Exception("ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว");
-    // }
-
     try {
-      // Generate a single docId to be used across primary and legacy/root writes
       final primaryRef = _primaryAppointments;
       final docRef = primaryRef.doc();
       final payload = {
         ...appointment.toMap(),
-        'clinicId': clinicId ?? appointment.clinicId,
+        'clinicId': _effectiveClinicId ?? appointment.clinicId,
         'appointmentId': docRef.id,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -53,11 +54,10 @@ class AppointmentService {
       final futures = <Future>[];
       futures.add(docRef.set(payload));
 
-      // Dual-write: ensure both nested and root have the same document id and data
       if (FeatureFlags.dualWriteEnabled) {
-        // Write to root
+        // Write root
         futures.add(_rootAppointments.doc(docRef.id).set(payload));
-        // Write to nested (if clinicId is available)
+        // Write nested (if available and not already primary)
         final nested = _nestedAppointmentsOrNull;
         if (nested != null) {
           futures.add(nested.doc(docRef.id).set(payload));
@@ -75,7 +75,7 @@ class AppointmentService {
     try {
       final payload = {
         ...appointment.toMap(),
-        'clinicId': clinicId ?? appointment.clinicId,
+        'clinicId': _effectiveClinicId ?? appointment.clinicId,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -97,20 +97,16 @@ class AppointmentService {
     }
   }
 
-  // ✨ [ADDED v1.1.0] เพิ่มฟังก์ชันสำหรับดึงข้อมูลนัดหมายฉบับเต็มจาก ID ค่ะ
-  // ฟังก์ชันนี้จำเป็นสำหรับหน้าค้นหา เพื่อให้สามารถเปิดดูรายละเอียดนัดหมายได้ค่ะ
   Future<AppointmentModel?> getAppointmentById(String appointmentId) async {
     try {
-      // Try primary path first
       final primarySnap = await _primaryAppointments.doc(appointmentId).get();
       if (primarySnap.exists) {
-        return AppointmentModel.fromFirestore(primarySnap as DocumentSnapshot<Map<String, dynamic>>);
+        return AppointmentModel.fromFirestore(primarySnap);
       }
-      // Fallback to root if enabled
       if (FeatureFlags.dualReadFallbackEnabled) {
         final rootSnap = await _rootAppointments.doc(appointmentId).get();
         if (rootSnap.exists) {
-          return AppointmentModel.fromFirestore(rootSnap as DocumentSnapshot<Map<String, dynamic>>);
+          return AppointmentModel.fromFirestore(rootSnap);
         }
       }
       return null;
@@ -128,72 +124,74 @@ class AppointmentService {
       Query query = _primaryAppointments
           .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
-      // When using root as primary, keep clinic filter if provided
-      if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
-        if (clinicId != null && clinicId!.isNotEmpty) {
+
+      final id = _effectiveClinicId;
+      // If primary is root, keep clinic filter
+      if (!(FeatureFlags.useNestedCollections && id != null && id.isNotEmpty)) {
+        if (id != null && id.isNotEmpty) {
           query = _rootAppointments
-              .where('clinicId', isEqualTo: clinicId)
+              .where('clinicId', isEqualTo: id)
               .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
               .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
         }
       }
+
       var snapshot = await query.get();
 
-      // Fallback to root if nested primary returns empty
       if (FeatureFlags.dualReadFallbackEnabled && snapshot.docs.isEmpty) {
         final fbQuery = _rootAppointments
-            .where('clinicId', isEqualTo: clinicId)
+            .where('clinicId', isEqualTo: id)
             .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
             .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
         snapshot = await fbQuery.get();
       }
 
       return snapshot.docs
-          .map((doc) => AppointmentModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
+          .map((doc) => AppointmentModel.fromFirestore(doc))
           .toList();
     } catch (e) {
       debugPrint("Error fetching appointments by date: $e");
-      return []; 
+      return [];
     }
   }
 
   Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
     try {
       Query query = _primaryAppointments
-        .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-        .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
-      if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
-        if (clinicId != null && clinicId!.isNotEmpty) {
+          .where('startTime', isLessThan: Timestamp.fromDate(endTime))
+          .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+
+      final id = _effectiveClinicId;
+      if (!(FeatureFlags.useNestedCollections && id != null && id.isNotEmpty)) {
+        if (id != null && id.isNotEmpty) {
           query = _rootAppointments
-            .where('clinicId', isEqualTo: clinicId)
-            .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-            .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
+              .where('clinicId', isEqualTo: id)
+              .where('startTime', isLessThan: Timestamp.fromDate(endTime))
+              .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
         }
       }
+
       var querySnapshot = await query.get();
 
       if (FeatureFlags.dualReadFallbackEnabled && querySnapshot.docs.isEmpty) {
         final fbQuery = _rootAppointments
-            .where('clinicId', isEqualTo: clinicId)
+            .where('clinicId', isEqualTo: id)
             .where('startTime', isLessThan: Timestamp.fromDate(endTime))
             .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
         querySnapshot = await fbQuery.get();
       }
 
-      if (querySnapshot.docs.isEmpty) {
-        return false;
-      }
+      if (querySnapshot.docs.isEmpty) return false;
 
       if (excludeAppointmentId != null) {
         if (querySnapshot.docs.length == 1 && querySnapshot.docs.first.id == excludeAppointmentId) {
           return false;
         }
       }
-      
       return true;
     } catch (e) {
       debugPrint("Error checking for time slot conflict: $e");
-      return true; 
+      return true;
     }
   }
 
@@ -205,26 +203,27 @@ class AppointmentService {
         .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
         .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
         .orderBy('startTime');
-    if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
-      if (clinicId != null && clinicId!.isNotEmpty) {
+
+    final id = _effectiveClinicId;
+    if (!(FeatureFlags.useNestedCollections && id != null && id.isNotEmpty)) {
+      if (id != null && id.isNotEmpty) {
         query = _rootAppointments
-            .where('clinicId', isEqualTo: clinicId)
+            .where('clinicId', isEqualTo: id)
             .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
             .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
             .orderBy('startTime');
       }
     }
-    return query
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map((doc) => AppointmentModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
-              .toList();
-        });
+
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => AppointmentModel.fromFirestore(doc))
+          .toList();
+    });
   }
 
   Future<Patient?> getPatientById(String patientId) async {
-    final PatientService patientService = PatientService(clinicId: clinicId);
+    final PatientService patientService = PatientService(clinicId: _effectiveClinicId);
     return await patientService.getPatientById(patientId);
   }
 
@@ -235,9 +234,7 @@ class AppointmentService {
       if (FeatureFlags.dualWriteEnabled) {
         futures.add(_rootAppointments.doc(appointmentId).delete());
         final nested = _nestedAppointmentsOrNull;
-        if (nested != null) {
-          futures.add(nested.doc(appointmentId).delete());
-        }
+        if (nested != null) futures.add(nested.doc(appointmentId).delete());
       }
       await Future.wait(futures);
     } catch (e) {
@@ -246,3 +243,4 @@ class AppointmentService {
     }
   }
 }
+

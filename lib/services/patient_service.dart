@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../models/patient.dart';
 import 'medical_image_service.dart';
 import '../config/feature_flags.dart';
+import '../config/clinic_context.dart';
 
 class PatientService {
   static const String _collectionName = 'patients';
@@ -19,8 +20,9 @@ class PatientService {
   final MedicalImageService _medicalImageService = MedicalImageService();
 
   CollectionReference<Map<String, dynamic>> get _primaryPatients {
-    if (FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty) {
-      return _firestore.collection('clinics').doc(clinicId).collection(_collectionName);
+    final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
+    if (FeatureFlags.useNestedCollections && effectiveClinicId != null && effectiveClinicId.isNotEmpty) {
+      return _firestore.collection('clinics').doc(effectiveClinicId).collection(_collectionName);
     }
     return _rootPatients.withConverter<Map<String, dynamic>>(
       fromFirestore: (s, _) => s.data() ?? <String, dynamic>{},
@@ -29,8 +31,9 @@ class PatientService {
   }
 
   CollectionReference<Map<String, dynamic>>? get _nestedPatientsOrNull {
-    if (clinicId != null && clinicId!.isNotEmpty) {
-      return _firestore.collection('clinics').doc(clinicId).collection(_collectionName);
+    final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
+    if (effectiveClinicId != null && effectiveClinicId.isNotEmpty) {
+      return _firestore.collection('clinics').doc(effectiveClinicId).collection(_collectionName);
     }
     return null;
   }
@@ -39,15 +42,17 @@ class PatientService {
   Future<List<Patient>> fetchPatientsOnce() async {
     try {
       Query query = _primaryPatients.orderBy('name');
-      if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
-        if (clinicId != null && clinicId!.isNotEmpty) {
-          query = _rootPatients.where('clinicId', isEqualTo: clinicId).orderBy('name');
+      final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
+      if (!(FeatureFlags.useNestedCollections && effectiveClinicId != null && effectiveClinicId.isNotEmpty)) {
+        if (effectiveClinicId != null && effectiveClinicId.isNotEmpty) {
+          query = _rootPatients.where('clinicId', isEqualTo: effectiveClinicId).orderBy('name');
         }
       }
       var snapshot = await query.get();
 
       if (FeatureFlags.dualReadFallbackEnabled && snapshot.docs.isEmpty) {
-        final fbQuery = _rootPatients.where('clinicId', isEqualTo: clinicId).orderBy('name');
+        final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
+        final fbQuery = _rootPatients.where('clinicId', isEqualTo: effectiveClinicId).orderBy('name');
         snapshot = await fbQuery.get();
       }
       return snapshot.docs.map(_mapDocToPatient).toList();
@@ -139,13 +144,14 @@ class PatientService {
 
     // Use ascending order + startAt/endAt and limitToLast(1)
     // This typically uses composite index: clinicId Asc, hn_number Asc
+    final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
     Query query = _primaryPatients.orderBy('hn_number')
         .startAt([hnPrefix])
         .endAt(['HN-$yearPrefix-\uf8ff']);
-    if (!(FeatureFlags.useNestedCollections && clinicId != null && clinicId!.isNotEmpty)) {
-      if (clinicId != null && clinicId!.isNotEmpty) {
+    if (!(FeatureFlags.useNestedCollections && effectiveClinicId != null && effectiveClinicId.isNotEmpty)) {
+      if (effectiveClinicId != null && effectiveClinicId.isNotEmpty) {
         query = _rootPatients
-            .where('clinicId', isEqualTo: clinicId)
+            .where('clinicId', isEqualTo: effectiveClinicId)
             .orderBy('hn_number')
             .startAt([hnPrefix])
             .endAt(['HN-$yearPrefix-\uf8ff']);

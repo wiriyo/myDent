@@ -79,6 +79,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.pushNamed(context, '/working_hours');
               },
             ),
+            _buildSettingCard(
+              context,
+              icon: Icons.badge_outlined,
+              title: "คำนำหน้านาม",
+              subtitle: "เพิ่ม/แก้ไข/ลบคำนำหน้านามของคลินิก",
+              onTap: () {
+                Navigator.pushNamed(context, '/prefix_settings');
+              },
+            ),
             // 💖 NEW: เพิ่มเมนู "ตั้งค่าการพิมพ์" เข้าไปตรงนี้เลยค่า
             _buildSettingCard(
               context,

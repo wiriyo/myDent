@@ -5,6 +5,7 @@
 import 'dart:async'; // 1. ✨ Import 'dart:async' สำหรับ StreamController
 import 'package:flutter/material.dart';
 import '../models/staff_model.dart';
+import '../config/clinic_context.dart';
 
 enum AuthStatus {
   loggedOut,
@@ -37,6 +38,7 @@ class AppAuthProvider extends ChangeNotifier {
   void setClinicVerified(String clinicId) {
     _verifiedClinicId = clinicId;
     _status = AuthStatus.clinicVerified;
+    ClinicContext.activeClinicId = clinicId;
     _statusStreamController.add(_status); // โทรออก!
     notifyListeners();
   }
@@ -52,6 +54,7 @@ class AppAuthProvider extends ChangeNotifier {
     _verifiedClinicId = null;
     _currentStaff = null;
     _status = AuthStatus.loggedOut;
+    ClinicContext.activeClinicId = null;
     _statusStreamController.add(_status); // โทรออก!
     notifyListeners();
   }

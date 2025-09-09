@@ -21,6 +21,7 @@ import 'screens/reports_screen.dart';
 import 'screens/setting_screen.dart';
 import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
+import 'screens/prefix_settings_screen.dart';
 import 'screens/appointment_search_screen.dart';
 import 'models/patient.dart';
 import 'dev/dev_entry.dart';
@@ -147,6 +148,7 @@ class MyApp extends StatelessWidget {
             '/patient_detail': (context) => const PatientDetailScreen(),
             '/treatment_list': (context) => const TreatmentListScreen(),
             '/working_hours': (context) => const WorkingHoursScreen(),
+            '/prefix_settings': (context) => const PrefixSettingsScreen(),
             '/appointment_search': (context) => const AppointmentSearchScreen(),
             if (kDebugMode)
               '/dev/preview': (_) => const DevEntry(),

@@ -17,6 +17,7 @@
 
 /* eslint-disable no-console */
 const admin = require('firebase-admin');
+const fs = require('fs');
 
 function getArg(flag, fallback = undefined) {
   const idx = process.argv.indexOf(flag);
@@ -32,7 +33,22 @@ async function main() {
   const overwrite = !!getArg('--overwrite', false);
 
   if (!admin.apps.length) {
-    admin.initializeApp({ projectId });
+    const keyPath = getArg('--key');
+    if (keyPath) {
+      const raw = fs.readFileSync(keyPath, 'utf8');
+      const creds = JSON.parse(raw);
+      admin.initializeApp({
+        credential: admin.credential.cert(creds),
+        projectId,
+        storageBucket: `${projectId}.appspot.com`,
+      });
+    } else {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        projectId,
+        storageBucket: `${projectId}.appspot.com`,
+      });
+    }
   }
   const db = admin.firestore();
 
@@ -137,4 +153,3 @@ main().catch((err) => {
   console.error('Migration failed:', err);
   process.exit(1);
 });
-

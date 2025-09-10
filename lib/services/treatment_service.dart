@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/treatment.dart';
 import 'medical_image_service.dart';
+import '../config/feature_flags.dart';
+import '../config/clinic_context.dart';
 
 class TreatmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -12,17 +14,24 @@ class TreatmentService {
 
   /// ฟังก์ชันสำหรับเข้าถึง collection 'treatments' ของคนไข้แต่ละคน
   CollectionReference _getTreatmentsCollection(String patientId) {
+    final clinicId = ClinicContext.activeClinicId;
+    if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
+      return _firestore.collection('clinics').doc(clinicId).collection('patients').doc(patientId).collection('treatments');
+    }
     return _firestore.collection('patients').doc(patientId).collection('treatments');
   }
 
   /// ✨ [NEW v1.3.0] ผู้ช่วยสำหรับบันทึก URL รูปภาพลงในแกลเลอรีรวม
   Future<void> _saveImageUrlToMainGallery(String patientId, String imageUrl) async {
     try {
-      await _firestore
-          .collection('patients')
-          .doc(patientId)
-          .collection('medical_images')
-          .add({
+      CollectionReference imagesRef;
+      final clinicId = ClinicContext.activeClinicId;
+      if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
+        imagesRef = _firestore.collection('clinics').doc(clinicId).collection('patients').doc(patientId).collection('medical_images');
+      } else {
+        imagesRef = _firestore.collection('patients').doc(patientId).collection('medical_images');
+      }
+      await imagesRef.add({
         'url': imageUrl,
         'createdAt': Timestamp.now(),
       });
@@ -35,13 +44,16 @@ class TreatmentService {
   /// ✨ [NEW v1.3.0] ผู้ช่วยสำหรับลบรูปภาพออกจากแกลเลอรีรวมโดยใช้ URL
   Future<void> _deleteImageFromMainGallery(String patientId, String imageUrl) async {
     try {
-      final querySnapshot = await _firestore
-          .collection('patients')
-          .doc(patientId)
-          .collection('medical_images')
-          .where('url', isEqualTo: imageUrl)
-          .limit(1)
-          .get();
+      Query query;
+      final clinicId = ClinicContext.activeClinicId;
+      if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
+        query = _firestore.collection('clinics').doc(clinicId).collection('patients').doc(patientId).collection('medical_images')
+            .where('url', isEqualTo: imageUrl).limit(1);
+      } else {
+        query = _firestore.collection('patients').doc(patientId).collection('medical_images')
+            .where('url', isEqualTo: imageUrl).limit(1);
+      }
+      final querySnapshot = await query.get();
 
       if (querySnapshot.docs.isNotEmpty) {
         await querySnapshot.docs.first.reference.delete();

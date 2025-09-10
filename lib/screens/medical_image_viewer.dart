@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/feature_flags.dart';
+import '../config/clinic_context.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
 
@@ -83,12 +85,19 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
       await ref.delete();
 
       // ลบจาก Firestore
-      await FirebaseFirestore.instance
-          .collection('patients')
-          .doc(widget.patientId)
-          .collection('medical_images')
-          .doc(docId)
-          .delete();
+      final clinicId = ClinicContext.activeClinicId;
+      DocumentReference<Map<String, dynamic>> docRef;
+      if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
+        docRef = FirebaseFirestore.instance
+            .collection('clinics').doc(clinicId)
+            .collection('patients').doc(widget.patientId)
+            .collection('medical_images').doc(docId);
+      } else {
+        docRef = FirebaseFirestore.instance
+            .collection('patients').doc(widget.patientId)
+            .collection('medical_images').doc(docId);
+      }
+      await docRef.delete();
 
       // ลบจาก UI
       setState(() {

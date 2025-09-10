@@ -13,6 +13,8 @@ import '../models/treatment.dart';
 import '../services/patient_service.dart';
 import '../services/treatment_service.dart';
 import '../services/medical_image_service.dart';
+import '../config/feature_flags.dart';
+import '../config/clinic_context.dart';
 import '../providers/treatment_provider.dart';
 
 import '../widgets/custom_bottom_nav_bar.dart';
@@ -120,11 +122,20 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           patientId: patientId,
         );
 
-        await FirebaseFirestore.instance
-            .collection('patients')
-            .doc(patientId)
-            .collection('medical_images')
-            .add({
+        // Write image record to nested or root based on flags
+        final clinicId = ClinicContext.activeClinicId;
+        CollectionReference imagesRef;
+        if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
+          imagesRef = FirebaseFirestore.instance
+              .collection('clinics').doc(clinicId)
+              .collection('patients').doc(patientId)
+              .collection('medical_images');
+        } else {
+          imagesRef = FirebaseFirestore.instance
+              .collection('patients').doc(patientId)
+              .collection('medical_images');
+        }
+        await imagesRef.add({
           'url': downloadUrl,
           'createdAt': Timestamp.now(),
         });

@@ -53,13 +53,31 @@ async function confirmOrExit(text) {
 }
 
 async function deleteCollection(db, colRef, { dryRun, label, batchSize = 400 }) {
+  if (dryRun) {
+    // Count with pagination using documentId cursor to avoid infinite loop
+    const { FieldPath } = admin.firestore;
+    let total = 0;
+    let last = null;
+    while (true) {
+      let q = colRef.orderBy(FieldPath.documentId()).limit(batchSize);
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      if (snap.empty) break;
+      total += snap.size;
+      last = snap.docs[snap.docs.length - 1].id;
+      console.log(`  - would delete ${snap.size} docs from ${label} (scanned ${total})`);
+    }
+    return total;
+  }
+
+  // Real deletion: delete in batches until empty
   let total = 0;
   while (true) {
     const snap = await colRef.limit(batchSize).get();
     if (snap.empty) break;
     const batch = db.batch();
     snap.docs.forEach((d) => batch.delete(d.ref));
-    if (!dryRun) await batch.commit();
+    await batch.commit();
     total += snap.size;
     console.log(`  - deleted ${snap.size} docs from ${label} (total ${total})`);
   }
@@ -86,6 +104,40 @@ async function deleteRootPatients(db, { dryRun }) {
     if (count % 100 === 0) console.log(`  processed ${count}/${snap.size}`);
   }
   console.log(`  done: ${count} patients removed${dryRun ? ' (dry-run)' : ''}`);
+
+  // Extra: clean orphaned subcollections that may remain under root when parent doc was removed earlier
+  console.log('  scanning for orphaned subcollections under root patients/...');
+  // treatments
+  let removedOrphans = 0;
+  const treatCg = await db.collectionGroup('treatments').get();
+  for (const d of treatCg.docs) {
+    const path = d.ref.path; // e.g., patients/{id}/treatments/{tid} or clinics/{cid}/patients/{id}/treatments/{tid}
+    if (path.startsWith('patients/')) {
+      if (dryRun) {
+        removedOrphans++;
+      } else {
+        await d.ref.delete();
+        removedOrphans++;
+      }
+    }
+  }
+  if (removedOrphans) console.log(`  ${dryRun ? 'would delete' : 'deleted'} ${removedOrphans} orphan treatment docs under root`);
+
+  // medical_images
+  removedOrphans = 0;
+  const imgCg = await db.collectionGroup('medical_images').get();
+  for (const d of imgCg.docs) {
+    const path = d.ref.path;
+    if (path.startsWith('patients/')) {
+      if (dryRun) {
+        removedOrphans++;
+      } else {
+        await d.ref.delete();
+        removedOrphans++;
+      }
+    }
+  }
+  if (removedOrphans) console.log(`  ${dryRun ? 'would delete' : 'deleted'} ${removedOrphans} orphan medical_images docs under root`);
 }
 
 async function deleteRootAppointments(db, { dryRun }) {
@@ -110,34 +162,30 @@ async function deleteRootSettings(db, { dryRun }) {
 async function deleteGlobalMasters(db, { dryRun }) {
   console.log('\n[Firestore] Deleting global masters (prefix_master, treatment_master)');
   const totalPrefix = await deleteCollection(db, db.collection('prefix_master'), { dryRun, label: 'prefix_master' });
-  const totalTreatment = await deleteCollection(db, db.collection('treatment_master'), { dryRun, label: 'treatment_master' });
+  // Support both treatment_master and treatments_master (some projects use plural)
+  let totalTreatment = 0;
+  totalTreatment += await deleteCollection(db, db.collection('treatment_master'), { dryRun, label: 'treatment_master' });
+  totalTreatment += await deleteCollection(db, db.collection('treatments_master'), { dryRun, label: 'treatments_master' });
   console.log(`  done: prefix=${totalPrefix}, treatment=${totalTreatment}${dryRun ? ' (dry-run)' : ''}`);
 }
 
-async function deleteLegacyStorage(storage, db, { dryRun, onlyPrefixes = null }) {
+async function deleteLegacyStorage(storage, db, { dryRun, onlyPrefixes = null, bucketName }) {
   console.log('\n[Storage] Deleting legacy patient folders under medical_images/{patientId}');
-  const bucket = storage.bucket();
+  const bucket = storage.bucket(bucketName);
 
   // list clinic ids from Firestore to distinguish top-level prefixes
   const clinicsSnap = await db.collection('clinics').get();
   const clinicIds = new Set(clinicsSnap.docs.map((d) => d.id));
   console.log(`  loaded ${clinicIds.size} clinic ids to identify nested folders`);
 
-  // list objects with prefix 'medical_images/'
-  // Using @google-cloud/storage via admin SDK under the hood
-  const [files] = await bucket.getFiles({ prefix: 'medical_images/' });
-  // Also list prefixes by querying bucket.getFiles with auto pagination
-  // Build a map of top-level prefixes under medical_images/
-  const topLevelPrefixSet = new Set();
-  files.forEach((f) => {
-    const name = f.name; // e.g., medical_images/patient123/xyz.jpg or medical_images/clinicA/patient123/...
-    const parts = name.split('/');
-    if (parts.length >= 2) {
-      topLevelPrefixSet.add(parts[1]);
-    }
-  });
+  // Fast list top-level prefixes under `medical_images/` using delimiter
+  const result = await bucket.getFiles({ prefix: 'medical_images/', delimiter: '/' });
+  const apiResponse = result[2] || {};
+  const prefixes = (apiResponse.prefixes || [])
+    .map((p) => p.replace(/^medical_images\//, '').replace(/\/$/, ''))
+    .filter(Boolean);
 
-  let topLevelPrefixes = Array.from(topLevelPrefixSet);
+  let topLevelPrefixes = prefixes;
   if (onlyPrefixes && onlyPrefixes.length) {
     topLevelPrefixes = topLevelPrefixes.filter((p) => onlyPrefixes.includes(p));
     console.log(`  filtered prefixes by --only-prefixes: ${topLevelPrefixes.length} match(es)`);
@@ -170,38 +218,32 @@ async function deleteLegacyStorage(storage, db, { dryRun, onlyPrefixes = null })
   console.log(`  Storage cleanup: removed files=${totalDeleted}, skipped clinic folders=${skipped}${dryRun ? ' (dry-run)' : ''}`);
 }
 
-async function scanLegacyStorage(storage, db, { samplePerPrefix = 3 }) {
+async function scanLegacyStorage(storage, db, { samplePerPrefix = 3, bucketName }) {
   console.log('\n[Storage] Scan legacy summary under medical_images/ (no deletion)');
-  const bucket = storage.bucket();
+  const bucket = storage.bucket(bucketName);
   const clinicsSnap = await db.collection('clinics').get();
   const clinicIds = new Set(clinicsSnap.docs.map((d) => d.id));
-  const [files] = await bucket.getFiles({ prefix: 'medical_images/' });
+  const [ , , apiResponse] = await bucket.getFiles({ prefix: 'medical_images/', delimiter: '/' });
+  const topLevel = (apiResponse.prefixes || [])
+    .map((p) => p.replace(/^medical_images\//, '').replace(/\/$/, ''))
+    .filter(Boolean);
 
-  const mapCounts = new Map();
-  const mapSamples = new Map();
-  for (const f of files) {
-    const parts = f.name.split('/');
-    if (parts.length < 2) continue;
-    const top = parts[1];
-    mapCounts.set(top, (mapCounts.get(top) || 0) + 1);
-    if (!mapSamples.has(top)) mapSamples.set(top, []);
-    const arr = mapSamples.get(top);
-    if (arr.length < samplePerPrefix) arr.push(f.name);
-  }
-
-  const entries = Array.from(mapCounts.entries()).sort((a, b) => b[1] - a[1]);
-  console.log(`  found ${entries.length} top-level prefixes`);
-  for (const [top, count] of entries) {
+  console.log(`  found ${topLevel.length} top-level prefixes under medical_images/`);
+  for (const top of topLevel) {
     const type = clinicIds.has(top) ? 'KEEP (clinicId)' : 'LEGACY (patientId?)';
-    const samples = (mapSamples.get(top) || []).join(', ');
-    console.log(`  - ${top}: ${count} files -> ${type}`);
-    if (samples) console.log(`      samples: ${samples}`);
+    let sample = '';
+    try {
+      const [files] = await bucket.getFiles({ prefix: `medical_images/${top}/`, maxResults: samplePerPrefix });
+      sample = files.map((f) => f.name).join(', ');
+    } catch (_) {}
+    console.log(`  - ${top}: ${type}${sample ? `\n      samples: ${sample}` : ''}`);
   }
 }
 
 async function main() {
   const projectId = getArg('--project') || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
   const dryRun = hasFlag('--dry-run') || !hasFlag('--yes');
+  const bucketName = getArg('--bucket') || `${projectId}.appspot.com`;
   const deleteRootPatientsFlag = hasFlag('--delete-root-patients');
   const deleteRootAppointmentsFlag = hasFlag('--delete-root-appointments');
   const deleteRootSettingsFlag = hasFlag('--delete-root-settings');
@@ -209,6 +251,8 @@ async function main() {
   const deleteLegacyStorageFlag = hasFlag('--delete-legacy-storage');
   const scanLegacyStorageFlag = hasFlag('--scan-legacy-storage');
   const onlyPrefixes = getCSVArg('--only-prefixes');
+  const onlyPrefixesFile = getArg('--only-prefixes-file');
+  const exportLegacyPrefixesPath = getArg('--export-legacy-prefixes');
 
   if (!admin.apps.length) {
     const keyPath = getArg('--key');
@@ -218,13 +262,13 @@ async function main() {
       admin.initializeApp({
         credential: admin.credential.cert(creds),
         projectId,
-        storageBucket: `${projectId}.appspot.com`,
+        storageBucket: bucketName,
       });
     } else {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
         projectId,
-        storageBucket: `${projectId}.appspot.com`,
+        storageBucket: bucketName,
       });
     }
   }
@@ -232,6 +276,7 @@ async function main() {
   const storage = admin.storage();
 
   console.log('Project:', projectId || '(default)');
+  console.log('Bucket:', bucketName);
   console.log('Dry-run:', dryRun);
   console.log('Targets:', {
     deleteRootPatientsFlag,
@@ -242,8 +287,23 @@ async function main() {
   });
 
   if (scanLegacyStorageFlag) {
-    await scanLegacyStorage(storage, db, { samplePerPrefix: 3 });
+    await scanLegacyStorage(storage, db, { samplePerPrefix: 3, bucketName });
     console.log('\nScan finished. No deletion performed.');
+    process.exit(0);
+  }
+
+  if (exportLegacyPrefixesPath) {
+    // Export non-clinic top-level prefixes to a file (newline separated)
+    console.log(`\n[Storage] Exporting legacy (non-clinic) prefixes to ${exportLegacyPrefixesPath}`);
+    const clinicsSnap = await db.collection('clinics').get();
+    const clinicIds = new Set(clinicsSnap.docs.map((d) => d.id));
+    const [ , , apiResponse] = await storage.bucket(bucketName).getFiles({ prefix: 'medical_images/', delimiter: '/' });
+    const allTop = (apiResponse.prefixes || [])
+      .map((p) => p.replace(/^medical_images\//, '').replace(/\/$/, ''))
+      .filter(Boolean);
+    const legacyTop = allTop.filter((p) => !clinicIds.has(p));
+    fs.writeFileSync(exportLegacyPrefixesPath, legacyTop.join('\n'), 'utf8');
+    console.log(`  wrote ${legacyTop.length} legacy prefixes.`);
     process.exit(0);
   }
 
@@ -271,8 +331,14 @@ async function main() {
     await deleteGlobalMasters(db, { dryRun });
   }
 
+  let prefixesArg = onlyPrefixes;
+  if (!prefixesArg && onlyPrefixesFile) {
+    const raw = fs.readFileSync(onlyPrefixesFile, 'utf8');
+    prefixesArg = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  }
+
   if (deleteLegacyStorageFlag) {
-    await deleteLegacyStorage(storage, db, { dryRun, onlyPrefixes });
+    await deleteLegacyStorage(storage, db, { dryRun, onlyPrefixes: prefixesArg, bucketName });
   }
 
   console.log('\nCleanup completed.');

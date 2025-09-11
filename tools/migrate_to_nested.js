@@ -29,6 +29,7 @@ function getArg(flag, fallback = undefined) {
 
 async function main() {
   const projectId = getArg('--project') || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  const bucketName = getArg('--bucket') || `${projectId}.appspot.com`;
   const dryRun = !!getArg('--dry-run', false);
   const overwrite = !!getArg('--overwrite', false);
 
@@ -40,13 +41,13 @@ async function main() {
       admin.initializeApp({
         credential: admin.credential.cert(creds),
         projectId,
-        storageBucket: `${projectId}.appspot.com`,
+        storageBucket: bucketName,
       });
     } else {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
         projectId,
-        storageBucket: `${projectId}.appspot.com`,
+        storageBucket: bucketName,
       });
     }
   }

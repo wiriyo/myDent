@@ -100,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(0),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
@@ -112,7 +112,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                           )
                         ],
                       ),
-                      child: Image.asset('assets/images/tooth_logo.png', width: 120, height: 120),
+                      child: Image.asset('assets/images/circle_logo1.png', width: 200, height: 200),
                     ),
                     const SizedBox(height: 16),
                     const Text(

@@ -263,23 +263,15 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                 : SingleChildScrollView(
-                    child: (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 48.0),
-                            child: Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily))),
-                          )
-                        // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
-                        // อัปเกรด TimelineView ให้ส่งต่อข้อมูลและคำสั่งได้
-                        : TimelineView(
-                            selectedDate: _currentDate,
-                            appointments: _appointments,
-                            patients: _patients,
-                            workingHours: _selectedDayWorkingHours!,
-                            onDataChanged: _handleDataChange,
-                            initialPatient: _chainedPatient,
-                            onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
-                          ),
-                        // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
+                    child: TimelineView(
+                      selectedDate: _currentDate,
+                      appointments: _appointments,
+                      patients: _patients,
+                      workingHours: _selectedDayWorkingHours ?? DayWorkingHours(dayName: _getThaiDayName(_currentDate.weekday), isClosed: true, timeSlots: []),
+                      onDataChanged: _handleDataChange,
+                      initialPatient: _chainedPatient,
+                      onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
+                    ),
                   ),
           ),
         ],

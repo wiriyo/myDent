@@ -241,6 +241,14 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       const double verticalPadding = 28.0;
 
       timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
+    } else if (!_isLoading && _selectedAppointments.isNotEmpty) {
+      // Fallback height when clinic is closed but there are appointments
+      final earliest = _selectedAppointments.map((a) => a.startTime).reduce((a, b) => a.isBefore(b) ? a : b);
+      final latest = _selectedAppointments.map((a) => a.endTime).reduce((a, b) => a.isAfter(b) ? a : b);
+      const double hourHeight = 120.0;
+      final double pixelsPerMinute = hourHeight / 60.0;
+      const double verticalPadding = 28.0;
+      timelineHeight = max(0.0, latest.difference(earliest).inMinutes * pixelsPerMinute) + verticalPadding;
     }
 
     return Scaffold(
@@ -400,17 +408,15 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
             height: timelineHeight,
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-                : (_selectedDayWorkingHours == null || _selectedDayWorkingHours!.isClosed)
-                    ? Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: AppTheme.textDisabled, fontSize: 16, fontFamily: AppTheme.fontFamily)))
-                    : TimelineView(
-                        selectedDate: _selectedDay,
-                        appointments: _selectedAppointments,
-                        patients: _patientsForAppointments,
-                        workingHours: _selectedDayWorkingHours!,
-                        onDataChanged: _handleDataChange,
-                        initialPatient: _chainedPatient,
-                        onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
-                      ),
+                : TimelineView(
+                    selectedDate: _selectedDay,
+                    appointments: _selectedAppointments,
+                    patients: _patientsForAppointments,
+                    workingHours: _selectedDayWorkingHours ?? DayWorkingHours(dayName: _getThaiDayName(_selectedDay.weekday), isClosed: true, timeSlots: []),
+                    onDataChanged: _handleDataChange,
+                    initialPatient: _chainedPatient,
+                    onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
+                  ),
           ),
         ],
       ),

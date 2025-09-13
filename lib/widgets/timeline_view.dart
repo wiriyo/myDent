@@ -131,15 +131,34 @@ class TimelineView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (workingHours.isClosed || workingHours.timeSlots.isEmpty) {
+    // Determine effective time slots for rendering
+    List<TimeSlot> effectiveSlots = workingHours.timeSlots;
+    bool useFallbackSlots = workingHours.isClosed || workingHours.timeSlots.isEmpty;
+
+    if (useFallbackSlots) {
+      if (appointments.isEmpty) {
         return Center(child: Text('คลินิกปิดทำการ', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)));
+      }
+      // Create a single slot spanning from earliest start to latest end among appointments
+      DateTime earliest = appointments.map((a) => a.startTime).reduce((a, b) => a.isBefore(b) ? a : b);
+      DateTime latest = appointments.map((a) => a.endTime).reduce((a, b) => a.isAfter(b) ? a : b);
+      // Ensure at least 30 minutes window
+      if (!latest.isAfter(earliest)) {
+        latest = earliest.add(const Duration(minutes: 30));
+      }
+      effectiveSlots = [
+        TimeSlot(
+          openTime: TimeOfDay(hour: earliest.hour, minute: earliest.minute),
+          closeTime: TimeOfDay(hour: latest.hour, minute: latest.minute),
+        )
+      ];
     }
 
     final combinedList = _getCombinedList();
     
     final pixelsPerMinute = hourHeight / 60.0;
-    final dayStartTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.first.openTime);
-    final dayEndTime = _combineDateAndTime(selectedDate, workingHours.timeSlots.last.closeTime);
+    final dayStartTime = _combineDateAndTime(selectedDate, effectiveSlots.first.openTime);
+    final dayEndTime = _combineDateAndTime(selectedDate, effectiveSlots.last.closeTime);
     final totalHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute);
     
     const double topPadding = 14.0; 
@@ -153,7 +172,7 @@ class TimelineView extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTimeline(dayStartTime, containerHeight, pixelsPerMinute, topPadding),
+              _buildTimeline(effectiveSlots, dayStartTime, containerHeight, pixelsPerMinute, topPadding),
               _buildContentArea(context, combinedList, dayStartTime, containerHeight, pixelsPerMinute, topPadding, constraints),
             ],
           ),
@@ -162,10 +181,10 @@ class TimelineView extends StatelessWidget {
     );
   }
   
-  Widget _buildTimeline(DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding) {
+  Widget _buildTimeline(List<TimeSlot> slots, DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding) {
     List<Widget> children = [];
 
-    for (final slot in workingHours.timeSlots) {
+    for (final slot in slots) {
       final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
       final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
       
@@ -187,7 +206,7 @@ class TimelineView extends StatelessWidget {
       }
     }
     
-    for (final slot in workingHours.timeSlots) {
+    for (final slot in slots) {
       final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
       final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
 

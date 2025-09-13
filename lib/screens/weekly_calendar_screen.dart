@@ -850,28 +850,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     final patients = dayData?.patients ?? [];
     final workingHours = dayData?.workingHours;
 
-    if (workingHours == null || workingHours.isClosed) {
-      return Container(
-        width: _dayColumnWidth,
-        height: _hourHeight * (_dynamicEndHour - _dynamicStartHour),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          border: Border(right: BorderSide(color: Colors.grey.shade200)),
-        ),
-        child: Center(
-          child: Text(
-            'ปิดทำการ',
-            style: TextStyle(color: AppTheme.textDisabled),
-          ),
-        ),
-      );
-    }
-
-    final combinedList = _getCombinedListForDay(
-      appointments,
-      workingHours,
-      day,
-    );
+    // Build combinedList: if closed or no working hours, show appointments only (no gaps)
+    final List<Map<String, dynamic>> combinedList = (workingHours == null || workingHours.isClosed)
+        ? appointments.map((appt) => {'isGap': false, 'appointment': appt}).toList()
+        : _getCombinedListForDay(appointments, workingHours, day);
     final appointmentLayouts = _calculateAppointmentLayouts(
       appointments,
       patients,
@@ -886,6 +868,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       ),
       child: Stack(
         children: [
+          if (workingHours == null || workingHours.isClosed)
+            Positioned.fill(
+              child: Container(color: Colors.grey.shade50),
+            ),
           ...List.generate(
             _dynamicEndHour - _dynamicStartHour,
             (i) => Positioned(
@@ -966,6 +952,13 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
               );
             }
           }),
+          if ((workingHours == null || workingHours.isClosed) && appointments.isEmpty)
+            Center(
+              child: Text(
+                'ปิดทำการ',
+                style: TextStyle(color: AppTheme.textDisabled),
+              ),
+            ),
         ],
       ),
     );

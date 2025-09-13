@@ -10,5 +10,8 @@ class FeatureFlags {
 
   // During migration, read primary first, then fallback to legacy root
   static const bool dualReadFallbackEnabled = false;
-}
 
+  // UI helpers
+  // Show Dev Login (Skip) button on login screen
+  static const bool showDevSkipLogin = false; // hide by default
+}

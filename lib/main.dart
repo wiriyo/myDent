@@ -61,7 +61,8 @@ class MyApp extends StatelessWidget {
         print('🕵️‍♀️ Laila Debug: Staff role is: $staffRole. Navigating to home screen...');
         switch (staffRole) {
           case 'admin':
-            return const HomeAdminScreen();
+            // เปลี่ยนให้ admin เข้าหน้า Calendar เป็นหน้าแรกตามที่ต้องการ
+            return const CalendarScreen();
           case 'dentist':
             return const HomeDentistScreen();
           case 'officer':

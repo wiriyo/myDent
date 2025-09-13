@@ -8,8 +8,10 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'; // เราจะใช้ kDebugMode จากที่นี่ค่ะ
+import '../config/feature_flags.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_provider.dart';
+import '../models/staff_model.dart';
 import '../styles/app_theme.dart';
 import 'signup_screen.dart';
 
@@ -86,21 +88,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        Provider.of<AppAuthProvider>(
-          context,
-          listen: false,
-        ).setClinicVerified(clinicId);
+        // 1) ยืนยัน clinic ให้พร้อมใช้งาน
+        final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+        authProvider.setClinicVerified(clinicId);
 
-        final authProvider = Provider.of<AppAuthProvider>(
-          context,
-          listen: false,
+        // 2) ข้ามขั้น Staff Login ชั่วคราว: ตั้งสิทธิ์เป็น admin และล็อกอินเข้าระบบทันที
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? 'admin';
+        final staff = Staff(
+          id: uid,
+          name: 'Administrator',
+          username: email,
+          role: 'admin',
         );
-        print(
-          '🕵️‍♀️ Laila Debug: Status in Provider is now: ${authProvider.status}',
-        );
+        authProvider.setStaffLoggedIn(staff);
 
-        // (เราต้องไปสร้างหน้า /staff_login กันต่อนะคะ)
-        Navigator.pushReplacementNamed(context, '/staff_login');
+        // 3) ส่งผู้ใช้ไปหน้า Calendar ทันทีตามที่ต้องการ
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/calendar');
+        }
       } else {
         setState(() {
           errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้องค่ะ 🥺';
@@ -233,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (kDebugMode) // <-- ตอนนี้ kDebugMode จะหมายถึงตัวแปรของ Flutter เสมอค่ะ
+                    if (kDebugMode && FeatureFlags.showDevSkipLogin) // ซ่อนปุ่มด้วย flag เพิ่มเติม
                       TextButton(
                         onPressed: _isLoading ? null : _devSkipLogin,
                         child: const Text('Dev Login (Skip)'),

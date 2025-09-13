@@ -58,9 +58,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_native_splash: ^2.4.1
+  flutter_launcher_icons: ^0.13.1
   
-  
-
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -82,6 +82,9 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
       - assets/images/tooth_logo.png
+      - assets/images/circle_logo.png
+      - assets/images/square_logo.png
+      - assets/images/square_logo_padded.png
       - assets/icons/tooth.png
       - assets/icons/report.png
       - assets/icons/money.png
@@ -134,6 +137,34 @@ flutter:
          - asset: fonts/Poppins-Regular.ttf
          - asset: fonts/Poppins-Bold.ttf
            weight: 700
+
+# Native splash screen configuration
+flutter_native_splash:
+  # Pastel purple background + square logo only (no background image)
+  color: "#EFE0FF"
+  image: assets/images/square_logo_padded.png
+  android: true
+  ios: true
+  web: false
+  android_gravity: center
+  ios_content_mode: scaleAspectFit
+  fullscreen: true
+  # Android 12 style
+  android_12:
+    color: "#EFE0FF"
+    image: assets/images/square_logo_padded.png
+    icon_background_color: "#EFE0FF"
+
+# App icon configuration
+flutter_launcher_icons:
+  android: true
+  ios: false
+  # Base icon for android (legacy sizes)
+  image_path: assets/images/app_logo2_centered.png
+  # Android adaptive icon parts
+  adaptive_icon_foreground: assets/images/app_logo2_centered.png
+  adaptive_icon_background: "#EFE0FF"
+  min_sdk_android: 21
   #         style: italic
   #   - family: Trajan Pro
   #     fonts:

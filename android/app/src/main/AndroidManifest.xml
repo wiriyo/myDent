@@ -22,7 +22,7 @@
 
 
     <application
-        android:label="mydent_app"
+        android:label="MyDent"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

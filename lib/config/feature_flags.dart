@@ -14,4 +14,7 @@ class FeatureFlags {
   // UI helpers
   // Show Dev Login (Skip) button on login screen
   static const bool showDevSkipLogin = false; // hide by default
+
+  // Show in-app Flutter splash (animated) after native splash
+  static const bool showInAppSplash = true; // enable to show only in-app splash
 }

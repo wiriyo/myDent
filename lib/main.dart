@@ -23,6 +23,8 @@ import 'screens/treatment_list.dart';
 import 'screens/working_hours_screen.dart';
 import 'screens/prefix_settings_screen.dart';
 import 'screens/appointment_search_screen.dart';
+import 'screens/splash_screen.dart';
+import 'config/feature_flags.dart';
 import 'models/patient.dart';
 import 'dev/dev_entry.dart';
 import 'home/home_admin.dart';
@@ -45,10 +47,28 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  // ฟังก์ชันผู้ช่วยสำหรับเลือกหน้าจอที่จะแสดง ยังคงเหมือนเดิม
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _showSplash = FeatureFlags.showInAppSplash;
+
+  @override
+  void initState() {
+    super.initState();
+    // แสดง Splash สั้นๆ ให้ดูน่ารักก่อนเข้าแอป
+    if (_showSplash) {
+      Future.delayed(const Duration(milliseconds: 3000), () {
+        if (mounted) setState(() => _showSplash = false);
+      });
+    }
+  }
+
+  // ฟังก์ชันผู้ช่วยสำหรับเลือกหน้าจอที่จะแสดง
   Widget _buildHomeScreen(AppAuthProvider authProvider) {
     print('🕵️‍♀️ Laila Debug: _buildHomeScreen is deciding! Status is: ${authProvider.status}');
     switch (authProvider.status) {
@@ -131,7 +151,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
           
-          home: homeScreen,
+          home: _showSplash ? const SplashScreen() : homeScreen,
 
           routes: {
             '/login': (context) => const LoginScreen(),

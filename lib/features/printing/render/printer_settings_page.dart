@@ -1,12 +1,15 @@
 // lib/features/printing/render/printer_settings_page.dart
-// v1.0.4 - อัปเกรดปุ่มพิมพ์ทดสอบให้ใช้งานได้จริง!
-// เพิ่มฟังก์ชัน 'บันทึกเป็นภาพ' และ 'พิมพ์' เหมือนหน้าพรีวิว
+// v1.1.0 - Header preview reflects Clinic Settings (with live updates)
+// - Loads clinic name/address/phone/tax/line + logo from ClinicSettingsService
+// - Falls back to defaults when fields are empty
+// - Subscribes to changes to update preview live
 
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/th_format.dart';
 import '../domain/receipt_model.dart';
@@ -14,6 +17,10 @@ import '../domain/appointment_slip_model.dart';
 // 💖 NEW: import service ที่จำเป็นสำหรับการทำงานของปุ่มใหม่ค่ะ
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
+import '../../../services/clinic_settings_service.dart';
+import '../../../config/clinic_context.dart';
+import '../../../config/clinic_defaults.dart';
+import 'dart:async';
 
 
 class PrinterSettingsPage extends StatefulWidget {
@@ -40,6 +47,15 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   static const String _postFeedKey = 'mydent.printing.postfeed';
   static const String _headerSpaceKey = 'mydent.printing.headerspace';
 
+  // --- Clinic header state (live from settings) ---
+  String _clinicName = ClinicDefaults.defaultClinicName;
+  String _clinicAddress = '';
+  String _clinicPhone = '';
+  String? _clinicTaxId;
+  String? _clinicLineId;
+  String? _remoteLogoUrl;
+  StreamSubscription<Map<String, dynamic>?>? _clinicSub;
+
   @override
   void initState() {
     super.initState();
@@ -53,7 +69,11 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     final savedHeaderSpace = prefs.getInt(_headerSpaceKey) ?? 0;
 
     try {
-      final logo = await rootBundle.load('assets/images/logo_clinic.png');
+      // Load initial clinic header and subscribe for updates
+      await _loadClinicHeader();
+      _subscribeClinic();
+      // Load logo from remote URL if exists; fallback to default asset
+      final logo = await _loadLogo();
       if (mounted) {
         setState(() {
           _printingScale = savedScale;
@@ -66,6 +86,57 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       if (mounted) setState(() => _logo = null);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadClinicHeader() async {
+    try {
+      final svc = ClinicSettingsService();
+      final data = await svc.getClinicInfo(clinicId: ClinicContext.activeClinicId);
+      _applyClinicData(data);
+    } catch (_) {}
+  }
+
+  void _subscribeClinic() {
+    _clinicSub?.cancel();
+    final svc = ClinicSettingsService();
+    _clinicSub = svc.watchClinicInfo(clinicId: ClinicContext.activeClinicId).listen((data) async {
+      if (!mounted) return;
+      setState(() {
+        _applyClinicData(data);
+        _lastPng = null; // force re-capture
+      });
+      final newLogo = await _loadLogo();
+      if (!mounted) return;
+      setState(() { _logo = newLogo; });
+    });
+  }
+
+  void _applyClinicData(Map<String, dynamic>? data) {
+    _clinicName = ((data?['name'] as String?)?.trim().isNotEmpty == true)
+        ? (data!['name'] as String)
+        : ClinicDefaults.defaultClinicName;
+    _clinicAddress = (data?['address'] as String?)?.trim() ?? '';
+    _clinicPhone = (data?['phone'] as String?)?.trim() ?? '';
+    final showLine = (data?['showLineId'] ?? true) as bool;
+    final showTax = (data?['showTaxId'] ?? false) as bool;
+    _clinicLineId = showLine ? (data?['lineId'] as String?)?.trim() : null;
+    _clinicTaxId = showTax ? (data?['taxId'] as String?)?.trim() : null;
+    _remoteLogoUrl = (data?['logoUrl'] as String?)?.trim();
+  }
+
+  Future<ByteData?> _loadLogo() async {
+    try {
+      if (_remoteLogoUrl != null && _remoteLogoUrl!.isNotEmpty) {
+        final resp = await http.get(Uri.parse(_remoteLogoUrl!));
+        if (resp.statusCode == 200) {
+          final bytes = resp.bodyBytes;
+          return ByteData.view(bytes.buffer);
+        }
+      }
+      return await rootBundle.load(ClinicDefaults.defaultLogoAsset);
+    } catch (_) {
+      try { return await rootBundle.load(ClinicDefaults.defaultLogoAsset); } catch (_) { return null; }
     }
   }
 
@@ -128,6 +199,11 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                     nextAppointment: _sampleAppointmentData(),
                     logoBytes: _logo,
                     headerSpace: _printingHeaderSpace.toDouble(),
+                    clinicName: _clinicName,
+                    clinicAddress: _clinicAddress,
+                    clinicPhone: _clinicPhone,
+                    clinicTaxId: _clinicTaxId,
+                    clinicLineId: _clinicLineId,
                   ),
                 ),
               ),
@@ -292,6 +368,12 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     }
   }
 
+  @override
+  void dispose() {
+    _clinicSub?.cancel();
+    super.dispose();
+  }
+
   ReceiptModel _sampleReceiptData() {
     return ReceiptModel(
       clinic: const ClinicInfo(
@@ -334,6 +416,11 @@ class _CombinedSlipWidget extends StatelessWidget {
   final AppointmentInfo nextAppointment;
   final ByteData? logoBytes;
   final double headerSpace;
+  final String clinicName;
+  final String clinicAddress;
+  final String clinicPhone;
+  final String? clinicTaxId;
+  final String? clinicLineId;
 
   const _CombinedSlipWidget({
     required this.width,
@@ -341,6 +428,11 @@ class _CombinedSlipWidget extends StatelessWidget {
     required this.nextAppointment,
     this.logoBytes,
     this.headerSpace = 0.0,
+    required this.clinicName,
+    required this.clinicAddress,
+    required this.clinicPhone,
+    this.clinicTaxId,
+    this.clinicLineId,
   });
 
   static const double _labelWidth = 150;
@@ -362,12 +454,12 @@ class _CombinedSlipWidget extends StatelessWidget {
               Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium),
               const SizedBox(height: 6),
             ],
-            const Text('คลินิกทันตกรรม', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-            const Text('หมอกุสุมาภรณ์', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            Text(clinicName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            const Text('304 ม.1 ต.หนองพอก', textAlign: TextAlign.center),
-            const Text('อ.หนองพอก จ.ร้อยเอ็ด', textAlign: TextAlign.center),
-            const Text('094-5639334', textAlign: TextAlign.center),
+            if (clinicAddress.trim().isNotEmpty) Text(clinicAddress, textAlign: TextAlign.center),
+            if (clinicPhone.trim().isNotEmpty) Text('โทร: $clinicPhone', textAlign: TextAlign.center),
+            if ((clinicTaxId ?? '').isNotEmpty) Text('เลขผู้เสียภาษี: $clinicTaxId', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
+            if ((clinicLineId ?? '').isNotEmpty) Text('Line ID: $clinicLineId', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 6),
             const Text('*********************'),
             const SizedBox(height: 8),

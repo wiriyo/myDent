@@ -6,6 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
+import 'package:http/http.dart' as http;
+import '../../../services/clinic_settings_service.dart';
+import '../../../config/clinic_defaults.dart';
+import '../../../config/clinic_context.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import เพื่ออ่านค่า
 import '../utils/th_format.dart';
 import '../domain/receipt_model.dart';
@@ -33,6 +37,12 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
   Uint8List? _lastPng;
   bool _busyCapture = false;
   bool _isLoading = true;
+  String _clinicName = ClinicDefaults.defaultClinicName;
+  String _clinicAddress = '';
+  String _clinicPhone = '';
+  String? _clinicTaxId;
+  String? _clinicLineId;
+  String? _remoteLogoUrl;
 
   // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่าที่อ่านมาจาก SharedPreferences
   double _printingScale = 1.0;
@@ -56,7 +66,8 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
     final savedHeaderSpace = prefs.getInt(_headerSpaceKey) ?? 0;
 
     try {
-      final logo = await rootBundle.load('assets/images/logo_clinic.png');
+      await _loadClinicHeader();
+      final logo = await _loadLogo();
       if (mounted) {
         setState(() {
           // 💖 NEW: นำค่าที่อ่านได้มาใช้งาน
@@ -70,6 +81,36 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       if (mounted) setState(() => _logo = null);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadClinicHeader() async {
+    try {
+      final svc = ClinicSettingsService();
+      final data = await svc.getClinicInfo(clinicId: ClinicContext.activeClinicId);
+      _clinicName = ((data?['name'] as String?)?.trim().isNotEmpty == true) ? (data!['name'] as String) : ClinicDefaults.defaultClinicName;
+      _clinicAddress = (data?['address'] as String?)?.trim() ?? '';
+      _clinicPhone = (data?['phone'] as String?)?.trim() ?? '';
+      final showLine = (data?['showLineId'] ?? true) as bool;
+      final showTax = (data?['showTaxId'] ?? false) as bool;
+      _clinicLineId = showLine ? (data?['lineId'] as String?)?.trim() : null;
+      _clinicTaxId = showTax ? (data?['taxId'] as String?)?.trim() : null;
+      _remoteLogoUrl = (data?['logoUrl'] as String?)?.trim();
+    } catch (_) {}
+  }
+
+  Future<ByteData?> _loadLogo() async {
+    try {
+      if (_remoteLogoUrl != null && _remoteLogoUrl!.isNotEmpty) {
+        final resp = await http.get(Uri.parse(_remoteLogoUrl!));
+        if (resp.statusCode == 200) {
+          final bytes = resp.bodyBytes;
+          return ByteData.view(bytes.buffer);
+        }
+      }
+      return await rootBundle.load(ClinicDefaults.defaultLogoAsset);
+    } catch (_) {
+      try { return await rootBundle.load(ClinicDefaults.defaultLogoAsset); } catch (_) { return null; }
     }
   }
 
@@ -101,6 +142,11 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
                     logoBytes: _logo,
                     // 💖 NEW: ใช้ค่า headerSpace ที่อ่านมา
                     headerSpace: _printingHeaderSpace.toDouble(),
+                    clinicName: _clinicName,
+                    clinicAddress: _clinicAddress,
+                    clinicPhone: _clinicPhone,
+                    clinicTaxId: _clinicTaxId,
+                    clinicLineId: _clinicLineId,
                   ),
                 ),
               ),
@@ -223,6 +269,11 @@ class _CombinedSlipWidget extends StatelessWidget {
   final AppointmentInfo nextAppointment;
   final ByteData? logoBytes;
   final double headerSpace; // 💖 NEW: รับค่า headerSpace
+  final String clinicName;
+  final String clinicAddress;
+  final String clinicPhone;
+  final String? clinicTaxId;
+  final String? clinicLineId;
 
   const _CombinedSlipWidget({
     required this.width,
@@ -230,6 +281,11 @@ class _CombinedSlipWidget extends StatelessWidget {
     required this.nextAppointment,
     this.logoBytes,
     this.headerSpace = 0.0, // 💖 NEW: ค่าเริ่มต้น
+    required this.clinicName,
+    required this.clinicAddress,
+    required this.clinicPhone,
+    this.clinicTaxId,
+    this.clinicLineId,
   });
 
   static const double _labelWidth = 150;
@@ -252,12 +308,12 @@ class _CombinedSlipWidget extends StatelessWidget {
               Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium),
               const SizedBox(height: 6),
             ],
-            Text('คลินิกทันตกรรม', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-            Text('หมอกุสุมาภรณ์', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            Text(clinicName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            Text('304 ม.1 ต.หนองพอก', textAlign: TextAlign.center),
-            Text('อ.หนองพอก จ.ร้อยเอ็ด', textAlign: TextAlign.center),
-            Text('094-5639334', textAlign: TextAlign.center),
+            if (clinicAddress.trim().isNotEmpty) Text(clinicAddress, textAlign: TextAlign.center),
+            if (clinicPhone.trim().isNotEmpty) Text('โทร: $clinicPhone', textAlign: TextAlign.center),
+            if ((clinicTaxId ?? '').isNotEmpty) Text('เลขผู้เสียภาษี: $clinicTaxId', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
+            if ((clinicLineId ?? '').isNotEmpty) Text('Line ID: $clinicLineId', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 6),
             const Text('*********************'),
             const SizedBox(height: 8),

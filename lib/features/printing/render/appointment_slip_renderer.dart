@@ -3,6 +3,13 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../utils/th_format.dart';
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
+import '../../../config/clinic_context.dart';
+import '../../../services/clinic_settings_service.dart';
+import '../../../config/clinic_defaults.dart';
+import 'dart:async';
 import '../domain/appointment_slip_model.dart';
 
 class AppointmentSlipRenderer {
@@ -10,6 +17,33 @@ class AppointmentSlipRenderer {
   AppointmentSlipRenderer({this.widthPx = 576});
 
   Future<ui.Image> render(AppointmentSlipModel s) async {
+    // Load clinic header from settings (override model)
+    String name = ClinicDefaults.defaultClinicName;
+    String address = '';
+    String phone = '';
+    String? taxId;
+    String? lineId;
+    Uint8List? logoBytes;
+    try {
+      final svc = ClinicSettingsService();
+      final data = await svc.getClinicInfo(clinicId: ClinicContext.activeClinicId);
+      if (data != null) {
+        name = ((data['name'] as String?)?.trim().isNotEmpty == true) ? (data['name'] as String) : ClinicDefaults.defaultClinicName;
+        address = (data['address'] as String?)?.trim() ?? '';
+        phone = (data['phone'] as String?)?.trim() ?? '';
+        final showLine = (data['showLineId'] ?? true) as bool;
+        final showTax = (data['showTaxId'] ?? false) as bool;
+        lineId = showLine ? (data['lineId'] as String?)?.trim() : null;
+        taxId = showTax ? (data['taxId'] as String?)?.trim() : null;
+        final url = (data['logoUrl'] as String?)?.trim();
+        if (url != null && url.isNotEmpty) {
+          final resp = await http.get(Uri.parse(url));
+          if (resp.statusCode == 200) logoBytes = resp.bodyBytes;
+        }
+      }
+      logoBytes ??= (await rootBundle.load(ClinicDefaults.defaultLogoAsset)).buffer.asUint8List();
+    } catch (_) {}
+
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
     final totalRect = Rect.fromLTWH(0, 0, widthPx.toDouble(), 1600);
@@ -17,10 +51,24 @@ class AppointmentSlipRenderer {
 
     double y = 16;
 
-    // --- Header ---
-    y += _text(c, s.clinic.name, y, size: 28, bold: true, center: true);
-    y += _text(c, s.clinic.address, y, size: 20, center: true, height: 1.3);
-    y += _text(c, 'โทร: ${s.clinic.phone}', y, size: 20, center: true);
+    // --- Header (with logo & clinic info) ---
+    if (logoBytes != null) {
+      final img = await _decodeImage(logoBytes!);
+      final drawW = 160.0;
+      final drawH = drawW * img.height / img.width;
+      c.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+        Rect.fromLTWH((widthPx - drawW) / 2, y, drawW, drawH),
+        Paint(),
+      );
+      y += drawH + 6;
+    }
+    y += _text(c, name, y, size: 28, bold: true, center: true);
+    if (address.trim().isNotEmpty) y += _text(c, address, y, size: 20, center: true, height: 1.3);
+    if (phone.trim().isNotEmpty) y += _text(c, 'โทร: $phone', y, size: 20, center: true);
+    if ((taxId ?? '').isNotEmpty) y += _text(c, 'เลขผู้เสียภาษี: $taxId', y, size: 18, center: true);
+    if ((lineId ?? '').isNotEmpty) y += _text(c, 'Line ID: $lineId', y, size: 18, center: true);
     y += _hr(c, y);
 
     // --- Body ---
@@ -42,6 +90,12 @@ class AppointmentSlipRenderer {
     final pic = rec.endRecording();
     final img = await pic.toImage(widthPx, y.ceil());
     return img;
+  }
+
+  Future<ui.Image> _decodeImage(Uint8List bytes) async {
+    final c = Completer<ui.Image>();
+    ui.decodeImageFromList(bytes, (ui.Image img) => c.complete(img));
+    return c.future;
   }
 
   double _text(Canvas c, String text, double y, {double size = 22, bool bold = false, bool center = false, double height = 1.25}) {

@@ -7,6 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
 import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import เพื่ออ่านค่า
+import 'package:http/http.dart' as http;
+import '../../../config/clinic_defaults.dart';
+import '../../../config/clinic_context.dart';
+import '../../../services/clinic_settings_service.dart';
 import '../utils/th_format.dart';
 import '../services/thermal_printer_service.dart';
 import '../domain/receipt_model.dart';
@@ -38,6 +42,12 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   Uint8List? _lastPng;
   bool _busyCapture = false;
   bool _isLoading = true;
+  // clinic header
+  String _clinicName = ClinicDefaults.defaultClinicName;
+  String _clinicAddress = '';
+  String _clinicPhone = '';
+  String? _clinicTaxId;
+  String? _clinicLineId;
 
   // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่าที่อ่านมาจาก SharedPreferences
   double _printingScale = 1.0;
@@ -64,7 +74,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       final data = (widget.useSampleData || widget.receipt == null)
           ? _sampleData()
           : widget.receipt!;
-
+      await _loadClinicHeader();
       final logo = await _loadLogo();
       if (!mounted) return;
 
@@ -88,13 +98,44 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     }
   }
 
+  Future<void> _loadClinicHeader() async {
+    try {
+      final svc = ClinicSettingsService();
+      final data = await svc.getClinicInfo(clinicId: ClinicContext.activeClinicId);
+      _clinicName = ((data?['name'] as String?)?.trim().isNotEmpty == true)
+          ? (data!['name'] as String)
+          : ClinicDefaults.defaultClinicName;
+      _clinicAddress = (data?['address'] as String?)?.trim() ?? '';
+      _clinicPhone = (data?['phone'] as String?)?.trim() ?? '';
+      final showLine = (data?['showLineId'] ?? true) as bool;
+      final showTax = (data?['showTaxId'] ?? false) as bool;
+      _clinicLineId = showLine ? (data?['lineId'] as String?)?.trim() : null;
+      _clinicTaxId = showTax ? (data?['taxId'] as String?)?.trim() : null;
+      _remoteLogoUrl = (data?['logoUrl'] as String?)?.trim();
+    } catch (e) {
+      if (kDebugMode) debugPrint('load clinic header failed: $e');
+    }
+  }
+
+  String? _remoteLogoUrl;
   Future<ByteData?> _loadLogo() async {
     try {
-      final data = await rootBundle.load('assets/images/logo_clinic.png');
-      return data;
+      if (_remoteLogoUrl != null && _remoteLogoUrl!.isNotEmpty) {
+        final resp = await http.get(Uri.parse(_remoteLogoUrl!));
+        if (resp.statusCode == 200) {
+          final bytes = resp.bodyBytes;
+          return ByteData.view(bytes.buffer);
+        }
+      }
+      // fallback to default asset
+      return await rootBundle.load(ClinicDefaults.defaultLogoAsset);
     } catch (e) {
       if (kDebugMode) debugPrint('Error loading logo: $e');
-      return null;
+      try {
+        return await rootBundle.load(ClinicDefaults.defaultLogoAsset);
+      } catch (_) {
+        return null;
+      }
     }
   }
 
@@ -205,6 +246,11 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                       nextAppointment: widget.nextAppt,
                       // 💖 NEW: ใช้ค่า headerSpace ที่อ่านมา
                       headerSpace: _printingHeaderSpace.toDouble(),
+                      clinicName: _clinicName,
+                      clinicAddress: _clinicAddress,
+                      clinicPhone: _clinicPhone,
+                      clinicTaxId: _clinicTaxId,
+                      clinicLineId: _clinicLineId,
                     ),
                   ),
                 ),
@@ -292,6 +338,11 @@ class _ReceiptWidget extends StatelessWidget {
   final bool showNextAppt;
   final AppointmentInfo? nextAppointment;
   final double headerSpace; // 💖 NEW: รับค่า headerSpace
+  final String clinicName;
+  final String clinicAddress;
+  final String clinicPhone;
+  final String? clinicTaxId;
+  final String? clinicLineId;
 
   const _ReceiptWidget({
     required this.data,
@@ -300,6 +351,11 @@ class _ReceiptWidget extends StatelessWidget {
     this.showNextAppt = false,
     this.nextAppointment,
     this.headerSpace = 0.0, // 💖 NEW: ค่าเริ่มต้น
+    required this.clinicName,
+    required this.clinicAddress,
+    required this.clinicPhone,
+    this.clinicTaxId,
+    this.clinicLineId,
   });
 
   static const double _labelWidth = 150;
@@ -323,13 +379,13 @@ class _ReceiptWidget extends StatelessWidget {
               const SizedBox(height: 6),
             ],
             
-            Text('คลินิกทันตกรรม', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-            Text('หมอกุสุมาภรณ์', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            Text(clinicName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
             
             const SizedBox(height: 2),
-            Text('304 ม.1 ต.หนองพอก', textAlign: TextAlign.center),
-            Text('อ.หนองพอก จ.ร้อยเอ็ด', textAlign: TextAlign.center),
-            Text('094-5639334', textAlign: TextAlign.center),
+            if (clinicAddress.trim().isNotEmpty) Text(clinicAddress, textAlign: TextAlign.center),
+            if (clinicPhone.trim().isNotEmpty) Text(clinicPhone, textAlign: TextAlign.center),
+            if ((clinicTaxId ?? '').trim().isNotEmpty) Text('เลขผู้เสียภาษี: ${clinicTaxId!.trim()}', textAlign: TextAlign.center),
+            if ((clinicLineId ?? '').trim().isNotEmpty) Text('Line ID: ${clinicLineId!.trim()}', textAlign: TextAlign.center),
             
             const SizedBox(height: 6),
             const Text('*********************'),

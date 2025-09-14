@@ -25,6 +25,7 @@ import 'screens/prefix_settings_screen.dart';
 import 'screens/appointment_search_screen.dart';
 import 'screens/splash_screen.dart';
 import 'config/feature_flags.dart';
+import 'screens/clinic_settings_screen.dart';
 import 'models/patient.dart';
 import 'dev/dev_entry.dart';
 import 'home/home_admin.dart';
@@ -62,8 +63,16 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     // แสดง Splash สั้นๆ ให้ดูน่ารักก่อนเข้าแอป
     if (_showSplash) {
-      Future.delayed(const Duration(milliseconds: 3000), () {
-        if (mounted) setState(() => _showSplash = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 3000), () {
+          if (!mounted) return;
+          final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+          final next = _buildHomeScreen(authProvider);
+          setState(() => _showSplash = false);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => next),
+          );
+        });
       });
     }
   }
@@ -171,6 +180,7 @@ class _MyAppState extends State<MyApp> {
             '/working_hours': (context) => const WorkingHoursScreen(),
             '/prefix_settings': (context) => const PrefixSettingsScreen(),
             '/appointment_search': (context) => const AppointmentSearchScreen(),
+            '/clinic_settings': (context) => const ClinicSettingsScreen(),
             if (kDebugMode)
               '/dev/preview': (_) => const DevEntry(),
             '/home_admin': (context) => const HomeAdminScreen(), 

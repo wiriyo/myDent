@@ -81,6 +81,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             _buildSettingCard(
               context,
+              icon: Icons.local_hospital_outlined,
+              title: "ข้อมูลคลินิก",
+              subtitle: "โลโก้ / ที่อยู่ / เบอร์โทร / Line ID",
+              onTap: () {
+                Navigator.pushNamed(context, '/clinic_settings');
+              },
+            ),
+            _buildSettingCard(
+              context,
               icon: Icons.badge_outlined,
               title: "คำนำหน้านาม",
               subtitle: "เพิ่ม/แก้ไข/ลบคำนำหน้านามของคลินิก",

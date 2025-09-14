@@ -85,6 +85,7 @@ flutter:
       - assets/images/circle_logo.png
       - assets/images/square_logo.png
       - assets/images/square_logo_padded.png
+      - assets/images/circle_logo1.png
       - assets/icons/tooth.png
       - assets/icons/report.png
       - assets/icons/money.png

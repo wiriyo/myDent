@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
 import '../services/clinic_settings_service.dart';
 import '../styles/app_theme.dart';
+import '../config/clinic_defaults.dart';
 
 class ClinicSettingsScreen extends StatefulWidget {
   const ClinicSettingsScreen({super.key});
@@ -47,7 +48,8 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
     final data = await _service.getClinicInfo(clinicId: clinicId);
     if (data != null) {
       _logoUrl = data['logoUrl'] as String?;
-      _nameCtrl.text = (data['name'] ?? '') as String;
+      final loadedName = (data['name'] ?? '') as String;
+      _nameCtrl.text = loadedName.isEmpty ? ClinicDefaults.defaultClinicName : loadedName;
       _addressCtrl.text = (data['address'] ?? '') as String;
       _phoneCtrl.text = (data['phone'] ?? '') as String;
       _lineCtrl.text = (data['lineId'] ?? '') as String;
@@ -75,15 +77,21 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       if (_logoFile != null) {
         logoUrl = await _service.uploadLogo(_logoFile!, clinicId: clinicId);
       }
+      final nameVal = _nameCtrl.text.trim();
+      final addressVal = _addressCtrl.text.trim();
+      final phoneVal = _phoneCtrl.text.trim();
+      final lineVal = _lineCtrl.text.trim();
+      final taxVal = _taxCtrl.text.trim();
+
       await _service.saveClinicInfo(
         clinicId: clinicId,
         logoUrl: logoUrl,
-        name: _nameCtrl.text.trim(),
-        address: _addressCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-        lineId: _lineCtrl.text.trim().isEmpty ? null : _lineCtrl.text.trim(),
+        name: nameVal.isEmpty ? null : nameVal,
+        address: addressVal.isEmpty ? null : addressVal,
+        phone: phoneVal.isEmpty ? null : phoneVal,
+        lineId: lineVal.isEmpty ? null : lineVal,
         showLineId: _showLine,
-        taxId: _taxCtrl.text.trim().isEmpty ? null : _taxCtrl.text.trim(),
+        taxId: taxVal.isEmpty ? null : taxVal,
         showTaxId: _showTax,
       );
       if (!mounted) return;
@@ -131,27 +139,19 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                             child: Container(
                               width: 140,
                               height: 140,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                                 image: _logoFile != null
                                     ? DecorationImage(image: FileImage(_logoFile!), fit: BoxFit.cover)
                                     : (_logoUrl != null && _logoUrl!.isNotEmpty)
                                         ? DecorationImage(image: NetworkImage(_logoUrl!), fit: BoxFit.cover)
-                                        : null,
-                              ),
-                              child: (_logoFile == null && (_logoUrl == null || _logoUrl!.isEmpty))
-                                  ? Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(Icons.image_outlined, color: AppTheme.textSecondary),
-                                        SizedBox(height: 6),
-                                        Text('โลโก้คลินิก', style: TextStyle(color: AppTheme.textSecondary)),
-                                      ],
-                                    )
-                                  : null,
-                            ),
+                                        : const DecorationImage(image: AssetImage(ClinicDefaults.defaultLogoAsset), fit: BoxFit.cover),
+                          ),
+                              // มีโลโก้ default เสมอ ไม่แสดง placeholder แล้ว
+                              child: null,
+                          ),
                           ),
                           if (_logoFile != null || (_logoUrl != null && _logoUrl!.isNotEmpty))
                             Positioned(
@@ -198,7 +198,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                     TextFormField(
                       controller: _nameCtrl,
                       decoration: _inputDecoration('ระบุชื่อคลินิก'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'กรุณากรอกชื่อคลินิก' : null,
+                      // อนุญาตให้ว่างได้ (ระบบจะแสดงค่า default เมื่ออ่านเพื่อใช้งาน)
                     ),
                     const SizedBox(height: 16),
                     const Text('ที่อยู่คลินิก', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -207,7 +207,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                       controller: _addressCtrl,
                       maxLines: 3,
                       decoration: _inputDecoration('กรอกที่อยู่คลินิก'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'กรุณากรอกที่อยู่' : null,
+                      validator: (_) => null,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -229,7 +229,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
                       decoration: _inputDecoration('เช่น 0812345678'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'กรุณากรอกเบอร์โทร' : null,
+                      validator: (_) => null,
                     ),
                     const SizedBox(height: 16),
                     Row(

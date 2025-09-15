@@ -155,45 +155,7 @@ class AppointmentService {
     }
   }
 
-  Future<bool> _isTimeSlotConflict(DateTime startTime, DateTime endTime, [String? excludeAppointmentId]) async {
-    try {
-      Query query = _primaryAppointments
-          .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-          .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
-
-      final id = _effectiveClinicId;
-      if (!(FeatureFlags.useNestedCollections && id != null && id.isNotEmpty)) {
-        if (id != null && id.isNotEmpty) {
-          query = _rootAppointments
-              .where('clinicId', isEqualTo: id)
-              .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-              .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
-        }
-      }
-
-      var querySnapshot = await query.get();
-
-      if (FeatureFlags.dualReadFallbackEnabled && querySnapshot.docs.isEmpty) {
-        final fbQuery = _rootAppointments
-            .where('clinicId', isEqualTo: id)
-            .where('startTime', isLessThan: Timestamp.fromDate(endTime))
-            .where('endTime', isGreaterThan: Timestamp.fromDate(startTime));
-        querySnapshot = await fbQuery.get();
-      }
-
-      if (querySnapshot.docs.isEmpty) return false;
-
-      if (excludeAppointmentId != null) {
-        if (querySnapshot.docs.length == 1 && querySnapshot.docs.first.id == excludeAppointmentId) {
-          return false;
-        }
-      }
-      return true;
-    } catch (e) {
-      debugPrint("Error checking for time slot conflict: $e");
-      return true;
-    }
-  }
+  // Removed unused helper _isTimeSlotConflict (was not referenced)
 
   Stream<List<AppointmentModel>> getAppointmentsStreamByDate(DateTime selectedDate) {
     final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);

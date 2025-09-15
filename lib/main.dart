@@ -99,8 +99,7 @@ class _MyAppState extends State<MyApp> {
           default:
             return const HomeGuestScreen();
         }
-      default:
-        return const LoginScreen();
+      // All AuthStatus cases are covered above; no default needed
     }
   }
 

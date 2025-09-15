@@ -53,7 +53,7 @@ class AppointmentSlipRenderer {
 
     // --- Header (with logo & clinic info) ---
     if (logoBytes != null) {
-      final img = await _decodeImage(logoBytes!);
+      final img = await _decodeImage(logoBytes);
       final drawW = 160.0;
       final drawH = drawW * img.height / img.width;
       c.drawImageRect(

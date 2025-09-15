@@ -235,12 +235,14 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                     onPressed: _busyCapture ? null : _captureAndSavePng,
                     bgColor: const Color(0xFFE8F5E9), // สีเขียวมิ้นต์
                     iconAsset: 'assets/icons/picture.png',
+                    widgetKey: ValueKey('printer_settings_capture_button'),
                   ),
                   const SizedBox(width: 24),
                   _buildIconButton(
                     onPressed: _busyCapture ? null : _print,
                     bgColor: const Color(0xFFFFF3E0), // สีชมพูอ่อน
                     iconAsset: 'assets/icons/printer.png',
+                    widgetKey: ValueKey('printer_settings_print_button'),
                   ),
                 ],
               ),
@@ -253,11 +255,12 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   // 💖 NEW: ฟังก์ชันสร้างปุ่มสวยๆ เหมือนหน้าพรีวิวค่ะ
-  Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset}) {
+  Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset, Key? widgetKey}) {
     return SizedBox(
       width: 110,
       height: 72,
       child: FilledButton(
+        key: widgetKey,
         onPressed: onPressed,
         style: FilledButton.styleFrom(
           backgroundColor: bgColor,
@@ -352,7 +355,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       }
       
       if (_lastPng != null) {
-        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
+        await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ส่งคำสั่งพิมพ์ตัวอย่างแล้ว')));
         }

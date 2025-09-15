@@ -15,7 +15,7 @@ class PrintButton extends StatelessWidget {
     return FilledButton.icon(
       icon: const Icon(Icons.print),
       label: Text(label),
-      onPressed: () => ThermalPrinterService.instance
+      onPressed: () => ThermalPrinterService.I
           .ensureConnectAndPrintPng(context, pngBytes, feed: feed, cut: cut),
     );
   }

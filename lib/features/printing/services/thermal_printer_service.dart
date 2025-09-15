@@ -16,9 +16,16 @@ class PrinterDevice {
   const PrinterDevice({required this.name, required this.mac});
 }
 
-class ThermalPrinterService {
+abstract class PrinterClient {
+  Future<void> ensureConnectAndPrintPng(BuildContext context, Uint8List pngBytes, {int feed = 3, bool cut = true});
+}
+
+class ThermalPrinterService implements PrinterClient {
   ThermalPrinterService._();
   static final ThermalPrinterService instance = ThermalPrinterService._();
+  // Test hook: allow overriding implementation during widget tests
+  static PrinterClient? debugOverride;
+  static PrinterClient get I => debugOverride ?? instance;
 
   static const _keyMac = 'mydent.printer.mac';
   static const _keyName = 'mydent.printer.name';
@@ -162,6 +169,7 @@ class ThermalPrinterService {
     await PrintBluetoothThermal.writeBytes(bytes);
   }
 
+  @override
   Future<void> ensureConnectAndPrintPng(BuildContext context, Uint8List pngBytes, {int feed = 3, bool cut = true}) async {
     if (!Platform.isAndroid) { _toast(context, 'โหมดนี้รองรับ Android ก่อนนะคะ'); return; }
     final ok = await ensureConnectedOrPick(context);

@@ -21,11 +21,14 @@ import '../../../services/logo_cache_service.dart';
 class CombinedSlipPreviewPage extends StatefulWidget {
   final ReceiptModel receipt;
   final AppointmentInfo nextAppointment;
+  // Test-only: preset PNG to bypass capture in widget tests
+  final Uint8List? debugPngOverride;
 
   const CombinedSlipPreviewPage({
     super.key,
     required this.receipt,
     required this.nextAppointment,
+    this.debugPngOverride,
   });
 
   @override
@@ -168,12 +171,14 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
                 onPressed: _busyCapture ? null : _captureAndSavePng,
                 bgColor: const Color(0xFFE8F5E9),
                 iconAsset: 'assets/icons/picture.png',
+                widgetKey: const ValueKey('combined_capture_button'),
               ),
               const SizedBox(width: 24),
               _buildIconButton(
                 onPressed: _busyCapture ? null : _print,
                 bgColor: const Color(0xFFFFF3E0),
                 iconAsset: 'assets/icons/printer.png',
+                widgetKey: const ValueKey('combined_print_button'),
               ),
             ],
           ),
@@ -182,11 +187,12 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
     );
   }
 
-  Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset}) {
+  Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset, Key? widgetKey}) {
     return SizedBox(
       width: 110,
       height: 72,
       child: FilledButton(
+        key: widgetKey,
         onPressed: onPressed,
         style: FilledButton.styleFrom(
           backgroundColor: bgColor,
@@ -239,17 +245,21 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
 
     try {
       if (_lastPng == null) {
-        final obj = _boundaryKey.currentContext?.findRenderObject();
-        if (obj is! RenderRepaintBoundary) return;
-        final ui.Image image = await obj.toImage(pixelRatio: 2.0);
-        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData == null) return;
-        _lastPng = byteData.buffer.asUint8List();
+        if (widget.debugPngOverride != null) {
+          _lastPng = widget.debugPngOverride;
+        } else {
+          final obj = _boundaryKey.currentContext?.findRenderObject();
+          if (obj is! RenderRepaintBoundary) return;
+          final ui.Image image = await obj.toImage(pixelRatio: 2.0);
+          final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+          if (byteData == null) return;
+          _lastPng = byteData.buffer.asUint8List();
+        }
       }
       
       if (_lastPng != null) {
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
-        await ThermalPrinterService.instance.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
+        await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) Navigator.of(context).pop();
       } else {
         if (mounted) {

@@ -11,7 +11,16 @@ service cloud.firestore {
 
     // Scoped access under clinics/{clinicId}
     match /clinics/{clinicId} {
-      allow read, write: if isClinicMember(clinicId);
+      // Allow creating the clinic document when signed-in (to bootstrap membership)
+      allow create: if isSignedIn();
+      // For other operations, must be a member
+      allow read, update, delete: if isClinicMember(clinicId);
+
+      // Allow a signed-in user to create/update their own membership doc
+      match /members/{uid} {
+        allow write: if isSignedIn() && request.auth.uid == uid;
+        allow read: if isClinicMember(clinicId);
+      }
 
       match /patients/{patientId} {
         allow read, write: if isClinicMember(clinicId);

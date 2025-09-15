@@ -35,6 +35,7 @@ import 'home/home_guest.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,7 +70,8 @@ class _MyAppState extends State<MyApp> {
           final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
           final next = _buildHomeScreen(authProvider);
           setState(() => _showSplash = false);
-          Navigator.of(context).pushReplacement(
+          // Use global navigatorKey since this context is above MaterialApp's Navigator
+          navigatorKey.currentState?.pushReplacement(
             MaterialPageRoute(builder: (_) => next),
           );
         });
@@ -125,6 +127,7 @@ class _MyAppState extends State<MyApp> {
           title: 'MyDent',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: scaffoldMessengerKey,
+          navigatorKey: navigatorKey,
           
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,

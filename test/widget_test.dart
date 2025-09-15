@@ -7,25 +7,37 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
-import 'package:mydent_app/main.dart'; // ตรวจสอบ path ให้ถูกต้องนะคะ
+import 'package:mydent_app/main.dart';
+import 'package:mydent_app/auth/auth_provider.dart';
+import 'package:mydent_app/models/staff_model.dart';
+ 
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    // ✨💖 แก้ไขตรงนี้ให้เรียก MyApp() แบบไม่มีพารามิเตอร์ค่ะ 💖✨
-    await tester.pumpWidget(const MyApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('App boots with Provider and shows a Scaffold', (WidgetTester tester) async {
+    // Prepare provider in logged-in state to avoid LoginScreen (which touches Firebase)
+    final auth = AppAuthProvider();
+    auth.setStaffLoggedIn(
+      // Role other than admin/dentist/officer => HomeGuestScreen (no Firebase)
+      Staff(id: 't1', name: 'Tester', username: 'tester', role: 'guest'),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: auth,
+        child: const MyApp(),
+      ),
+    );
+
+    // Allow initial build and in-app splash timer (3s) to complete
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 3200));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.byType(MaterialApp), findsOneWidget);
+    expect(find.byType(Scaffold), findsOneWidget);
   });
 }

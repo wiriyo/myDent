@@ -11,6 +11,7 @@ import '../../../services/clinic_settings_service.dart';
 import '../../../config/clinic_defaults.dart';
 import 'dart:async';
 import '../domain/appointment_slip_model.dart';
+import '../../../services/logo_cache_service.dart';
 
 class AppointmentSlipRenderer {
   final int widthPx;
@@ -38,7 +39,11 @@ class AppointmentSlipRenderer {
         final url = (data['logoUrl'] as String?)?.trim();
         if (url != null && url.isNotEmpty) {
           final resp = await http.get(Uri.parse(url));
-          if (resp.statusCode == 200) logoBytes = resp.bodyBytes;
+          if (resp.statusCode == 200) {
+            logoBytes = resp.bodyBytes;
+            // Cache for splash/offline use
+            await LogoCacheService.save(resp.bodyBytes);
+          }
         }
       }
       logoBytes ??= (await rootBundle.load(ClinicDefaults.defaultLogoAsset)).buffer.asUint8List();

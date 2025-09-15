@@ -15,6 +15,7 @@ import '../domain/receipt_model.dart';
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/th_format.dart';
+import '../../../services/logo_cache_service.dart';
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
   final AppointmentSlipModel? slip;
@@ -108,6 +109,7 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
         final resp = await http.get(Uri.parse(_remoteLogoUrl!));
         if (resp.statusCode == 200) {
           final bytes = resp.bodyBytes;
+          await LogoCacheService.save(bytes);
           return ByteData.view(bytes.buffer);
         }
       }

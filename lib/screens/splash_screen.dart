@@ -1,5 +1,12 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../services/clinic_settings_service.dart';
+import '../services/logo_cache_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/clinic_context.dart';
+import '../config/clinic_defaults.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,6 +21,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late final Animation<double> _fadeAnim;
 
   late final AnimationController _bgController;
+  Uint8List? _logoBytes;
 
   @override
   void initState() {
@@ -25,6 +33,46 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _bgController = AnimationController(vsync: this, duration: const Duration(milliseconds: 15000))
       ..repeat(reverse: true);
+
+    // Try to show cached logo immediately, then update from settings if available
+    _loadCachedThenRemote();
+  }
+
+  Future<void> _loadCachedThenRemote() async {
+    try {
+      final cached = await LogoCacheService.load();
+      if (mounted && cached != null) {
+        setState(() => _logoBytes = cached);
+      }
+    } catch (_) {}
+    await _loadClinicLogo();
+  }
+
+  Future<void> _loadClinicLogo() async {
+    try {
+      final svc = ClinicSettingsService();
+      // Use active clinic id if available; otherwise fallback to last saved id
+      String? id = ClinicContext.activeClinicId;
+      if (id == null || id.isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          id = prefs.getString('mydent.lastClinicId');
+        } catch (_) {}
+      }
+      final data = await svc.getClinicInfo(clinicId: id);
+      final url = (data?['logoUrl'] as String?)?.trim();
+      if (url != null && url.isNotEmpty) {
+        final resp = await http.get(Uri.parse(url));
+        if (resp.statusCode == 200 && mounted) {
+          final bytes = resp.bodyBytes;
+          setState(() => _logoBytes = bytes);
+          // Save to cache for next launch
+          await LogoCacheService.save(bytes);
+        }
+      }
+    } catch (_) {
+      // ignore errors; we will just show default logo
+    }
   }
 
   @override
@@ -112,7 +160,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                           )
                         ],
                       ),
-                      child: Image.asset('assets/images/circle_logo1.png', width: 200, height: 200),
+                      child: _logoBytes != null
+                          ? Image.memory(_logoBytes!, width: 200, height: 200, filterQuality: FilterQuality.medium)
+                          : Image.asset(ClinicDefaults.defaultLogoAsset, width: 200, height: 200),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -160,4 +210,3 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
   }
 }
-

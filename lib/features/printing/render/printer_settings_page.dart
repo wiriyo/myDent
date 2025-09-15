@@ -21,6 +21,7 @@ import '../../../services/clinic_settings_service.dart';
 import '../../../config/clinic_context.dart';
 import '../../../config/clinic_defaults.dart';
 import 'dart:async';
+import '../../../services/logo_cache_service.dart';
 
 
 class PrinterSettingsPage extends StatefulWidget {
@@ -131,6 +132,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         final resp = await http.get(Uri.parse(_remoteLogoUrl!));
         if (resp.statusCode == 200) {
           final bytes = resp.bodyBytes;
+          await LogoCacheService.save(bytes);
           return ByteData.view(bytes.buffer);
         }
       }

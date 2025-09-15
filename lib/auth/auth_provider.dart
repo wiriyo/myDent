@@ -4,6 +4,7 @@
 
 import 'dart:async'; // 1. ✨ Import 'dart:async' สำหรับ StreamController
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/staff_model.dart';
 import '../config/clinic_context.dart';
 
@@ -41,6 +42,10 @@ class AppAuthProvider extends ChangeNotifier {
     ClinicContext.activeClinicId = clinicId;
     _statusStreamController.add(_status); // โทรออก!
     notifyListeners();
+    // Persist last used clinic id for splash/logo loading before login
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('mydent.lastClinicId', clinicId);
+    });
   }
 
   void setStaffLoggedIn(Staff staff) {
@@ -57,6 +62,10 @@ class AppAuthProvider extends ChangeNotifier {
     ClinicContext.activeClinicId = null;
     _statusStreamController.add(_status); // โทรออก!
     notifyListeners();
+    // Clear persisted clinic id
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove('mydent.lastClinicId');
+    });
   }
 }
 

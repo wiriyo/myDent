@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
 import '../services/clinic_settings_service.dart';
 import '../styles/app_theme.dart';
+import '../services/logo_cache_service.dart';
 import '../config/clinic_defaults.dart';
 
 class ClinicSettingsScreen extends StatefulWidget {
@@ -76,6 +78,10 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       String? logoUrl = _logoUrl;
       if (_logoFile != null) {
         logoUrl = await _service.uploadLogo(_logoFile!, clinicId: clinicId);
+        try {
+          final Uint8List bytes = await _logoFile!.readAsBytes();
+          await LogoCacheService.save(bytes);
+        } catch (_) {}
       }
       final nameVal = _nameCtrl.text.trim();
       final addressVal = _addressCtrl.text.trim();
@@ -170,6 +176,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                                             setState(() => _logoUrl = null);
                                             try {
                                               await _service.deleteLogo(logoUrl: url);
+                                              await LogoCacheService.clear();
                                               if (mounted) {
                                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบโลโก้แล้ว')));
                                               }

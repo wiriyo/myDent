@@ -100,4 +100,6 @@ jobs:
             firebase emulators:exec --only firestore,auth "flutter test -d emulator-5554 \
               --dart-define=FIRESTORE_EMULATOR_HOST=10.0.2.2 \
               --dart-define=FIRESTORE_EMULATOR_PORT=8080 \
-              integration_test/clinic_header_live_update_test.dart integration_test/security_rules_test.dart"
+              integration_test/clinic_header_live_update_test.dart \
+              integration_test/security_rules_test.dart \
+              integration_test/printing_e2e_test.dart"

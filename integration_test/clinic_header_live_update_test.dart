@@ -92,10 +92,14 @@ void main() {
       // Listen and expect new snapshot with timeout to avoid hang
       final stream = svc.watchClinicInfo(clinicId: ClinicContext.activeClinicId);
       final first = await stream
-          .firstWhere((d) => d != null && d!['name'] == 'Emulator Clinic')
+          .firstWhere((d) {
+            if (d == null) return false;
+            return d['name'] == 'Emulator Clinic';
+          })
           .timeout(const Duration(seconds: 10));
       expect(first, isNotNull);
-      expect(first!['phone'], '099-9999999');
+      final Map<String, dynamic> data = first as Map<String, dynamic>;
+      expect(data['phone'], '099-9999999');
     });
   });
 }

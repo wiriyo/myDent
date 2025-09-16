@@ -1,7 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mydent_app/features/printing/render/receipt_mapper.dart';
-import 'package:mydent_app/features/printing/domain/receipt_model.dart';
-import 'package:mydent_app/features/printing/domain/appointment_slip_model.dart';
 
 class _FakeCalendarResult {
   final DateTime startTime;

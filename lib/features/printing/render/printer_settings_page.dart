@@ -61,7 +61,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   // --- Permission status (Android) ---
   bool? _permBtScan;
   bool? _permBtConnect;
-  bool? _permLocation;
 
   @override
   void initState() {
@@ -102,12 +101,10 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       if (!mounted) return;
       final scan = await Permission.bluetoothScan.status;
       final connect = await Permission.bluetoothConnect.status;
-      final loc = await Permission.location.status;
       if (!mounted) return;
       setState(() {
         _permBtScan = scan.isGranted;
         _permBtConnect = connect.isGranted;
-        _permLocation = loc.isGranted;
       });
     } catch (_) {}
   }
@@ -410,16 +407,6 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     } finally {
       if (mounted) setState(() => _busyCapture = false);
     }
-  }
-
-  Widget _permChip(String label, bool? ok) {
-    final granted = ok == true;
-    return Chip(
-      label: Text(label),
-      backgroundColor: granted ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
-      avatar: Icon(granted ? Icons.check_circle : Icons.error_outline,
-          size: 18, color: granted ? Colors.green : Colors.redAccent),
-    );
   }
 
   Widget _buildPermFab() {

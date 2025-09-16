@@ -22,6 +22,7 @@ import '../../../config/clinic_context.dart';
 import '../../../config/clinic_defaults.dart';
 import 'dart:async';
 import '../../../services/logo_cache_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 
 class PrinterSettingsPage extends StatefulWidget {
@@ -57,10 +58,16 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   String? _remoteLogoUrl;
   StreamSubscription<Map<String, dynamic>?>? _clinicSub;
 
+  // --- Permission status (Android) ---
+  bool? _permBtScan;
+  bool? _permBtConnect;
+  bool? _permLocation;
+
   @override
   void initState() {
     super.initState();
     _prepare();
+    _refreshPermStatus();
   }
 
   Future<void> _prepare() async {
@@ -87,6 +94,36 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       if (mounted) setState(() => _logo = null);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _refreshPermStatus() async {
+    try {
+      if (!mounted) return;
+      final scan = await Permission.bluetoothScan.status;
+      final connect = await Permission.bluetoothConnect.status;
+      final loc = await Permission.location.status;
+      if (!mounted) return;
+      setState(() {
+        _permBtScan = scan.isGranted;
+        _permBtConnect = connect.isGranted;
+        _permLocation = loc.isGranted;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _preflightPermissions() async {
+    try {
+      // ขอสิทธิ์ตรง ๆ โดยไม่พยายามพิมพ์/เชื่อมต่อ
+      await ThermalPrinterService.instance.ensurePrintingPermissions(context);
+    } catch (_) {
+      // ignore
+    } finally {
+      await _refreshPermStatus();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ตรวจสอบสิทธิ์เรียบร้อย')),
+      );
     }
   }
 
@@ -185,6 +222,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         title: const Text('ตั้งค่าการพิมพ์'),
         // 💖 FIX v1.0.4: ลบปุ่มทดสอบเก่าออกจาก AppBar ค่ะ
       ),
+      floatingActionButton: _buildPermFab(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Builder(
         builder: (bodyContext) {
           return MediaQuery(
@@ -371,6 +410,27 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     } finally {
       if (mounted) setState(() => _busyCapture = false);
     }
+  }
+
+  Widget _permChip(String label, bool? ok) {
+    final granted = ok == true;
+    return Chip(
+      label: Text(label),
+      backgroundColor: granted ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+      avatar: Icon(granted ? Icons.check_circle : Icons.error_outline,
+          size: 18, color: granted ? Colors.green : Colors.redAccent),
+    );
+  }
+
+  Widget _buildPermFab() {
+    final granted = (_permBtScan == true && _permBtConnect == true);
+    final Color bg = granted ? Colors.green.shade200 : Colors.red.shade200;
+    return FloatingActionButton(
+      heroTag: 'permFab',
+      backgroundColor: bg,
+      onPressed: _preflightPermissions,
+      child: Image.asset('assets/icons/printer.png', width: 26, height: 26),
+    );
   }
 
   @override

@@ -7,13 +7,14 @@
 
     <!-- ✨ FIX: จัดกลุ่ม Permission สำหรับ Bluetooth ให้ชัดเจนที่สุด -->
 
-    <!-- สำหรับ Android 11 (SDK 30) และต่ำกว่า -->
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <!-- Bluetooth base permissions (keep for compatibility; normal permissions on Android 12+) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     
     <!-- สำหรับ Android 12 (SDK 31) และสูงกว่า -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- ✨ FIX: กุญแจดอกสุดท้าย! ขออนุญาตเข้าถึงตำแหน่งสำหรับทุกเวอร์ชัน
          เพราะบางอุปกรณ์ยังจำเป็นต้องใช้เพื่อสแกนหา Bluetooth ค่ะ -->

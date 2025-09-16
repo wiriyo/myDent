@@ -33,28 +33,82 @@ class ThermalPrinterService implements PrinterClient {
   CapabilityProfile? _profile;
   Future<CapabilityProfile> _loadProfile() async => _profile ??= await CapabilityProfile.load();
 
-  Future<bool> _requestPermissions() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.location, 
-    ].request();
+  Future<Map<Permission, PermissionStatus>> _currentPermissionStatuses() async {
+    final req = <Permission>[];
+    if (Platform.isAndroid) {
+      req.add(Permission.bluetooth);
+      req.add(Permission.bluetoothConnect);
+      req.add(Permission.bluetoothScan);
+      req.add(Permission.location);
+    }
+    if (req.isEmpty) return <Permission, PermissionStatus>{};
+    final map = <Permission, PermissionStatus>{};
+    for (final p in req) { map[p] = await p.status; }
+    return map;
+  }
 
-    var allGranted = true;
-    statuses.forEach((permission, status) {
-      if (status != PermissionStatus.granted) {
-        allGranted = false;
-        debugPrint('${permission.toString()} was not granted. Status: ${status.toString()}');
-      }
-    });
+  Future<bool> _requestAll() async {
+    final req = <Permission>[];
+    if (Platform.isAndroid) {
+      req.add(Permission.bluetooth);
+      req.add(Permission.bluetoothConnect);
+      req.add(Permission.bluetoothScan);
+      req.add(Permission.location);
+    }
+    if (req.isEmpty) return true;
+    final res = await req.request();
+    return res.values.every((s) => s == PermissionStatus.granted);
+  }
 
-    return allGranted;
+  Future<bool> ensurePrintingPermissions(BuildContext context) async {
+    // เช็คสถานะปัจจุบันก่อน
+    final current = await _currentPermissionStatuses();
+    if (current.isEmpty || current.values.every((s) => s == PermissionStatus.granted)) {
+      // (iOS หรือแพลตฟอร์มอื่น ๆ ที่ไม่ต้องใช้สิทธิ์พิเศษ)
+      return true;
+    }
+
+    // แสดงคำอธิบายก่อนเพื่อให้ผู้ใช้เตรียมพร้อม แล้วค่อยยิง system prompt
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('อนุญาตการใช้งาน Bluetooth'),
+        content: const Text('การพิมพ์ต้องการสิทธิ์ Bluetooth (สแกน/เชื่อมต่อ) และอาจต้องการ Location บนอุปกรณ์บางรุ่น\n\nกด "อนุญาต" เพื่อดำเนินการต่อ'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('ยกเลิก')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('อนุญาต')),
+        ],
+      ),
+    );
+    if (confirm != true) return false;
+
+    final ok = await _requestAll();
+    if (ok) return true;
+
+    // ถ้ายังไม่ได้สิทธิ์ แนะนำให้เปิดหน้า Settings ของแอป
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ต้องอนุญาตผ่านการตั้งค่า'),
+        content: const Text('ดูเหมือนสิทธิ์ถูกปฏิเสธแบบไม่สอบถามอีก (Don\'t ask again)\nโปรดเปิดการอนุญาตในหน้า Settings ของแอป จากนั้นกลับมาลองอีกครั้ง'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('ปิด')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('เปิดหน้าการตั้งค่าแอป')),
+        ],
+      ),
+    );
+    if (open == true) {
+      await openAppSettings();
+      // กลับมาแล้วเช็คอีกครั้ง
+      return await _requestAll();
+    }
+    return false;
   }
 
   Future<List<PrinterDevice>> discoverPaired() async {
     if (!Platform.isAndroid) return const <PrinterDevice>[];
     
-    final permissionsOk = await _requestPermissions();
+    final permissionsOk = await _requestAll();
     if (!permissionsOk) return const <PrinterDevice>[];
 
     final list = await PrintBluetoothThermal.pairedBluetooths;
@@ -66,7 +120,7 @@ class ThermalPrinterService implements PrinterClient {
   }
 
   Future<bool> connectByMac(String mac) async {
-    final permissionsOk = await _requestPermissions();
+    final permissionsOk = await _requestAll();
     if (!permissionsOk) return false;
     return await PrintBluetoothThermal.connect(macPrinterAddress: mac);
   }
@@ -89,12 +143,9 @@ class ThermalPrinterService implements PrinterClient {
 
   Future<bool> ensureConnectedOrPick(BuildContext context) async {
     if (await isConnected()) return true;
-    
-    final permissionsOk = await _requestPermissions();
-    if (!permissionsOk) {
-      _toast(context, 'จำเป็นต้องอนุญาตการเข้าถึง Bluetooth และ Location ก่อนนะคะ');
-      return false;
-    }
+
+    final permissionsOk = await ensurePrintingPermissions(context);
+    if (!permissionsOk) { _toast(context, 'ต้องอนุญาตสิทธิ์การใช้งานก่อนพิมพ์'); return false; }
     
     final saved = await loadDefault();
     if (saved != null && await connectByMac(saved.mac)) return true;
@@ -116,8 +167,17 @@ class ThermalPrinterService implements PrinterClient {
         context: context,
         builder: (dialogCtx) => AlertDialog(
           title: const Text('ไม่พบอุปกรณ์ที่จับคู่ไว้'),
-          content: const Text('โปรดจับคู่เครื่องพิมพ์ใน Bluetooth settings ก่อนนะคะ'),
-          actions: [TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('โอเค'))],
+          content: const Text('โปรดเปิด Bluetooth และจับคู่เครื่องพิมพ์ในหน้า Settings ก่อน จากนั้นกลับมาลองอีกครั้ง'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('ปิด')),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(dialogCtx).pop();
+                try { await openAppSettings(); } catch (_) {}
+              },
+              child: const Text('เปิดหน้าการตั้งค่าแอป'),
+            ),
+          ],
         ),
       );
       return null;

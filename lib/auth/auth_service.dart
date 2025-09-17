@@ -14,15 +14,11 @@ class AuthService {
   Future<void> _ensureClinicMembership({required String clinicId, required String uid, String? role}) async {
     if (clinicId.isEmpty || uid.isEmpty) return;
     final memberRef = _firestore.collection('clinics').doc(clinicId).collection('members').doc(uid);
-    final snapshot = await memberRef.get();
-    final data = <String, dynamic>{
+    await memberRef.set({
       'role': role ?? 'admin',
+      'addedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (!snapshot.exists) {
-      data['addedAt'] = FieldValue.serverTimestamp();
-    }
-    await memberRef.set(data, SetOptions(merge: true));
+    }, SetOptions(merge: true));
   }
 
 

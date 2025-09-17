@@ -11,6 +11,21 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  Future<void> _ensureClinicMembership({required String clinicId, required String uid, String? role}) async {
+    if (clinicId.isEmpty || uid.isEmpty) return;
+    final memberRef = _firestore.collection('clinics').doc(clinicId).collection('members').doc(uid);
+    final snapshot = await memberRef.get();
+    final data = <String, dynamic>{
+      'role': role ?? 'admin',
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (!snapshot.exists) {
+      data['addedAt'] = FieldValue.serverTimestamp();
+    }
+    await memberRef.set(data, SetOptions(merge: true));
+  }
+
+
   // --- 💖 ไลลาปรับปรุงฟังก์ชัน signUp สำหรับ Multi-Tenant 💖 ---
   // เพิ่ม clinicName และ Logic การสร้างคลินิกใหม่ค่ะ
   Future<UserCredential?> signUp(String email, String password, String name, String clinicName) async {
@@ -41,6 +56,12 @@ class AuthService {
           'role': 'subscriber', // กำหนด role เป็น 'subscriber' สำหรับเจ้าของ
           'clinicId': clinicId, // ผูก user คนนี้เข้ากับ clinic ที่เพิ่งสร้าง
         });
+
+        await _ensureClinicMembership(
+          clinicId: clinicId,
+          uid: userCredential.user!.uid,
+          role: 'owner',
+        );
       }
       return userCredential;
     } on FirebaseAuthException {
@@ -67,7 +88,15 @@ class AuthService {
           // 3. ถ้าเจอ... ก็ดึง clinicId ออกมาแล้วส่งคืนกลับไปเลยค่ะ!
           final data = userDoc.data() as Map<String, dynamic>?;
           if (data != null && data.containsKey('clinicId')) {
-             return data['clinicId'] as String?;
+            final clinicId = (data['clinicId'] as String?) ?? '';
+            if (clinicId.isNotEmpty) {
+              await _ensureClinicMembership(
+                clinicId: clinicId,
+                uid: userCredential.user!.uid,
+                role: data['role'] as String?,
+              );
+              return clinicId;
+            }
           }
         }
       }
@@ -118,4 +147,3 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email);
   }
 }
-

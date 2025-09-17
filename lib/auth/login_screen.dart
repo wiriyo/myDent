@@ -114,7 +114,15 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
-        errorMessage = 'เกิดข้อผิดพลาด: ${e.message}';
+        if (e.code == 'account-pending') {
+          errorMessage = 'Your account is waiting for admin approval.';
+        } else if (e.code == 'account-rejected') {
+          errorMessage = 'This account request was rejected. Please contact support.';
+        } else if (e.code == 'account-disabled') {
+          errorMessage = 'This account has been disabled. Please reach out to support.';
+        } else {
+          errorMessage = e.message ?? 'Login failed. Please try again.';
+        }
       });
       _showSnackbar(errorMessage);
     } finally {

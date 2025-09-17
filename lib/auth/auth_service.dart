@@ -7,9 +7,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:cloud_functions/cloud_functions.dart';
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   Future<void> _ensureClinicMembership({required String clinicId, required String uid, String? role}) async {
     if (clinicId.isEmpty || uid.isEmpty) return;
@@ -25,48 +29,71 @@ class AuthService {
   // --- 💖 ไลลาปรับปรุงฟังก์ชัน signUp สำหรับ Multi-Tenant 💖 ---
   // เพิ่ม clinicName และ Logic การสร้างคลินิกใหม่ค่ะ
   Future<UserCredential?> signUp(String email, String password, String name, String clinicName) async {
+    UserCredential? userCredential;
+    DocumentReference<Map<String, dynamic>>? clinicRef;
     try {
-      // 1. สร้างผู้ใช้ใน Firebase Authentication เหมือนเดิมเลยค่ะ
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      if (userCredential.user != null) {
-        // ✨ ส่วนใหม่! ✨
-        // 2. สร้าง document ใหม่ใน collection 'clinics'
-        // เพื่อเก็บข้อมูลของคลินิกและรับ clinicId ใหม่
-        DocumentReference clinicRef = await _firestore.collection('clinics').add({
-          'name': clinicName,
-          'owner_uid': userCredential.user!.uid, // เก็บ uid เจ้าของไว้ด้วยเลย
-          'created_at': Timestamp.now(),
-        });
-        
-        // 3. ตอนนี้เราได้ clinicId มาแล้ว!
-        String clinicId = clinicRef.id;
+      final user = userCredential.user;
+      if (user == null) {
+        return userCredential;
+      }
 
-        // 4. บันทึกข้อมูล user พร้อมกับ clinicId และ role ใหม่
-        await _firestore.collection('users').doc(userCredential.user!.uid).set({
-          'name': name,
-          'email': email,
-          'role': 'subscriber', // กำหนด role เป็น 'subscriber' สำหรับเจ้าของ
-          'clinicId': clinicId, // ผูก user คนนี้เข้ากับ clinic ที่เพิ่งสร้าง
-        });
+      clinicRef = await _firestore.collection('clinics').add({
+        'name': clinicName,
+        'owner_uid': user.uid,
+        'created_at': Timestamp.now(),
+      });
 
-        await _ensureClinicMembership(
+      final clinicId = clinicRef.id;
+
+      await _firestore.collection('users').doc(user.uid).set({
+        'name': name,
+        'email': email,
+        'role': 'admin',
+        'clinicId': clinicId,
+        'status': 'pending',
+        'createdAt': Timestamp.now(),
+      });
+
+      try {
+        await _requestClinicApproval(
           clinicId: clinicId,
-          uid: userCredential.user!.uid,
-          role: 'owner',
+          clinicName: clinicName,
+          userName: name,
+          userEmail: email,
+        );
+      } on FirebaseFunctionsException catch (error, stackTrace) {
+        await _rollbackClinicSetup(user, clinicRef);
+        Error.throwWithStackTrace(
+          FirebaseAuthException(
+            code: 'approval-request-failed',
+            message: 'Unable to submit approval request. Please try again later.',
+          ),
+          stackTrace,
         );
       }
+
+      await _auth.signOut();
       return userCredential;
     } on FirebaseAuthException {
+      await _rollbackClinicSetup(userCredential?.user, clinicRef);
       rethrow;
+    } on FirebaseException catch (error, stackTrace) {
+      await _rollbackClinicSetup(userCredential?.user, clinicRef);
+      Error.throwWithStackTrace(
+        FirebaseAuthException(
+          code: error.code,
+          message: error.message ?? 'Sign up failed. Please try again.',
+        ),
+        stackTrace,
+      );
     }
   }
 
-  // --- 💖 ไลลาปรับปรุงฟังก์ชัน signIn สำหรับ Multi-Tenant 💖 ---
-  // เปลี่ยนให้คืนค่าเป็น clinicId (String?) แทน UserCredential นะคะ
   Future<String?> signIn(String email, String password) async {
     try {
       // 1. Sign in เหมือนเดิมเพื่อยืนยันตัวตน
@@ -83,15 +110,40 @@ class AuthService {
         if (userDoc.exists) {
           // 3. ถ้าเจอ... ก็ดึง clinicId ออกมาแล้วส่งคืนกลับไปเลยค่ะ!
           final data = userDoc.data() as Map<String, dynamic>?;
-          if (data != null && data.containsKey('clinicId')) {
-            final clinicId = (data['clinicId'] as String?) ?? '';
-            if (clinicId.isNotEmpty) {
-              await _ensureClinicMembership(
-                clinicId: clinicId,
-                uid: userCredential.user!.uid,
-                role: data['role'] as String?,
+          if (data != null) {
+            final status = (data['status'] as String?) ?? 'approved';
+            if (status != 'approved') {
+              await _auth.signOut();
+              if (status == 'pending') {
+                throw FirebaseAuthException(
+                  code: 'account-pending',
+                  message: '????????????????????????????????????',
+                );
+              }
+              if (status == 'rejected') {
+                throw FirebaseAuthException(
+                  code: 'account-rejected',
+                  message: '???????????????????????? ?????????????????????',
+                );
+              }
+              throw FirebaseAuthException(
+                code: 'account-disabled',
+                message: '????????????????????????? ??????????????????????',
               );
-              return clinicId;
+            }
+
+            if (data.containsKey('clinicId')) {
+              final clinicId = (data['clinicId'] as String?) ?? '';
+              if (clinicId.isNotEmpty) {
+                await _ensureClinicMembership(
+                  clinicId: clinicId,
+                  uid: userCredential.user!.uid,
+                  role: data['role'] as String?,
+                );
+
+                await _syncClinicClaim(clinicId);
+                return clinicId;
+              }
             }
           }
         }
@@ -142,4 +194,63 @@ class AuthService {
   Future<void> resetPassword(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
   }
+
+  Future<void> _rollbackClinicSetup(User? user, DocumentReference<Map<String, dynamic>>? clinicRef) async {
+    if (user == null) {
+      return;
+    }
+    try {
+      await _firestore.collection('users').doc(user.uid).delete();
+    } catch (_) {}
+    if (clinicRef != null) {
+      try {
+        await clinicRef.delete();
+      } catch (_) {}
+    }
+    try {
+      await user.delete();
+    } catch (_) {}
+    final currentUser = _auth.currentUser;
+    if (currentUser != null && currentUser.uid == user.uid) {
+      try {
+        await _auth.signOut();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _requestClinicApproval({
+    required String clinicId,
+    required String clinicName,
+    required String userName,
+    required String userEmail,
+  }) async {
+    final callable = _functions.httpsCallable('requestClinicApproval');
+    await callable.call(<String, dynamic>{
+      'clinicId': clinicId,
+      'clinicName': clinicName,
+      'userName': userName,
+      'userEmail': userEmail,
+    });
+  }
+
+  Future<void> _syncClinicClaim(String clinicId) async {
+    try {
+      final callable = _functions.httpsCallable('setClinicClaim');
+      await callable.call(<String, dynamic>{
+        'clinicId': clinicId,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      // ignore: avoid_print
+      print('Failed to sync clinic claim: ${error.code}');
+    }
+  }
+
 }
+
+
+
+
+
+
+
+

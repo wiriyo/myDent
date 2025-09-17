@@ -80,31 +80,41 @@ class _LoginScreenState extends State<LoginScreen> {
     String password = _passwordController.text;
 
     try {
-      final String? clinicId = await _authService.signIn(email, password);
-      print('🕵️‍♀️ Laila Debug: Clinic ID from AuthService is: $clinicId');
+      final SignInResult? result = await _authService.signIn(email, password);
+      debugPrint('Super admin debug: SignInResult => $result');
 
-      if (clinicId != null && clinicId.isNotEmpty) {
+      if (result != null) {
         await _saveRememberedEmail(email);
 
         if (!mounted) return;
 
-        // 1) ยืนยัน clinic ให้พร้อมใช้งาน
-        final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
-        authProvider.setClinicVerified(clinicId);
+        final authProvider = Provider.of<AppAuthProvider>(
+          context,
+          listen: false,
+        );
 
-        // 2) ข้ามขั้น Staff Login ชั่วคราว: ตั้งสิทธิ์เป็น admin และล็อกอินเข้าระบบทันที
+        if (result.clinicId != null) {
+          authProvider.setClinicVerified(result.clinicId!);
+        }
+
         final uid = FirebaseAuth.instance.currentUser?.uid ?? 'admin';
+        final fallbackName =
+            (result.displayName != null && result.displayName!.isNotEmpty)
+                ? result.displayName!
+                : (result.role == 'super_admin'
+                    ? 'Super Admin'
+                    : 'Administrator');
         final staff = Staff(
           id: uid,
-          name: 'Administrator',
+          name: fallbackName,
           username: email,
-          role: 'admin',
+          role: result.role,
         );
         authProvider.setStaffLoggedIn(staff);
 
-        // 3) ส่งผู้ใช้ไปหน้า Calendar ทันทีตามที่ต้องการ
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/calendar');
+          final route = _resolveRouteForRole(result.role);
+          Navigator.pushReplacementNamed(context, route);
         }
       } else {
         setState(() {
@@ -117,9 +127,14 @@ class _LoginScreenState extends State<LoginScreen> {
         if (e.code == 'account-pending') {
           errorMessage = 'Your account is waiting for admin approval.';
         } else if (e.code == 'account-rejected') {
-          errorMessage = 'This account request was rejected. Please contact support.';
+          errorMessage =
+              'This account request was rejected. Please contact support.';
+        } else if (e.code == 'account-revoked') {
+          errorMessage =
+              'This account has been revoked. Please contact support.';
         } else if (e.code == 'account-disabled') {
-          errorMessage = 'This account has been disabled. Please reach out to support.';
+          errorMessage =
+              'This account has been disabled. Please reach out to support.';
         } else {
           errorMessage = e.message ?? 'Login failed. Please try again.';
         }
@@ -131,6 +146,21 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  String _resolveRouteForRole(String role) {
+    switch (role) {
+      case 'admin':
+        return '/calendar';
+      case 'dentist':
+        return '/home_dentist';
+      case 'officer':
+        return '/home_officer';
+      case 'super_admin':
+        return '/super_admin';
+      default:
+        return '/home_guest';
     }
   }
 
@@ -246,7 +276,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (kDebugMode && FeatureFlags.showDevSkipLogin) // ซ่อนปุ่มด้วย flag เพิ่มเติม
+                    if (kDebugMode &&
+                        FeatureFlags
+                            .showDevSkipLogin) // ซ่อนปุ่มด้วย flag เพิ่มเติม
                       TextButton(
                         onPressed: _isLoading ? null : _devSkipLogin,
                         child: const Text('Dev Login (Skip)'),

@@ -52,6 +52,80 @@ async function sendMail(message) {
   await transporter.sendMail(message);
 }
 
+async function getUserProfile(uid) {
+  return admin.firestore().doc(`users/${uid}`).get();
+}
+
+async function ensureSuperAdmin(context) {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const uid = context.auth.uid;
+  const profile = await getUserProfile(uid);
+  if (!profile.exists) {
+    throw new functions.https.HttpsError('permission-denied', 'User profile not found.');
+  }
+  if (profile.data().role !== 'super_admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can perform this action.');
+  }
+  return { uid, data: profile.data() };
+}
+
+async function deleteClinicTree(clinicId) {
+  if (!clinicId) {
+    return;
+  }
+  const clinicRef = admin.firestore().doc(`clinics/${clinicId}`);
+  const firestore = admin.firestore();
+  if (typeof firestore.recursiveDelete === 'function') {
+    await firestore.recursiveDelete(clinicRef);
+  } else {
+    await clinicRef.delete().catch(() => {});
+  }
+}
+
+async function deleteAuthUser(uid) {
+  if (!uid) {
+    return;
+  }
+  await admin.auth().deleteUser(uid).catch(() => {});
+}
+
+async function disableAuthUser(uid) {
+  if (!uid) {
+    return;
+  }
+  await admin.auth().updateUser(uid, { disabled: true }).catch(() => {});
+}
+
+async function enableAuthUser(uid) {
+  if (!uid) {
+    return;
+  }
+  await admin.auth().updateUser(uid, { disabled: false }).catch(() => {});
+}
+
+async function deleteUsersByClinic(clinicId) {
+  if (!clinicId) {
+    return;
+  }
+  const snapshot = await admin.firestore().collection('users').where('clinicId', '==', clinicId).get();
+  if (snapshot.empty) {
+    return;
+  }
+  const batch = admin.firestore().batch();
+  const uids = [];
+  snapshot.forEach((doc) => {
+    batch.delete(doc.ref);
+    uids.push(doc.id);
+  });
+  await batch.commit();
+  await Promise.all(uids.map(async (uid) => {
+    await deleteAuthUser(uid);
+    await approvalsCollection.doc(uid).delete().catch(() => {});
+  }));
+}
+
 exports.requestClinicApproval = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
@@ -129,47 +203,55 @@ async function fetchRequestByToken(tokenField, tokenValue) {
 
 async function approveRequest(requestDoc) {
   const { id: uid, data } = requestDoc;
-  if (data.status !== 'pending') {
+  const status = data.status || 'pending';
+  if (status !== 'pending') {
     return 'This request was already processed';
   }
 
-  const userDoc = await admin.firestore().doc(`users/${uid}`).get();
-  if (!userDoc.exists) {
+  const userSnapshot = await getUserProfile(uid);
+  if (!userSnapshot.exists) {
     return 'User profile not found';
   }
 
-  const userData = userDoc.data();
-  const clinicId = userData.clinicId;
+  const userData = userSnapshot.data();
+  const clinicId = data.clinicId || userData.clinicId;
   const role = userData.role || 'admin';
-  const userEmail = data.userEmail;
-  const userName = data.userName;
-  const clinicName = data.clinicName;
+  const userEmail = data.userEmail || userData.email;
+  const userName = data.userName || userData.name;
+  let clinicName = data.clinicName || null;
+  if (!clinicName && clinicId) {
+    const clinicSnap = await admin.firestore().doc(`clinics/${clinicId}`).get().catch(() => null);
+    if (clinicSnap && clinicSnap.exists) {
+      clinicName = clinicSnap.data().name || null;
+    }
+  }
 
   await admin.firestore().doc(`users/${uid}`).set({
     status: 'approved',
     approvedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  await admin.firestore().collection('clinics').doc(clinicId).collection('members').doc(uid).set({
-    role,
-    addedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  if (clinicId) {
+    await admin.firestore().collection('clinics').doc(clinicId).collection('members').doc(uid).set({
+      role,
+      addedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
 
-  await admin.auth().setCustomUserClaims(uid, {
-    clinicId,
-  });
+    const userRecord = await admin.auth().getUser(uid).catch(() => null);
+    const currentClaims = (userRecord && userRecord.customClaims) || {};
+    await admin.auth().setCustomUserClaims(uid, {
+      ...currentClaims,
+      clinicId,
+    }).catch(() => {});
+  }
 
-  await approvalsCollection.doc(uid).set({
-    status: 'approved',
-    respondedAt: admin.firestore.FieldValue.serverTimestamp(),
-    approveToken: admin.firestore.FieldValue.delete(),
-    rejectToken: admin.firestore.FieldValue.delete(),
-  }, { merge: true });
+  await enableAuthUser(uid);
+  await approvalsCollection.doc(uid).delete().catch(() => {});
 
   if (userEmail) {
     const html = `
       <p>Hello ${userName || userEmail},</p>
-      <p>Your MyDent access for <strong>${clinicName}</strong> has been approved.</p>
+      <p>Your MyDent access for <strong>${clinicName || clinicId || 'your clinic'}</strong> has been approved.</p>
       <p>You can sign in to the app right away.</p>
     `;
 
@@ -184,13 +266,16 @@ async function approveRequest(requestDoc) {
   return 'Approval recorded successfully';
 }
 
+
+
 async function rejectRequest(requestDoc) {
   const { id: uid, data } = requestDoc;
-  if (data.status !== 'pending') {
+  const status = data.status || 'pending';
+  if (status !== 'pending') {
     return 'This request was already processed';
   }
 
-  const userDoc = await admin.firestore().doc(`users/${uid}`).get();
+  const clinicId = data.clinicId;
   const userEmail = data.userEmail;
   const userName = data.userName;
   const clinicName = data.clinicName;
@@ -200,19 +285,20 @@ async function rejectRequest(requestDoc) {
     rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  await admin.auth().updateUser(uid, { disabled: true }).catch(() => {});
+  await disableAuthUser(uid);
 
-  await approvalsCollection.doc(uid).set({
-    status: 'rejected',
-    respondedAt: admin.firestore.FieldValue.serverTimestamp(),
-    approveToken: admin.firestore.FieldValue.delete(),
-    rejectToken: admin.firestore.FieldValue.delete(),
-  }, { merge: true });
+  await approvalsCollection.doc(uid).delete().catch(() => {});
+
+  if (clinicId) {
+    await deleteClinicTree(clinicId);
+  }
+  await admin.firestore().doc(`users/${uid}`).delete().catch(() => {});
+  await deleteAuthUser(uid);
 
   if (userEmail) {
     const html = `
       <p>Hello ${userName || userEmail},</p>
-      <p>Your MyDent access request for <strong>${clinicName}</strong> was not approved.</p>
+      <p>Your MyDent access request for <strong>${clinicName || clinicId || 'your clinic'}</strong> was not approved.</p>
       <p>Please contact the administrator if you need more information.</p>
     `;
 
@@ -226,6 +312,7 @@ async function rejectRequest(requestDoc) {
 
   return 'Rejection recorded successfully';
 }
+
 
 exports.approveClinicRequest = functions.https.onRequest(async (req, res) => {
   const token = req.query.token;
@@ -313,4 +400,43 @@ exports.setClinicClaim = functions.https.onCall(async (data, context) => {
   }
 
   return { clinicId: sanitizedClinicId };
+});
+
+exports.revokeClinicAccess = functions.https.onCall(async (data, context) => {
+  await ensureSuperAdmin(context);
+  const clinicId = typeof data.clinicId === 'string' ? data.clinicId.trim() : '';
+  if (!clinicId) {
+    throw new functions.https.HttpsError('invalid-argument', 'clinicId is required.');
+  }
+
+  const snapshot = await admin.firestore().collection('users').where('clinicId', '==', clinicId).get();
+  const updates = [];
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  snapshot.forEach((doc) => {
+    updates.push(doc.ref.set({
+      status: 'revoked',
+      revokedAt: now,
+    }, { merge: true }));
+    updates.push(disableAuthUser(doc.id));
+  });
+  await Promise.all(updates);
+
+  if (typeof data.userId === 'string') {
+    await approvalsCollection.doc(data.userId).delete().catch(() => {});
+  }
+
+  return { success: true, affectedUsers: snapshot.size };
+});
+
+exports.deleteClinicData = functions.https.onCall(async (data, context) => {
+  await ensureSuperAdmin(context);
+  const clinicId = typeof data.clinicId === 'string' ? data.clinicId.trim() : '';
+  if (!clinicId) {
+    throw new functions.https.HttpsError('invalid-argument', 'clinicId is required.');
+  }
+
+  await deleteClinicTree(clinicId);
+  await deleteUsersByClinic(clinicId);
+
+  return { success: true };
 });

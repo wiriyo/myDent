@@ -32,15 +32,17 @@ import 'home/home_admin.dart';
 import 'home/home_dentist.dart';
 import 'home/home_officer.dart';
 import 'home/home_guest.dart';
+import 'home/home_super_admin.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => AppAuthProvider(),
@@ -67,7 +69,10 @@ class _MyAppState extends State<MyApp> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 3000), () {
           if (!mounted) return;
-          final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
+          final authProvider = Provider.of<AppAuthProvider>(
+            context,
+            listen: false,
+          );
           final next = _buildHomeScreen(authProvider);
           setState(() => _showSplash = false);
           // Use global navigatorKey since this context is above MaterialApp's Navigator
@@ -81,7 +86,9 @@ class _MyAppState extends State<MyApp> {
 
   // ฟังก์ชันผู้ช่วยสำหรับเลือกหน้าจอที่จะแสดง
   Widget _buildHomeScreen(AppAuthProvider authProvider) {
-    print('🕵️‍♀️ Laila Debug: _buildHomeScreen is deciding! Status is: ${authProvider.status}');
+    print(
+      '🕵️‍♀️ Laila Debug: _buildHomeScreen is deciding! Status is: ${authProvider.status}',
+    );
     switch (authProvider.status) {
       case AuthStatus.loggedOut:
         return const LoginScreen();
@@ -89,8 +96,12 @@ class _MyAppState extends State<MyApp> {
         return const StaffLoginScreen();
       case AuthStatus.loggedIn:
         final staffRole = authProvider.currentStaff?.role;
-        print('🕵️‍♀️ Laila Debug: Staff role is: $staffRole. Navigating to home screen...');
+        print(
+          '🕵️‍♀️ Laila Debug: Staff role is: $staffRole. Navigating to home screen...',
+        );
         switch (staffRole) {
+          case 'super_admin':
+            return const HomeSuperAdminScreen();
           case 'admin':
             // เปลี่ยนให้ admin เข้าหน้า Calendar เป็นหน้าแรกตามที่ต้องการ
             return const CalendarScreen();
@@ -115,29 +126,25 @@ class _MyAppState extends State<MyApp> {
       stream: authProvider.statusStream,
       initialData: authProvider.status, // กำหนดสถานะเริ่มต้น
       builder: (context, snapshot) {
-        
         // เรายังสามารถใช้ authProvider ตัวเดิมได้เลย
         final homeScreen = _buildHomeScreen(authProvider);
 
         // 3. ✨ เราจะสร้าง MaterialApp ขึ้นมาใหม่ทุกครั้งที่มีสัญญาณโทรศัพท์เข้ามา
         return MaterialApp(
           // Key จะช่วยให้ Flutter รู้ว่านี่คือ MaterialApp "คนใหม่"
-          key: ValueKey(snapshot.data), 
+          key: ValueKey(snapshot.data),
 
           title: 'MyDent',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: scaffoldMessengerKey,
           navigatorKey: navigatorKey,
-          
+
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [
-            Locale('th', 'TH'),
-            Locale('en', 'US'),
-          ],
+          supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
           locale: const Locale('th', 'TH'),
 
           theme: ThemeData(
@@ -161,7 +168,7 @@ class _MyAppState extends State<MyApp> {
               bodyMedium: TextStyle(color: Colors.black87),
             ),
           ),
-          
+
           home: _showSplash ? const SplashScreen() : homeScreen,
 
           routes: {
@@ -169,8 +176,10 @@ class _MyAppState extends State<MyApp> {
             '/staff_login': (context) => const StaffLoginScreen(),
             '/calendar': (context) {
               final args =
-                  ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-              final patient = args != null ? args['initialPatient'] as Patient? : null;
+                  ModalRoute.of(context)?.settings.arguments
+                      as Map<String, dynamic>?;
+              final patient =
+                  args != null ? args['initialPatient'] as Patient? : null;
               return CalendarScreen(initialPatient: patient);
             },
             '/patients': (context) => const PatientsScreen(),
@@ -183,9 +192,9 @@ class _MyAppState extends State<MyApp> {
             '/prefix_settings': (context) => const PrefixSettingsScreen(),
             '/appointment_search': (context) => const AppointmentSearchScreen(),
             '/clinic_settings': (context) => const ClinicSettingsScreen(),
-            if (kDebugMode)
-              '/dev/preview': (_) => const DevEntry(),
-            '/home_admin': (context) => const HomeAdminScreen(), 
+            if (kDebugMode) '/dev/preview': (_) => const DevEntry(),
+            '/home_admin': (context) => const HomeAdminScreen(),
+            '/super_admin': (context) => const HomeSuperAdminScreen(),
             '/home_dentist': (context) => const HomeDentistScreen(),
             '/home_officer': (context) => const HomeOfficerScreen(),
             '/home_guest': (context) => const HomeGuestScreen(),
@@ -195,4 +204,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-

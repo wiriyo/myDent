@@ -15,53 +15,69 @@ service cloud.firestore {
         get(/databases/$(database)/documents/clinics/$(clinicId)/members/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function userProfileExists() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isSuperAdmin() {
+      return userProfileExists() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
     match /clinics/{clinicId} {
       allow create: if isSignedIn();
-      allow read, update, delete: if isClinicMember(clinicId);
+      allow read: if isClinicMember(clinicId) || isSuperAdmin();
+      allow update, delete: if isClinicMember(clinicId);
 
       match /members/{uid} {
         allow create: if isSignedIn() && (request.auth.uid == uid || isClinicAdmin(clinicId));
         allow update, delete: if isClinicMember(clinicId) &&
           (request.auth.uid == uid || isClinicAdmin(clinicId));
-        allow read: if request.auth.uid == uid || isClinicMember(clinicId);
+        allow read: if request.auth.uid == uid || isClinicMember(clinicId) || isSuperAdmin();
       }
 
       match /settings/{document=**} {
-        allow read, write: if isClinicMember(clinicId);
+        allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
       }
 
       match /staff/{document=**} {
-        allow read, write: if isClinicMember(clinicId);
+        allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
       }
 
       match /patients/{patientId} {
-        allow read, write: if isClinicMember(clinicId);
+        allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
 
         match /treatments/{document=**} {
-          allow read, write: if isClinicMember(clinicId);
+          allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
         }
 
         match /medical_images/{document=**} {
-          allow read, write: if isClinicMember(clinicId);
+          allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
         }
       }
 
       match /appointments/{appointmentId} {
-        allow read, write: if isClinicMember(clinicId);
+        allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
       }
 
       match /treatment_master/{document=**} {
-        allow read, write: if isClinicMember(clinicId);
+        allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
       }
 
       match /prefix_master/{document=**} {
-        allow read, write: if isClinicMember(clinicId);
+        allow read, write: if isClinicMember(clinicId) || isSuperAdmin();
       }
     }
 
     match /users/{uid} {
       allow create: if isSignedIn() && request.auth.uid == uid;
       allow read, update, delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /approval_requests/{uid} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
     }
 
     match /settings/{document=**} {

@@ -3,6 +3,14 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+class SignInResult {
+  final String? clinicId;
+  final String role;
+  final String? displayName;
+
+  const SignInResult({this.clinicId, required this.role, this.displayName});
+}
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -157,7 +165,7 @@ class AuthService {
     }
   }
 
-  Future<String?> signIn(String email, String password) async {
+  Future<SignInResult?> signIn(String email, String password) async {
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
@@ -179,6 +187,7 @@ class AuthService {
         return null;
       }
 
+      final role = (data['role'] as String?) ?? 'guest';
       final status = (data['status'] as String?) ?? 'approved';
       if (status != 'approved') {
         await _auth.signOut();
@@ -194,28 +203,44 @@ class AuthService {
             message: 'Account approval was rejected.',
           );
         }
+        if (status == 'revoked') {
+          throw FirebaseAuthException(
+            code: 'account-revoked',
+            message: 'This account has been revoked by an administrator.',
+          );
+        }
         throw FirebaseAuthException(
           code: 'account-disabled',
           message: 'Account is not active.',
         );
       }
 
-      final clinicId = (data['clinicId'] as String?) ?? '';
-      if (clinicId.isEmpty) {
+      final clinicId = (data['clinicId'] as String?)?.trim();
+      final bool isSuperAdmin = role == 'super_admin';
+      final bool hasClinic = clinicId != null && clinicId.isNotEmpty;
+      if (!hasClinic && !isSuperAdmin) {
         return null;
       }
 
-      await _ensureClinicMembership(
-        clinicId: clinicId,
-        uid: user.uid,
-        role: data['role'] as String?,
-      );
+      if (clinicId != null && clinicId.isNotEmpty) {
+        await _ensureClinicMembership(
+          clinicId: clinicId,
+          uid: user.uid,
+          role: role,
+        );
 
-      await _syncClinicClaim(clinicId);
-      return clinicId;
+        await _syncClinicClaim(clinicId);
+      }
+
+      return SignInResult(
+        clinicId: hasClinic ? clinicId : null,
+        role: role,
+        displayName: (data['name'] as String?) ?? user.displayName,
+      );
     } on FirebaseAuthException {
       rethrow;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('Sign in failed: $error');
       return null;
     }
   }

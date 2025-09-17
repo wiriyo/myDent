@@ -64,17 +64,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       if (userCredential != null) {
         if (!mounted) return;
-        _showSnackbar('สมัครสมาชิกสำเร็จแล้วค่ะ! ยินดีต้อนรับสู่ MyDent! 🎉');
+        _showSnackbar('Sign up complete. Please wait for admin approval via email.');
         Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
         if (e.code == 'email-already-in-use') {
-          errorMessage = 'อีเมลนี้ถูกใช้ไปแล้วค่ะ 🥺';
+          errorMessage = 'This email is already in use.';
         } else if (e.code == 'weak-password') {
-          errorMessage = 'รหัสผ่านอ่อนเกินไปนะคะ ควรมี 6 ตัวอักษรขึ้นไปค่ะ';
+          errorMessage = 'Password must be at least 6 characters.';
+        } else if (e.code == 'approval-request-failed') {
+          errorMessage = 'Could not send the approval request. Please try again later.';
         } else {
-          errorMessage = 'เกิดข้อผิดพลาด: ${e.message}';
+          errorMessage = e.message ?? 'Sign up failed. Please try again.';
         }
       });
       _showSnackbar(errorMessage);

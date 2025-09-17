@@ -6,6 +6,8 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -20,6 +22,20 @@ class AuthService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  Future<void> _syncClinicClaim(String clinicId) async {
+    if (clinicId.isEmpty) return;
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable('setClinicClaim');
+      await callable.call();
+      final tokenResult = await _auth.currentUser?.getIdTokenResult(true);
+      debugPrint('Clinic claim synced: ' + (tokenResult?.claims?['clinicId']?.toString() ?? '<none>'));
+    } catch (error, stackTrace) {
+      debugPrint('Failed to sync clinic claim: ' + error.toString());
+      debugPrint(stackTrace.toString());
+    }
+  }
+
 
 
   // --- 💖 ไลลาปรับปรุงฟังก์ชัน signUp สำหรับ Multi-Tenant 💖 ---
@@ -58,6 +74,8 @@ class AuthService {
           uid: userCredential.user!.uid,
           role: 'owner',
         );
+
+        await _syncClinicClaim(clinicId);
       }
       return userCredential;
     } on FirebaseAuthException {
@@ -91,6 +109,8 @@ class AuthService {
                 uid: userCredential.user!.uid,
                 role: data['role'] as String?,
               );
+
+              await _syncClinicClaim(clinicId);
               return clinicId;
             }
           }
@@ -143,3 +163,8 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email);
   }
 }
+
+
+
+
+

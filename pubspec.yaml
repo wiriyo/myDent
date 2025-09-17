@@ -31,6 +31,8 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  flutter:
+    sdk: flutter
   flutter_localizations:
     sdk: flutter
   firebase_core: ^2.31.0
@@ -42,6 +44,7 @@ dependencies:
   url_launcher: ^6.2.5
   image_picker: ^1.1.1 
   firebase_storage: ^11.7.0
+  cloud_functions: ^4.7.6
   uuid: ^4.3.3
   permission_handler: ^11.2.0
   app_settings: ^5.1.1
@@ -179,3 +182,4 @@ flutter_launcher_icons:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+

@@ -1,32 +1,27 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isSignedIn() {
-      return request.auth != null;
+    function hasClinicClaim(clinicId) {
+      return request.auth != null && clinicId != null && clinicId != '' &&
+        request.auth.token.clinicId == clinicId;
     }
 
-    function isClinicMember(clinicId) {
-      let hasAuth = request.auth != null;
-      let validClinic = clinicId != null && clinicId != '';
-      let userDoc = hasAuth && validClinic ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)) : null;
-      return hasAuth && validClinic && userDoc != null && userDoc.exists && userDoc.data.clinicId == clinicId;
-    }
-
-    function isMemberForLegacyPatient(patientId) {
-      return firestore.exists(/databases/(default)/documents/patients/$(patientId)) &&
-        isClinicMember(firestore.get(/databases/(default)/documents/patients/$(patientId)).data.clinicId);
+    function isLegacyPatientAccessible(patientId) {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/patients/$(patientId)) &&
+        firestore.get(/databases/(default)/documents/patients/$(patientId)).data.clinicId == request.auth.token.clinicId;
     }
 
     match /clinic_logos/{clinicId}/{allPaths=**} {
-      allow read, write: if isClinicMember(clinicId);
+      allow read, write: if hasClinicClaim(clinicId);
     }
 
     match /medical_images/{clinicId}/{patientId}/{allPaths=**} {
-      allow read, write: if isClinicMember(clinicId);
+      allow read, write: if hasClinicClaim(clinicId);
     }
 
     match /medical_images/{patientId}/{allPaths=**} {
-      allow read, write: if isSignedIn() && isMemberForLegacyPatient(patientId);
+      allow read, write: if isLegacyPatientAccessible(patientId);
     }
 
     match /{allPaths=**} {

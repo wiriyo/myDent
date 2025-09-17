@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../config/clinic_context.dart';
 import '../config/feature_flags.dart';
@@ -50,6 +50,7 @@ class ClinicSettingsService {
   Future<String?> uploadLogo(File file, {String? clinicId}) async {
     final id = _effectiveClinicId(clinicId);
     if (id.isEmpty) return null;
+
     final ref = _storage.ref().child('clinic_logos/$id/logo_${DateTime.now().millisecondsSinceEpoch}.png');
     final task = await ref.putFile(file);
     return await task.ref.getDownloadURL();
@@ -82,3 +83,5 @@ class ClinicSettingsService {
     await _doc(id).set(payload, SetOptions(merge: true));
   }
 }
+
+

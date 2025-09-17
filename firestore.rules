@@ -6,47 +6,86 @@ service cloud.firestore {
     }
 
     function isClinicMember(clinicId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/clinics/$(clinicId)/members/$(request.auth.uid));
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/clinics/$(clinicId)/members/$(request.auth.uid));
     }
 
-    // Scoped access under clinics/{clinicId}
+    function isClinicAdmin(clinicId) {
+      return isClinicMember(clinicId) &&
+        get(/databases/$(database)/documents/clinics/$(clinicId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /clinics/{clinicId} {
-      // Allow creating the clinic document when signed-in (to bootstrap membership)
       allow create: if isSignedIn();
-      // For other operations, must be a member
       allow read, update, delete: if isClinicMember(clinicId);
 
-      // Allow a signed-in user to create/update their own membership doc
       match /members/{uid} {
-        allow write: if isSignedIn() && request.auth.uid == uid;
+        allow create: if isSignedIn() && (request.auth.uid == uid || isClinicAdmin(clinicId));
+        allow update, delete: if isClinicMember(clinicId) &&
+          (request.auth.uid == uid || isClinicAdmin(clinicId));
         allow read: if isClinicMember(clinicId);
+      }
+
+      match /settings/{document=**} {
+        allow read, write: if isClinicMember(clinicId);
+      }
+
+      match /staff/{document=**} {
+        allow read, write: if isClinicMember(clinicId);
       }
 
       match /patients/{patientId} {
         allow read, write: if isClinicMember(clinicId);
+
+        match /treatments/{document=**} {
+          allow read, write: if isClinicMember(clinicId);
+        }
+
+        match /medical_images/{document=**} {
+          allow read, write: if isClinicMember(clinicId);
+        }
       }
 
       match /appointments/{appointmentId} {
         allow read, write: if isClinicMember(clinicId);
       }
 
-      match /settings/{document=**} {
+      match /treatment_master/{document=**} {
+        allow read, write: if isClinicMember(clinicId);
+      }
+
+      match /prefix_master/{document=**} {
         allow read, write: if isClinicMember(clinicId);
       }
     }
 
-    // Legacy root collections (migration phase)
-    match /patients/{patientId} {
-      allow read: if isSignedIn();
-      // After migration complete, consider setting to false
-      allow write: if false;
+    match /users/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow read, update, delete: if isSignedIn() && request.auth.uid == uid;
     }
 
-    match /appointments/{appointmentId} {
-      allow read: if isSignedIn();
-      // After migration complete, consider setting to false
-      allow write: if false;
+    match /settings/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /treatment_master/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /prefix_master/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /patients/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /appointments/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
-

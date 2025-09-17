@@ -1,8 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <!-- Android 13+ uses READ_MEDIA_* permissions; legacy storage perms removed for release compliance -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <!-- ✨ FIX: จัดกลุ่ม Permission สำหรับ Bluetooth ให้ชัดเจนที่สุด -->
@@ -18,15 +17,15 @@
 
     <!-- ✨ FIX: กุญแจดอกสุดท้าย! ขออนุญาตเข้าถึงตำแหน่งสำหรับทุกเวอร์ชัน
          เพราะบางอุปกรณ์ยังจำเป็นต้องใช้เพื่อสแกนหา Bluetooth ค่ะ -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- ขอ Location เฉพาะ Android <= 11 เพื่อความเข้ากันได้กับการสแกน BT บางรุ่น -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
 
 
     <application
         android:label="MyDent"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -26,7 +26,7 @@ class _FakePrinter implements PrinterClient {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> _openPage(WidgetTester tester, Widget page) async {
+  Future<void> openPage(WidgetTester tester, Widget page) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox.shrink())));
     await tester.pump();
     final ctx = tester.element(find.byType(Scaffold));
@@ -39,7 +39,7 @@ void main() {
     ThermalPrinterService.debugOverride = fake;
 
     // 1) Appointment
-    await _openPage(tester, AppointmentSlipPreviewPage(useSampleData: true, debugPngOverride: Uint8List.fromList([1,2,3])));
+    await openPage(tester, AppointmentSlipPreviewPage(useSampleData: true, debugPngOverride: Uint8List.fromList([1,2,3])));
     await tester.tap(find.byKey(const ValueKey('appointment_print_button')));
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     expect(fake.called, isTrue);
@@ -52,7 +52,7 @@ void main() {
       clinicName: 'X', clinicAddress: '-', clinicPhone: '-',
       billNo: 'E2E-1', issuedAt: DateTime.now(), patientName: 'Test', items: const [],
     );
-    await _openPage(tester, ReceiptPreviewPage(receipt: receipt, useSampleData: false, debugPngOverride: Uint8List.fromList([4,5,6])));
+    await openPage(tester, ReceiptPreviewPage(receipt: receipt, useSampleData: false, debugPngOverride: Uint8List.fromList([4,5,6])));
     await tester.tap(find.byKey(const ValueKey('receipt_print_button')));
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     expect(fake.called, isTrue);
@@ -66,7 +66,7 @@ void main() {
       billNo: 'E2E-2', issuedAt: DateTime.now(), patientName: 'Test2', items: const [],
     );
     final next = AppointmentInfo(startAt: DateTime.now().add(const Duration(days: 1)), note: 'ตรวจ');
-    await _openPage(tester, CombinedSlipPreviewPage(receipt: rec2, nextAppointment: next, debugPngOverride: Uint8List.fromList([7,8,9])));
+    await openPage(tester, CombinedSlipPreviewPage(receipt: rec2, nextAppointment: next, debugPngOverride: Uint8List.fromList([7,8,9])));
     await tester.tap(find.byKey(const ValueKey('combined_print_button')));
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     expect(fake.called, isTrue);

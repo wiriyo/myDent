@@ -33,37 +33,62 @@ class ThermalPrinterService implements PrinterClient {
   CapabilityProfile? _profile;
   Future<CapabilityProfile> _loadProfile() async => _profile ??= await CapabilityProfile.load();
 
-  Future<Map<Permission, PermissionStatus>> _currentPermissionStatuses() async {
-    final req = <Permission>[];
-    if (Platform.isAndroid) {
-      req.add(Permission.bluetooth);
-      req.add(Permission.bluetoothConnect);
-      req.add(Permission.bluetoothScan);
-      req.add(Permission.location);
+  static int? _cachedAndroidSdk;
+  int get _androidSdkInt {
+    if (!Platform.isAndroid) return 0;
+    final cached = _cachedAndroidSdk;
+    if (cached != null) return cached;
+    final version = Platform.version;
+    final match = RegExp(r'(SDK|API)\s*(\d+)').firstMatch(version);
+    final parsed = match != null ? int.tryParse(match.group(2)!) : null;
+    final value = parsed ?? 0;
+    _cachedAndroidSdk = value;
+    return value;
+  }
+
+  bool get _useModernBluetoothPermissions {
+    if (!Platform.isAndroid) return false;
+    final sdk = _androidSdkInt;
+    return sdk == 0 || sdk >= 31;
+  }
+
+  List<Permission> _permissionsToRequest() {
+    if (!Platform.isAndroid) return const <Permission>[];
+    final perms = <Permission>{Permission.bluetoothConnect};
+    if (_useModernBluetoothPermissions) {
+      perms.add(Permission.bluetoothScan);
+    } else {
+      perms.add(Permission.bluetooth);
+      perms.add(Permission.location);
     }
+    return perms.toList();
+  }
+
+  bool _statusGranted(PermissionStatus status) {
+    return status == PermissionStatus.granted || status == PermissionStatus.limited;
+  }
+
+  Future<Map<Permission, PermissionStatus>> _currentPermissionStatuses() async {
+    final req = _permissionsToRequest();
     if (req.isEmpty) return <Permission, PermissionStatus>{};
     final map = <Permission, PermissionStatus>{};
-    for (final p in req) { map[p] = await p.status; }
+    for (final p in req) {
+      map[p] = await p.status;
+    }
     return map;
   }
 
   Future<bool> _requestAll() async {
-    final req = <Permission>[];
-    if (Platform.isAndroid) {
-      req.add(Permission.bluetooth);
-      req.add(Permission.bluetoothConnect);
-      req.add(Permission.bluetoothScan);
-      req.add(Permission.location);
-    }
+    final req = _permissionsToRequest();
     if (req.isEmpty) return true;
     final res = await req.request();
-    return res.values.every((s) => s == PermissionStatus.granted);
+    return res.values.every(_statusGranted);
   }
 
   Future<bool> ensurePrintingPermissions(BuildContext context) async {
     // เช็คสถานะปัจจุบันก่อน
     final current = await _currentPermissionStatuses();
-    if (current.isEmpty || current.values.every((s) => s == PermissionStatus.granted)) {
+    if (current.isEmpty || current.values.every(_statusGranted)) {
       // (iOS หรือแพลตฟอร์มอื่น ๆ ที่ไม่ต้องใช้สิทธิ์พิเศษ)
       return true;
     }

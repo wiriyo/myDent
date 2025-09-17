@@ -11,6 +11,11 @@ service firebase.storage {
         firestore.exists(/databases/(default)/documents/clinics/$(clinicId)/members/$(request.auth.uid));
     }
 
+    function isMemberForLegacyPatient(patientId) {
+      return firestore.exists(/databases/(default)/documents/patients/$(patientId)) &&
+        isClinicMember(firestore.get(/databases/(default)/documents/patients/$(patientId)).data.clinicId);
+    }
+
     match /clinic_logos/{clinicId}/{allPaths=**} {
       allow read, write: if isClinicMember(clinicId);
     }
@@ -20,11 +25,7 @@ service firebase.storage {
     }
 
     match /medical_images/{patientId}/{allPaths=**} {
-      allow read, write: if isSignedIn() &&
-        let patientDoc = firestore.get(/databases/(default)/documents/patients/$(patientId));
-        patientDoc.exists &&
-        patientDoc.data.clinicId != null &&
-        isClinicMember(patientDoc.data.clinicId);
+      allow read, write: if isSignedIn() && isMemberForLegacyPatient(patientId);
     }
 
     match /{allPaths=**} {

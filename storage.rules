@@ -6,9 +6,10 @@ service firebase.storage {
     }
 
     function isClinicMember(clinicId) {
-      return isSignedIn() &&
-        clinicId != null && clinicId != '' &&
-        firestore.exists(/databases/(default)/documents/clinics/$(clinicId)/members/$(request.auth.uid));
+      let hasAuth = request.auth != null;
+      let validClinic = clinicId != null && clinicId != '';
+      let userDoc = hasAuth && validClinic ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)) : null;
+      return hasAuth && validClinic && userDoc != null && userDoc.exists && userDoc.data.clinicId == clinicId;
     }
 
     function isMemberForLegacyPatient(patientId) {

@@ -23,7 +23,7 @@ service cloud.firestore {
         allow create: if isSignedIn() && (request.auth.uid == uid || isClinicAdmin(clinicId));
         allow update, delete: if isClinicMember(clinicId) &&
           (request.auth.uid == uid || isClinicAdmin(clinicId));
-        allow read: if isClinicMember(clinicId);
+        allow read: if request.auth.uid == uid || isClinicMember(clinicId);
       }
 
       match /settings/{document=**} {

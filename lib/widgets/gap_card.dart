@@ -6,6 +6,8 @@
 import 'package:flutter/material.dart';
 
 class GapCard extends StatelessWidget {
+  static const bool _showDuration = false;
+
   final DateTime gapStart;
   final DateTime gapEnd;
   final VoidCallback onTap;
@@ -68,7 +70,9 @@ class GapCard extends StatelessWidget {
                         ),
                       ],
                       // ถ้าความสูงมากพอ (มากกว่า 80) และมีเวลามากกว่า 30 นาที ถึงจะแสดงระยะเวลา
-                      if (constraints.maxHeight > 80 && durationInMinutes > 30)
+                      if (_showDuration &&
+                          constraints.maxHeight > 80 &&
+                          durationInMinutes > 30)
                         Text(
                           '($durationInMinutes นาที)',
                           style: TextStyle(
@@ -104,10 +108,11 @@ class _DashedBorderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = strokeWidth
+          ..style = PaintingStyle.stroke;
 
     final path = Path();
     final rrect = RRect.fromRectAndRadius(

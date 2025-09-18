@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -53,7 +54,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       final loadedName = (data['name'] ?? '') as String;
       _nameCtrl.text = loadedName.isEmpty ? ClinicDefaults.defaultClinicName : loadedName;
       _addressCtrl.text = (data['address'] ?? '') as String;
-      _phoneCtrl.text = (data['phone'] ?? '') as String;
+      _phoneCtrl.text = _PhoneDashFormatter.format((data['phone'] ?? '') as String);
       _lineCtrl.text = (data['lineId'] ?? '') as String;
       _showLine = (data['showLineId'] ?? true) as bool;
       _taxCtrl.text = (data['taxId'] ?? '') as String;
@@ -85,7 +86,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       }
       final nameVal = _nameCtrl.text.trim();
       final addressVal = _addressCtrl.text.trim();
-      final phoneVal = _phoneCtrl.text.trim();
+      final phoneVal = _PhoneDashFormatter.format(_phoneCtrl.text);
       final lineVal = _lineCtrl.text.trim();
       final taxVal = _taxCtrl.text.trim();
 
@@ -204,6 +205,10 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _nameCtrl,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      minLines: 1,
+                      maxLines: 3,
                       decoration: _inputDecoration('ระบุชื่อคลินิก'),
                       // อนุญาตให้ว่างได้ (ระบบจะแสดงค่า default เมื่ออ่านเพื่อใช้งาน)
                     ),
@@ -235,6 +240,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                     TextFormField(
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [_PhoneDashFormatter()],
                       decoration: _inputDecoration('เช่น 0812345678'),
                       validator: (_) => null,
                     ),
@@ -276,6 +282,44 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       fillColor: Colors.white,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    );
+  }
+}
+class _PhoneDashFormatter extends TextInputFormatter {
+  static String format(String input) {
+    final digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length && i < 10; i++) {
+      if (i == 3 || i == 6) {
+        buffer.write('-');
+      }
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final formatted = format(newValue.text);
+    final int digitsBeforeCursor = newValue.selection.end <= 0
+        ? 0
+        : newValue.text
+            .substring(0, newValue.selection.end)
+            .replaceAll(RegExp(r'[^0-9]'), '')
+            .length;
+
+    int cursorPosition = 0;
+    int digitCount = 0;
+    while (cursorPosition < formatted.length && digitCount < digitsBeforeCursor) {
+      if (formatted[cursorPosition] != '-') {
+        digitCount++;
+      }
+      cursorPosition++;
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: cursorPosition),
     );
   }
 }

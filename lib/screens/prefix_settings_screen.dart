@@ -42,18 +42,27 @@ class _PrefixSettingsScreenState extends State<PrefixSettingsScreen> {
     final controller = TextEditingController(text: prefix.name);
     final result = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('แก้ไขคำนำหน้านาม'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'เช่น นาย, นาง, น.ส.'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('บันทึก')),
-        ],
-      ),
+      builder:
+          (_) => AlertDialog(
+            title: const Text('แก้ไขคำนำหน้านาม'),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'เช่น นาย, นาง, น.ส.',
+              ),
+              autofocus: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('ยกเลิก'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text('บันทึก'),
+              ),
+            ],
+          ),
     );
     if (result == null) return;
     final newName = result.trim();
@@ -62,9 +71,9 @@ class _PrefixSettingsScreenState extends State<PrefixSettingsScreen> {
       await PrefixService.updatePrefix(prefix.id, newName);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('แก้ไขไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('แก้ไขไม่สำเร็จ: $e')));
       }
     }
   }
@@ -72,23 +81,30 @@ class _PrefixSettingsScreenState extends State<PrefixSettingsScreen> {
   Future<void> _deletePrefix(Prefix prefix) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('ลบคำนำหน้านาม'),
-        content: Text('ต้องการลบ "${prefix.name}" ใช่ไหม'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('ลบ')),
-        ],
-      ),
+      builder:
+          (_) => AlertDialog(
+            title: const Text('ลบคำนำหน้านาม'),
+            content: Text('ต้องการลบ "${prefix.name}" ใช่ไหม'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('ยกเลิก'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('ลบ'),
+              ),
+            ],
+          ),
     );
     if (confirm != true) return;
     try {
       await PrefixService.deletePrefix(prefix.id);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: $e')));
       }
     }
   }
@@ -107,33 +123,49 @@ class _PrefixSettingsScreenState extends State<PrefixSettingsScreen> {
             if (!hasClinic)
               const Padding(
                 padding: EdgeInsets.only(bottom: 12.0),
-                child: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบ/เลือกคลินิกใหม่', style: TextStyle(color: Colors.red)),
+                child: Text(
+                  'ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบ/เลือกคลินิกใหม่',
+                  style: TextStyle(color: Colors.red),
+                ),
               ),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    decoration: const InputDecoration(hintText: 'เพิ่มคำนำหน้านาม เช่น นาย, นาง, น.ส.')
+                    decoration: const InputDecoration(
+                      hintText: 'เพิ่มคำนำหน้านาม เช่น นาย, นาง, น.ส.',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: _submitting || !hasClinic ? null : _addPrefix,
-                  child: _submitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('เพิ่ม'),
-                )
+                  child:
+                      _submitting
+                          ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Text('เพิ่ม'),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Expanded(
               child: StreamBuilder<List<Prefix>>(
-                stream: PrefixService.getAllPrefixes().map((list) => list..sort((a, b) => a.name.compareTo(b.name))),
+                stream: PrefixService.getAllPrefixes().map(
+                  (list) => list..sort((a, b) => a.name.compareTo(b.name)),
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
+                    return Center(
+                      child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'),
+                    );
                   }
                   final items = snapshot.data ?? [];
                   if (items.isEmpty) {
@@ -156,11 +188,10 @@ class _PrefixSettingsScreenState extends State<PrefixSettingsScreen> {
                   );
                 },
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 }
-

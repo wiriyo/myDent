@@ -25,6 +25,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   String errorMessage = '';
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -195,9 +196,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Widget _buildTextField(String label, TextEditingController controller, {bool obscure = false}) {
+    final bool isPasswordField = obscure;
     return TextField(
       controller: controller,
-      obscureText: obscure,
+      obscureText: isPasswordField ? !_isPasswordVisible : false,
       style: const TextStyle(fontFamily: 'Poppins'),
       decoration: InputDecoration(
         labelText: label,
@@ -213,6 +215,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFBFA3FF), width: 2),
         ),
+        suffixIcon: isPasswordField
+            ? IconButton(
+                icon: Icon(
+                  _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                  color: const Color(0xFF6A4DBA),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              )
+            : null,
       ),
     );
   }

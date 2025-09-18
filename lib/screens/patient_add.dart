@@ -38,7 +38,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   DateTime? _birthDate;
   int _calculatedAge = 0;
   bool _isEditing = false;
-  String _selectedGender = 'หญิง';
+  String _selectedGender = 'ไม่ระบุ';
 
   Patient? _editingPatient;
   bool _isDataInitialized = false;
@@ -66,10 +66,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         _editingPatient = initialPatient;
         _populateFields(initialPatient);
       } else {
-        _prefixController.text = 'น.ส.';
+        _prefixController.clear();
+        _selectedGender = 'ไม่ระบุ';
         _allergyController.text = 'ปฏิเสธ';
         _diseaseController.text = 'ปฏิเสธ';
-        _updateGenderFromPrefix('น.ส.');
       }
 
       _isDataInitialized = true;
@@ -79,13 +79,18 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   void _populateFields(Patient patient) {
     _nameController.text = patient.name;
     _prefixController.text = patient.prefix;
-    _phoneController.text = patient.telephone ?? '';
-    _idCardController.text = patient.idCard ?? '';
+    _phoneController.text = _ThaiPhoneInputFormatter.format(
+      patient.telephone ?? '',
+    );
+    _idCardController.text = _ThaiIdCardInputFormatter.format(
+      patient.idCard ?? '',
+    );
     _hnController.text = patient.hnNumber ?? '';
     _addressController.text = patient.address ?? '';
     _allergyController.text = patient.allergy ?? 'ปฏิเสธ';
     _diseaseController.text = patient.medicalHistory ?? 'ปฏิเสธ';
-    _selectedGender = patient.gender;
+    final gender = patient.gender.trim();
+    _selectedGender = gender.isEmpty ? 'ไม่ระบุ' : gender;
     // ✨ [FIXED] แปลงค่า double จาก patient.rating มาเป็น int โดยการปัดเศษค่ะ
     _selectedRating = patient.rating.round();
     if (patient.birthDate != null) {
@@ -96,7 +101,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
 
   void _calculateAgeFromBirthdate(DateTime birthDate) {
     final now = DateTime.now();
-    _calculatedAge = now.year -
+    _calculatedAge =
+        now.year -
         birthDate.year -
         ((now.month < birthDate.month ||
                 (now.month == birthDate.month && now.day < birthDate.day))
@@ -134,7 +140,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         newGender = 'หญิง';
         break;
       default:
-        newGender = 'อื่นๆ';
+        newGender = 'ไม่ระบุ';
         break;
     }
     if (newGender != _selectedGender) {
@@ -185,25 +191,26 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
           ),
           items:
-              List.generate(6, (index) => index).reversed.map((rating) { // .reversed() to show 5 stars first
-            return DropdownMenuItem(
-              value: rating,
-              child: Row(
-                children: List.generate(5, (i) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                    child: Image.asset(
-                      i < rating
-                          ? 'assets/icons/tooth_good.png'
-                          : 'assets/icons/tooth_broke.png',
-                      width: 20,
-                      height: 20,
-                    ),
-                  );
-                }),
-              ),
-            );
-          }).toList(),
+              List.generate(6, (index) => index).reversed.map((rating) {
+                // .reversed() to show 5 stars first
+                return DropdownMenuItem(
+                  value: rating,
+                  child: Row(
+                    children: List.generate(5, (i) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                        child: Image.asset(
+                          i < rating
+                              ? 'assets/icons/tooth_good.png'
+                              : 'assets/icons/tooth_broke.png',
+                          width: 20,
+                          height: 20,
+                        ),
+                      );
+                    }),
+                  ),
+                );
+              }).toList(),
           onChanged: (value) {
             if (value != null) {
               setState(() {
@@ -236,7 +243,11 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) {
-        final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+        final clinicId =
+            Provider.of<AppAuthProvider>(
+              context,
+              listen: false,
+            ).verifiedClinicId;
         return PatientProvider(clinicId: clinicId);
       },
       child: Scaffold(
@@ -247,256 +258,281 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           elevation: 0,
         ),
         backgroundColor: AppTheme.background,
-        body: Consumer<PatientProvider>(builder: (context, provider, child) {
-          return AbsorbPointer(
-            absorbing: provider.isLoading,
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 24.0),
-                children: [
-                  // ... (The rest of the form fields remain the same) ...
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: StreamBuilder<List<Prefix>>(
-                          stream: PrefixService.getAllPrefixes(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) return const SizedBox.shrink();
-                            final prefixList = snapshot.data!;
-                            return Autocomplete<String>(
-                              initialValue: TextEditingValue(text: _prefixController.text),
-                              optionsBuilder: (TextEditingValue textEditingValue) {
-                                if (textEditingValue.text == '') {
-                                  return prefixList.map((e) => e.name);
-                                }
-                                return prefixList
-                                    .map((e) => e.name)
-                                    .where(
-                                      (name) => name.toLowerCase().contains(
-                                            textEditingValue.text.toLowerCase(),
+        body: Consumer<PatientProvider>(
+          builder: (context, provider, child) {
+            return AbsorbPointer(
+              absorbing: provider.isLoading,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 24.0),
+                  children: [
+                    // ... (The rest of the form fields remain the same) ...
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: StreamBuilder<List<Prefix>>(
+                            stream: PrefixService.getAllPrefixes(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData)
+                                return const SizedBox.shrink();
+                              final prefixList = snapshot.data!;
+                              return Autocomplete<String>(
+                                initialValue: TextEditingValue(
+                                  text: _prefixController.text,
+                                ),
+                                optionsBuilder: (
+                                  TextEditingValue textEditingValue,
+                                ) {
+                                  if (textEditingValue.text == '') {
+                                    return prefixList.map((e) => e.name);
+                                  }
+                                  return prefixList
+                                      .map((e) => e.name)
+                                      .where(
+                                        (name) => name.toLowerCase().contains(
+                                          textEditingValue.text.toLowerCase(),
+                                        ),
+                                      );
+                                },
+                                onSelected: (String selected) {
+                                  _prefixController.text = selected;
+                                  _updateGenderFromPrefix(selected);
+                                },
+                                fieldViewBuilder: (
+                                  BuildContext context,
+                                  TextEditingController textEditingController,
+                                  FocusNode focusNode,
+                                  VoidCallback onFieldSubmitted,
+                                ) {
+                                  return TextFormField(
+                                    controller: textEditingController,
+                                    focusNode: focusNode,
+                                    onChanged: (value) {
+                                      _prefixController.text = value;
+                                      _updateGenderFromPrefix(value);
+                                    },
+                                    textAlign: TextAlign.center,
+                                    decoration: InputDecoration(
+                                      labelText: 'คำนำหน้า',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                            horizontal: 12,
                                           ),
-                                    );
-                              },
-                              onSelected: (String selected) {
-                                _prefixController.text = selected;
-                                _updateGenderFromPrefix(selected);
-                              },
-                              fieldViewBuilder: (
-                                BuildContext context,
-                                TextEditingController textEditingController,
-                                FocusNode focusNode,
-                                VoidCallback onFieldSubmitted,
-                              ) {
-                                return TextFormField(
-                                  controller: textEditingController,
-                                  focusNode: focusNode,
-                                  onChanged: (value) {
-                                    _prefixController.text = value;
-                                    _updateGenderFromPrefix(value);
-                                  },
-                                  textAlign: TextAlign.center,
-                                  decoration: InputDecoration(
-                                    labelText: 'คำนำหน้า',
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                      horizontal: 12,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFBFA3FF),
-                                        width: 2,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFBFA3FF),
+                                          width: 2,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              },
-                              optionsViewBuilder: (context, onSelected, options) {
-                                return Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Material(
-                                    elevation: 4,
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: Colors.white,
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 120, 
-                                        maxHeight: 200,
-                                      ),
-                                      child: ListView.builder(
-                                        padding: EdgeInsets.zero,
-                                        itemCount: options.length,
-                                        itemBuilder: (context, index) {
-                                          final option = options.elementAt(index);
-                                          return ListTile(
-                                            title: Text(
-                                              option,
-                                              style: const TextStyle(
-                                                fontFamily: 'Poppins',
+                                  );
+                                },
+                                optionsViewBuilder: (
+                                  context,
+                                  onSelected,
+                                  options,
+                                ) {
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 4,
+                                      borderRadius: BorderRadius.circular(12),
+                                      color: Colors.white,
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 120,
+                                          maxHeight: 200,
+                                        ),
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: options.length,
+                                          itemBuilder: (context, index) {
+                                            final option = options.elementAt(
+                                              index,
+                                            );
+                                            return ListTile(
+                                              title: Text(
+                                                option,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                ),
                                               ),
-                                            ),
-                                            onTap: () => onSelected(option),
-                                          );
-                                        },
+                                              onTap: () => onSelected(option),
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 5,
+                          child: _buildTextField(
+                            'ชื่อ - นามสกุล',
+                            _nameController,
+                            validator:
+                                (value) =>
+                                    value!.isEmpty ? 'กรุณากรอกชื่อ' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        DropdownButton<String>(
+                          icon: const SizedBox.shrink(),
+                          value: _selectedGender,
+                          underline: Container(),
+                          selectedItemBuilder: (BuildContext context) {
+                            return ['ไม่ระบุ', 'ชาย', 'หญิง'].map((
+                              String value,
+                            ) {
+                              return Align(
+                                alignment: Alignment.center,
+                                child: _getGenderIcon(value, size: 36),
+                              );
+                            }).toList();
+                          },
+                          items:
+                              ['ไม่ระบุ', 'ชาย', 'หญิง'].map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: _getGenderIcon(value, size: 28),
                                 );
-                              },
-                            );
+                              }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedGender = newValue!;
+                            });
                           },
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 5,
-                        child: _buildTextField(
-                          'ชื่อ - นามสกุล',
-                          _nameController,
-                          validator:
-                              (value) => value!.isEmpty ? 'กรุณากรอกชื่อ' : null,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      DropdownButton<String>(
-                        icon: const SizedBox.shrink(),
-                        value: _selectedGender,
-                        underline: Container(),
-                        selectedItemBuilder: (BuildContext context) {
-                          return ['หญิง', 'ชาย', 'อื่นๆ'].map((String value) {
-                            return Align(
-                              alignment: Alignment.center,
-                              child: _getGenderIcon(value, size: 36),
-                            );
-                          }).toList();
-                        },
-                        items:
-                            ['หญิง', 'ชาย', 'อื่นๆ'].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: _getGenderIcon(value, size: 28),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _selectedGender = newValue!;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTextField(
-                          'เบอร์โทรศัพท์',
-                          _phoneController,
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildTextField(
-                          'HN',
-                          _hnController,
-                          readOnly: true,
-                          hintText: _isEditing ? null : 'สร้างอัตโนมัติ',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTextField(
-                    'เลขบัตรประจำตัวประชาชน',
-                    _idCardController,
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton.icon(
-                        onPressed: _selectDate,
-                        icon: Image.asset(
-                          'assets/icons/cake.png',
-                          width: 24,
-                          height: 24,
-                        ),
-                        label: Text(
-                          _birthDate != null
-                              ? DateFormat('d MMMM yyyy', 'th_TH').format(DateTime(_birthDate!.year + 543, _birthDate!.month, _birthDate!.day))
-                              : 'เลือกวันเกิด',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        style: TextButton.styleFrom(
-                          backgroundColor: AppTheme.bottomNav,
-                          foregroundColor: AppTheme.primary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: AppTheme.primaryLight),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            'เบอร์โทรศัพท์',
+                            _phoneController,
+                            keyboardType: TextInputType.phone,
                           ),
                         ),
-                      ),
-                      if (_calculatedAge > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTextField(
+                            'HN',
+                            _hnController,
+                            readOnly: true,
+                            hintText: _isEditing ? null : 'สร้างอัตโนมัติ',
                           ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppTheme.primaryLight),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTextField(
+                      'เลขบัตรประจำตัวประชาชน',
+                      _idCardController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _selectDate,
+                          icon: Image.asset(
+                            'assets/icons/cake.png',
+                            width: 24,
+                            height: 24,
                           ),
-                          child: Row(
-                            children: [
-                              Image.asset(
-                                'assets/icons/age.png',
-                                width: 20,
-                                height: 20,
+                          label: Text(
+                            _birthDate != null
+                                ? DateFormat('d MMMM yyyy', 'th_TH').format(
+                                  DateTime(
+                                    _birthDate!.year + 543,
+                                    _birthDate!.month,
+                                    _birthDate!.day,
+                                  ),
+                                )
+                                : 'เลือกวันเกิด',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppTheme.bottomNav,
+                            foregroundColor: AppTheme.primary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: const BorderSide(
+                                color: AppTheme.primaryLight,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '$_calculatedAge ปี',
-                                style: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primary,
+                            ),
+                          ),
+                        ),
+                        if (_calculatedAge > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.primaryLight),
+                            ),
+                            child: Row(
+                              children: [
+                                Image.asset(
+                                  'assets/icons/age.png',
+                                  width: 20,
+                                  height: 20,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$_calculatedAge ปี',
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTextField('ที่อยู่', _addressController),
-                  const SizedBox(height: 12),
-                  _buildTextField('ประวัติการแพ้ยา', _allergyController),
-                  const SizedBox(height: 12),
-                  _buildTextField('โรคประจำตัว', _diseaseController),
-                  const SizedBox(height: 16),
-                  _buildRatingDropdown(),
-                  const SizedBox(height: 24),
-                  _buildActionButtons(provider),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTextField('ที่อยู่', _addressController),
+                    const SizedBox(height: 12),
+                    _buildTextField('ประวัติการแพ้ยา', _allergyController),
+                    const SizedBox(height: 12),
+                    _buildTextField('โรคประจำตัว', _diseaseController),
+                    const SizedBox(height: 16),
+                    _buildRatingDropdown(),
+                    const SizedBox(height: 24),
+                    _buildActionButtons(provider),
+                  ],
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          },
+        ),
         bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
       ),
     );
@@ -507,63 +543,83 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       children: [
         Expanded(
           child: ElevatedButton(
-            onPressed: provider.isLoading ? null : () async {
-              if (_formKey.currentState!.validate()) {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder:
-                      (context) => AlertDialog(
-                    title: const Text('ยืนยันการบันทึก'),
-                    content: const Text(
-                      'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('ยกเลิก'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('บันทึก'),
-                      ),
-                    ],
-                  ),
-                );
+            onPressed:
+                provider.isLoading
+                    ? null
+                    : () async {
+                      if (_formKey.currentState!.validate()) {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder:
+                              (context) => AlertDialog(
+                                title: const Text('ยืนยันการบันทึก'),
+                                content: const Text(
+                                  'คุณต้องการบันทึกข้อมูลนี้หรือไม่?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, false),
+                                    child: const Text('ยกเลิก'),
+                                  ),
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, true),
+                                    child: const Text('บันทึก'),
+                                  ),
+                                ],
+                              ),
+                        );
 
-                if (confirm != true) return;
+                        if (confirm != true) return;
 
-                if (_isEditing && (_editingPatient?.patientId ?? '').isEmpty) {
-                  _showSnackBar('เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้', isError: true);
-                  return;
-                }
+                        if (_isEditing &&
+                            (_editingPatient?.patientId ?? '').isEmpty) {
+                          _showSnackBar(
+                            'เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้',
+                            isError: true,
+                          );
+                          return;
+                        }
 
-                // ✨ [FIXED] แปลงค่า int จาก _selectedRating กลับไปเป็น double ตอนบันทึกค่ะ
-                final patient = Patient(
-                  patientId: _isEditing ? _editingPatient!.patientId : '',
-                  prefix: _prefixController.text.trim(),
-                  name: _nameController.text.trim(),
-                  hnNumber: _hnController.text.trim(),
-                  telephone: _phoneController.text.trim(),
-                  address: _addressController.text.trim(),
-                  idCard: _idCardController.text.trim(),
-                  birthDate: _birthDate,
-                  medicalHistory: _diseaseController.text.trim(),
-                  allergy: _allergyController.text.trim(),
-                  gender: _selectedGender,
-                  age: _calculatedAge,
-                  rating: _selectedRating.toDouble(), // แปลงกลับเป็น double ตรงนี้ค่ะ
-                );
+                        // ✨ [FIXED] แปลงค่า int จาก _selectedRating กลับไปเป็น double ตอนบันทึกค่ะ
+                        final patient = Patient(
+                          patientId:
+                              _isEditing ? _editingPatient!.patientId : '',
+                          prefix: _prefixController.text.trim(),
+                          name: _nameController.text.trim(),
+                          hnNumber: _hnController.text.trim(),
+                          telephone:
+                              _phoneController.text.replaceAll('-', '').trim(),
+                          address: _addressController.text.trim(),
+                          idCard:
+                              _idCardController.text.replaceAll('-', '').trim(),
+                          birthDate: _birthDate,
+                          medicalHistory: _diseaseController.text.trim(),
+                          allergy: _allergyController.text.trim(),
+                          gender: _selectedGender,
+                          age: _calculatedAge,
+                          rating:
+                              _selectedRating
+                                  .toDouble(), // แปลงกลับเป็น double ตรงนี้ค่ะ
+                        );
 
-                final success = await provider.savePatient(patient, _isEditing);
+                        final success = await provider.savePatient(
+                          patient,
+                          _isEditing,
+                        );
 
-                if (success) {
-                  _showSnackBar('บันทึกข้อมูลสำเร็จแล้วค่ะ!');
-                  Navigator.pop(context, true);
-                } else {
-                  _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
-                }
-              }
-            },
+                        if (success) {
+                          _showSnackBar('บันทึกข้อมูลสำเร็จแล้วค่ะ!');
+                          Navigator.pop(context, true);
+                        } else {
+                          _showSnackBar(
+                            provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก',
+                            isError: true,
+                          );
+                        }
+                      }
+                    },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orangeAccent.shade100,
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -571,52 +627,78 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                 borderRadius: BorderRadius.circular(30),
               ),
             ),
-            child: provider.isLoading 
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black54))
-                : Image.asset('assets/icons/save.png', width: 24, height: 24),
+            child:
+                provider.isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.black54),
+                    )
+                    : Image.asset(
+                      'assets/icons/save.png',
+                      width: 24,
+                      height: 24,
+                    ),
           ),
         ),
         if (_isEditing) ...[
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: provider.isLoading ? null : () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder:
-                      (context) => AlertDialog(
-                    title: const Text('ยืนยันการลบ'),
-                    content: const Text(
-                      'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('ยกเลิก'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('ลบ'),
-                      ),
-                    ],
-                  ),
-                );
+              onPressed:
+                  provider.isLoading
+                      ? null
+                      : () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder:
+                              (context) => AlertDialog(
+                                title: const Text('ยืนยันการลบ'),
+                                content: const Text(
+                                  'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, false),
+                                    child: const Text('ยกเลิก'),
+                                  ),
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, true),
+                                    child: const Text('ลบ'),
+                                  ),
+                                ],
+                              ),
+                        );
 
-                if (confirm != true) return;
+                        if (confirm != true) return;
 
-                if (_editingPatient != null && _editingPatient!.patientId.isNotEmpty) {
-                  final success = await provider.deletePatient(_editingPatient!.patientId);
-                  
-                  if (success) {
-                    _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
-                    Navigator.of(context).pushNamedAndRemoveUntil('/patients', (Route<dynamic> route) => false);
-                  } else {
-                    _showSnackBar(provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก', isError: true);
-                  }
-                } else {
-                  _showSnackBar('เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้ที่จะลบ', isError: true);
-                }
-              },
+                        if (_editingPatient != null &&
+                            _editingPatient!.patientId.isNotEmpty) {
+                          final success = await provider.deletePatient(
+                            _editingPatient!.patientId,
+                          );
+
+                          if (success) {
+                            _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/patients',
+                              (Route<dynamic> route) => false,
+                            );
+                          } else {
+                            _showSnackBar(
+                              provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก',
+                              isError: true,
+                            );
+                          }
+                        } else {
+                          _showSnackBar(
+                            'เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้ที่จะลบ',
+                            isError: true,
+                          );
+                        }
+                      },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent.shade100,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -624,9 +706,14 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                   borderRadius: BorderRadius.circular(30),
                 ),
               ),
-              child: provider.isLoading
-                  ? const SizedBox.shrink()
-                  : Image.asset('assets/icons/delete.png', width: 24, height: 24),
+              child:
+                  provider.isLoading
+                      ? const SizedBox.shrink()
+                      : Image.asset(
+                        'assets/icons/delete.png',
+                        width: 24,
+                        height: 24,
+                      ),
             ),
           ),
         ],
@@ -660,22 +747,22 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
           padding: const EdgeInsets.all(10),
           child: Image.asset(
             label.contains('ชื่อ')
-            ? 'assets/icons/user.png'
-            : label.contains('โทร')
-            ? 'assets/icons/phone.png'
-            : label.contains('HN')
-            ? 'assets/icons/hn_id.png'
-            : label.contains('บัตร')
-            ? 'assets/icons/id_card.png'
-            : label.contains('เกิด')
-            ? 'assets/icons/cake.png'
-            : label.contains('แพ้')
-            ? 'assets/icons/no_drugs.png'
-            : label.contains('โรค')
-            ? 'assets/icons/medical_report.png'
-            : label.contains('ที่อยู่')
-            ? 'assets/icons/house.png'
-            : 'assets/icons/user.png',
+                ? 'assets/icons/user.png'
+                : label.contains('โทร')
+                ? 'assets/icons/phone.png'
+                : label.contains('HN')
+                ? 'assets/icons/hn_id.png'
+                : label.contains('บัตร')
+                ? 'assets/icons/id_card.png'
+                : label.contains('เกิด')
+                ? 'assets/icons/cake.png'
+                : label.contains('แพ้')
+                ? 'assets/icons/no_drugs.png'
+                : label.contains('โรค')
+                ? 'assets/icons/medical_report.png'
+                : label.contains('ที่อยู่')
+                ? 'assets/icons/house.png'
+                : 'assets/icons/user.png',
             width: 24,
             height: 24,
           ),
@@ -693,4 +780,59 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       ),
     );
   }
+}
+
+class _PatternInputFormatter extends TextInputFormatter {
+  const _PatternInputFormatter(this.blocks);
+
+  final List<int> blocks;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digitsOnly = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final formatted = formatDigits(digitsOnly, blocks);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  static String formatDigits(String input, List<int> blocks) {
+    final digits = input.replaceAll(RegExp(r'\D'), '');
+    final maxLength = blocks.fold<int>(0, (sum, item) => sum + item);
+    final limited =
+        digits.length > maxLength ? digits.substring(0, maxLength) : digits;
+    final buffer = StringBuffer();
+    var index = 0;
+    for (final block in blocks) {
+      if (index >= limited.length) break;
+      final end =
+          (index + block) > limited.length ? limited.length : (index + block);
+      if (buffer.isNotEmpty) buffer.write('-');
+      buffer.write(limited.substring(index, end));
+      index = end;
+    }
+    return buffer.toString();
+  }
+}
+
+class _ThaiPhoneInputFormatter extends _PatternInputFormatter {
+  const _ThaiPhoneInputFormatter() : super(_blocks);
+
+  static const List<int> _blocks = [3, 3, 5];
+
+  static String format(String input) =>
+      _PatternInputFormatter.formatDigits(input, _blocks);
+}
+
+class _ThaiIdCardInputFormatter extends _PatternInputFormatter {
+  const _ThaiIdCardInputFormatter() : super(_blocks);
+
+  static const List<int> _blocks = [1, 4, 5, 2, 1];
+
+  static String format(String input) =>
+      _PatternInputFormatter.formatDigits(input, _blocks);
 }

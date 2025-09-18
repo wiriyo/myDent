@@ -69,7 +69,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+            const SnackBar(
+              content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่'),
+            ),
           );
         }
       });
@@ -92,6 +94,12 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     }
   }
 
+  void _openPatientDetail() {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    navigator.pop();
+    navigator.pushNamed('/patient_detail', arguments: widget.patient);
+  }
+
   void _makePhoneCall() async {
     final String? telephone = widget.patient.telephone;
     if (telephone != null && telephone.isNotEmpty && telephone != '-') {
@@ -100,7 +108,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         await launchUrl(phoneUri);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('ไม่สามารถโทรออกได้')));
         }
       }
     } else {
@@ -116,9 +126,12 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final patientName = widget.patient.name;
     final String hn = '';
     final DateTime startAt = widget.appointment.startTime;
-    final String note = _reasonController.text.trim().isEmpty
-        ? widget.appointment.treatment // ถ้าไม่มีโน้ต ให้ใช้ชื่อ treatment แทน
-        : _reasonController.text.trim();
+    final String note =
+        _reasonController.text.trim().isEmpty
+            ? widget
+                .appointment
+                .treatment // ถ้าไม่มีโน้ต ให้ใช้ชื่อ treatment แทน
+            : _reasonController.text.trim();
 
     return buildAppointmentSlip(
       clinicName: 'คลินิกทันตกรรม\nหมอกุสุมาภรณ์',
@@ -135,9 +148,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     Navigator.pop(context);
     showDialog(
       context: context,
-      builder: (_) => AppointmentAddDialog(
-        appointment: widget.appointment,
-      ),
+      builder: (_) => AppointmentAddDialog(appointment: widget.appointment),
     ).then((value) {
       if (value == true) {
         widget.onDataChanged();
@@ -149,32 +160,37 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     if (_appointmentService == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบรหัสคลินิก ไม่สามารถลบนัดหมายได้')),
+          const SnackBar(
+            content: Text('ไม่พบรหัสคลินิก ไม่สามารถลบนัดหมายได้'),
+          ),
         );
       }
       return;
     }
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ยืนยันการลบ'),
-        content: const Text('คุณต้องการลบนัดหมายนี้ใช่หรือไม่?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('ยืนยันการลบ'),
+            content: const Text('คุณต้องการลบนัดหมายนี้ใช่หรือไม่?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('ยกเลิก'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('ลบ', style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ลบ', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true) {
       try {
-        await _appointmentService!.deleteAppointment(widget.appointment.appointmentId);
+        await _appointmentService!.deleteAppointment(
+          widget.appointment.appointmentId,
+        );
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -184,7 +200,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ: $e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการลบ: $e')));
         }
       }
     }
@@ -211,7 +229,10 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         endTime: widget.appointment.endTime,
         teeth: widget.appointment.teeth,
         status: _currentStatus,
-        notes: _reasonController.text.trim().isEmpty ? null : _reasonController.text.trim(),
+        notes:
+            _reasonController.text.trim().isEmpty
+                ? null
+                : _reasonController.text.trim(),
       );
 
       await _appointmentService!.updateAppointment(updatedAppointment);
@@ -223,13 +244,17 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       );
 
       if (newRating != currentRating) {
-        await _patientService.updatePatientRating(widget.patient.patientId, newRating);
+        await _patientService.updatePatientRating(
+          widget.patient.patientId,
+          newRating,
+        );
       }
 
       double? initialPrice;
       if (_currentStatus == 'เสร็จสิ้น') {
-        final master =
-            await TreatmentMasterService.getTreatmentByName(widget.appointment.treatment);
+        final master = await TreatmentMasterService.getTreatmentByName(
+          widget.appointment.treatment,
+        );
         initialPrice = master?.price;
       }
 
@@ -241,11 +266,15 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           await Navigator.of(context).push(
             MaterialPageRoute(
               // 💖 FIX: แก้ไขแค่จุดนี้จุดเดียวเลยค่ะ บอกน้องให้ใช้ข้อมูลจริง โดยไม่กระทบ UI เดิมเลยค่ะ
-              builder: (_) => AppointmentSlipPreviewPage(slip: slip, useSampleData: false),
+              builder:
+                  (_) => AppointmentSlipPreviewPage(
+                    slip: slip,
+                    useSampleData: false,
+                  ),
             ),
           );
         }
-        
+
         if (_currentStatus == 'เสร็จสิ้น') {
           showTreatmentDialog(
             context,
@@ -253,8 +282,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             patientName: widget.patient.name,
             initialProcedure: widget.appointment.treatment,
             initialDate: widget.appointment.startTime,
-            initialToothNumber:
-                widget.appointment.teeth?.join(', '),
+            initialToothNumber: widget.appointment.teeth?.join(', '),
             initialPrice: initialPrice,
           );
         }
@@ -351,8 +379,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final DateTime endTime = widget.appointment.endTime;
     final List<dynamic> teethList = widget.appointment.teeth ?? [];
     final String teethString = teethList.join(', ');
-    final String fullTreatmentText = '$treatment ${teethString.isNotEmpty ? '(#$teethString)' : ''}';
-    
+    final String fullTreatmentText =
+        '$treatment ${teethString.isNotEmpty ? '(#$teethString)' : ''}';
+
     final dialogColor = _getDialogColor(rating);
 
     return AlertDialog(
@@ -367,7 +396,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           if (rating > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.purple.shade100)),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.purple.shade100),
+              ),
               child: _buildRatingStars(rating),
             ),
         ],
@@ -379,76 +412,123 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           children: [
             const Divider(),
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Image.asset(AppTheme.iconPathUser, width: 24, height: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    patientName,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF6A4DBA),
-                      fontFamily: AppTheme.fontFamily
-                    ),
+            GestureDetector(
+              onTap: _openPatientDetail,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Image.asset(AppTheme.iconPathUser, width: 24, height: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          patientName,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6A4DBA),
+                            fontFamily: AppTheme.fontFamily,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        'อายุ: $age ปี',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontFamily: AppTheme.fontFamily,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (gender.isNotEmpty) _getGenderIcon(gender, size: 20),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        'โทร: $telephone',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontFamily: AppTheme.fontFamily,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (telephone.isNotEmpty && telephone != '-')
+                        SizedBox(
+                          height: 38,
+                          width: 38,
+                          child: Material(
+                            color: AppTheme.buttonCallBg,
+                            shape: const CircleBorder(),
+                            clipBehavior: Clip.antiAlias,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Image.asset(
+                                AppTheme.iconPathCall,
+                                width: 20,
+                              ),
+                              onPressed: _makePhoneCall,
+                              tooltip: 'โทรออก',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(text: 'ประวัติการรักษา: $medicalHistory'),
+                  const SizedBox(height: 4),
+                  _buildInfoRow(text: 'แพ้ยา/แพ้อื่น ๆ: $allergy'),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Text('อายุ: $age ปี', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)),
-              const SizedBox(width: 8),
-              if (gender.isNotEmpty)
-                _getGenderIcon(gender, size: 20)
-            ]),
-            const SizedBox(height: 4),
-            Row(children: [
-              Text('โทร: $telephone', style: const TextStyle(fontSize: 16, fontFamily: AppTheme.fontFamily)),
-              const Spacer(),
-              if (telephone.isNotEmpty && telephone != '-')
-                SizedBox(
-                  height: 38,
-                  width: 38,
-                  child: Material(
-                    color: AppTheme.buttonCallBg,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: Image.asset(AppTheme.iconPathCall, width: 20),
-                      onPressed: _makePhoneCall,
-                      tooltip: 'โทรหาคนไข้'
-                    )
-                  )
-                )
-            ]),
-            const SizedBox(height: 8),
-            _buildInfoRow(text: 'โรคประจำตัว: $medicalHistory'),
-            const SizedBox(height: 4),
-            _buildInfoRow(text: 'แพ้ยา: $allergy'),
+            const SizedBox(height: 16),
             const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.asset('assets/icons/treatment.png', width: 40, height: 40),
+                Image.asset(
+                  'assets/icons/treatment.png',
+                  width: 40,
+                  height: 40,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(fullTreatmentText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: AppTheme.fontFamily)),
+                      Text(
+                        fullTreatmentText,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: AppTheme.fontFamily,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         'วันที่: ${DateFormat('dd MMMM yyyy', 'th_TH').format(startTime)}',
-                        style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade700,
+                          fontFamily: AppTheme.fontFamily,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'เวลา: ${DateFormat.Hm('th_TH').format(startTime)} - ${DateFormat.Hm('th_TH').format(endTime)}',
-                        style: TextStyle(fontSize: 16, color: Colors.grey.shade700, fontFamily: AppTheme.fontFamily)
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade700,
+                          fontFamily: AppTheme.fontFamily,
+                        ),
                       ),
                     ],
                   ),
@@ -458,14 +538,29 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _currentStatus,
-              items: statusOptions.map((status) => DropdownMenuItem(value: status, child: Text(status))).toList(),
-              onChanged: (value) { setState(() { _currentStatus = value ?? _currentStatus; }); },
+              items:
+                  statusOptions
+                      .map(
+                        (status) => DropdownMenuItem(
+                          value: status,
+                          child: Text(status),
+                        ),
+                      )
+                      .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _currentStatus = value ?? _currentStatus;
+                });
+              },
               borderRadius: BorderRadius.circular(16.0),
               decoration: InputDecoration(
                 labelText: 'สถานะ',
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16.0),
                 ),
@@ -475,11 +570,15 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16.0),
-                  borderSide: const BorderSide(color: AppTheme.primary, width: 2.0),
+                  borderSide: const BorderSide(
+                    color: AppTheme.primary,
+                    width: 2.0,
+                  ),
                 ),
               ),
             ),
-            if (_currentStatus == 'เลื่อนนัด' || _reasonController.text.isNotEmpty)
+            if (_currentStatus == 'เลื่อนนัด' ||
+                _reasonController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: TextField(
@@ -488,7 +587,9 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                     labelText: 'บันทึก / เหตุผลการเลื่อนนัด',
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.0))
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16.0),
+                    ),
                   ),
                   maxLines: 2,
                 ),
@@ -500,11 +601,26 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            _buildIconActionButton(iconPath: 'assets/icons/save.png', backgroundColor: AppTheme.buttonCallBg, tooltip: 'บันทึกการเปลี่ยนแปลง', onPressed: _saveChanges),
+            _buildIconActionButton(
+              iconPath: 'assets/icons/save.png',
+              backgroundColor: AppTheme.buttonCallBg,
+              tooltip: 'บันทึกการเปลี่ยนแปลง',
+              onPressed: _saveChanges,
+            ),
             const SizedBox(width: 8),
-            _buildIconActionButton(iconPath: 'assets/icons/edit.png', backgroundColor: AppTheme.buttonEditBg, tooltip: 'แก้ไขนัดหมาย', onPressed: _editAppointment),
+            _buildIconActionButton(
+              iconPath: 'assets/icons/edit.png',
+              backgroundColor: AppTheme.buttonEditBg,
+              tooltip: 'แก้ไขนัดหมาย',
+              onPressed: _editAppointment,
+            ),
             const SizedBox(width: 8),
-            _buildIconActionButton(iconPath: 'assets/icons/delete.png', backgroundColor: AppTheme.buttonDeleteBg, tooltip: 'ลบนัดหมาย', onPressed: _deleteAppointment),
+            _buildIconActionButton(
+              iconPath: 'assets/icons/delete.png',
+              backgroundColor: AppTheme.buttonDeleteBg,
+              tooltip: 'ลบนัดหมาย',
+              onPressed: _deleteAppointment,
+            ),
           ],
         ),
       ],
@@ -519,7 +635,16 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
           Image.asset(icon, width: 16, height: 16, color: Colors.grey.shade700),
           const SizedBox(width: 8),
         ],
-        Expanded(child: Text(text, style: TextStyle(fontSize: 14, fontFamily: AppTheme.fontFamily, color: Colors.grey.shade800))),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: AppTheme.fontFamily,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ),
       ],
     );
   }

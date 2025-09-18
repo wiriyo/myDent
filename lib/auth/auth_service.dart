@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mydent_app/config/feature_flags.dart';
 
 class SignInResult {
   final String? clinicId;
@@ -112,13 +113,67 @@ class AuthService {
         return userCredential;
       }
 
+      final String trimmedClinicName = clinicName.trim();
+      final String storedClinicName =
+          trimmedClinicName.isNotEmpty ? trimmedClinicName : clinicName;
+
       clinicRef = await _firestore.collection('clinics').add({
-        'name': clinicName,
+        'name': storedClinicName,
         'owner_uid': user.uid,
         'created_at': Timestamp.now(),
       });
 
       final clinicId = clinicRef.id;
+
+      await _ensureClinicMembership(
+        clinicId: clinicId,
+        uid: user.uid,
+        role: 'admin',
+      );
+
+      if (trimmedClinicName.isNotEmpty) {
+        final clinicProfileData = <String, dynamic>{
+          'name': trimmedClinicName,
+          'showLineId': true,
+          'showTaxId': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        final nestedProfileRef = _firestore
+            .collection('clinics')
+            .doc(clinicId)
+            .collection('settings')
+            .doc('clinicProfile');
+        final rootProfileRef = _firestore
+            .collection('settings')
+            .doc('clinicProfile');
+
+        final List<Future<void>> settingsWrites = <Future<void>>[];
+
+        if (FeatureFlags.useNestedCollections) {
+          settingsWrites.add(
+            nestedProfileRef.set(clinicProfileData, SetOptions(merge: true)),
+          );
+          if (FeatureFlags.dualWriteEnabled) {
+            settingsWrites.add(
+              rootProfileRef.set(clinicProfileData, SetOptions(merge: true)),
+            );
+          }
+        } else {
+          settingsWrites.add(
+            rootProfileRef.set(clinicProfileData, SetOptions(merge: true)),
+          );
+          if (FeatureFlags.dualWriteEnabled) {
+            settingsWrites.add(
+              nestedProfileRef.set(clinicProfileData, SetOptions(merge: true)),
+            );
+          }
+        }
+
+        if (settingsWrites.isNotEmpty) {
+          await Future.wait(settingsWrites);
+        }
+      }
 
       await _firestore.collection('users').doc(user.uid).set({
         'name': name,
@@ -132,7 +187,7 @@ class AuthService {
       try {
         await _requestClinicApproval(
           clinicId: clinicId,
-          clinicName: clinicName,
+          clinicName: storedClinicName,
           userName: name,
           userEmail: email,
         );

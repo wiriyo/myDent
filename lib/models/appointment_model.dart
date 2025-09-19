@@ -60,19 +60,39 @@ class AppointmentModel {
 
   List<String> _createSearchKeywords() {
     final Set<String> keywords = {};
-    
-    patientName.toLowerCase().split(' ').forEach((word) {
-      if (word.isNotEmpty) keywords.add(word);
-    });
 
-    if (hnNumber != null && hnNumber!.isNotEmpty) {
-      keywords.add(hnNumber!.toLowerCase());
+    final String normalizedName = patientName.trim().toLowerCase();
+    if (normalizedName.isNotEmpty) {
+      keywords.add(normalizedName);
+
+      final List<String> nameParts =
+          normalizedName.split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+      keywords.addAll(nameParts);
+
+      final String collapsedName = nameParts.join();
+      if (collapsedName.isNotEmpty) {
+        keywords.add(collapsedName);
+      }
     }
 
-    if (patientPhone != null && patientPhone!.isNotEmpty) {
-      keywords.add(patientPhone!);
+    final String? normalizedHn = hnNumber?.trim().toLowerCase();
+    if (normalizedHn != null && normalizedHn.isNotEmpty) {
+      keywords.add(normalizedHn);
+      final String compactHn = normalizedHn.replaceAll(RegExp(r'\s+'), '');
+      if (compactHn.isNotEmpty) {
+        keywords.add(compactHn);
+      }
     }
-    
+
+    final String? rawPhone = patientPhone?.trim();
+    if (rawPhone != null && rawPhone.isNotEmpty) {
+      keywords.add(rawPhone.toLowerCase());
+      final String digitsOnly = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digitsOnly.isNotEmpty) {
+        keywords.add(digitsOnly);
+      }
+    }
+
     return keywords.toList();
   }
 

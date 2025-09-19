@@ -33,6 +33,8 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   // ✨ [UPDATED] สร้าง AppointmentService พร้อมส่ง clinicId ที่จำเป็น
   AppointmentService? _appointmentServiceFull;
   Timer? _debounce;
+  int _searchRequestIdCounter = 0;
+  int? _activeSearchRequestId;
 
   List<AppointmentSearchModel> _appointments = [];
   List<Patient> _allPatients = [];
@@ -88,21 +90,20 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   }
 
   Future<void> _performSearch({bool isNewSearch = false}) async {
+    final query = _searchController.text.trim();
+
     if (isNewSearch) {
       _lastDocument = null;
       _hasMore = true;
       setState(() {
         _appointments = [];
-        _isLoading = true;
+        _isLoading = query.isNotEmpty;
         _isFirstLoad = false;
       });
     }
 
     if (!_hasMore || _isLoadingMore) return;
 
-    setState(() { _isLoadingMore = true; });
-
-    final query = _searchController.text.trim();
     if (query.isEmpty) {
       setState(() {
         _appointments = [];
@@ -110,8 +111,14 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         _isLoadingMore = false;
         _isFirstLoad = true;
       });
+      _activeSearchRequestId = null;
       return;
     }
+
+    final int requestId = ++_searchRequestIdCounter;
+    _activeSearchRequestId = requestId;
+
+    setState(() { _isLoadingMore = true; });
 
     try {
       final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
@@ -123,18 +130,24 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
       );
 
       final newAppointments = result['appointments'] as List<AppointmentSearchModel>;
-      
+
+      if (!mounted || _activeSearchRequestId != requestId) return;
+
       setState(() {
         _appointments.addAll(newAppointments);
         _lastDocument = result['lastDocument'];
         _hasMore = newAppointments.length == _limit;
         _isLoading = false;
         _isLoadingMore = false;
+        _activeSearchRequestId = null;
       });
     } catch (e) {
+      if (!mounted || _activeSearchRequestId != requestId) return;
+
       setState(() {
         _isLoading = false;
         _isLoadingMore = false;
+        _activeSearchRequestId = null;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

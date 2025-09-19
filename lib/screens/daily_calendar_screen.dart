@@ -177,10 +177,9 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       if (patientIds.isNotEmpty) {
         final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
         if (missingIds.isNotEmpty) {
-          final fetchedPatients = await Future.wait(
-            missingIds.map((id) => _patientService.getPatientById(id)),
-          );
-          for (final patient in fetchedPatients.whereType<Patient>()) {
+          final fetchedPatients =
+              await _patientService.fetchPatientsByIds(missingIds);
+          for (final patient in fetchedPatients) {
             _patientCache[patient.patientId] = patient;
           }
         }

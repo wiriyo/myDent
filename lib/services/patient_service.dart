@@ -62,6 +62,81 @@ class PatientService {
     }
   }
 
+  Future<List<Patient>> fetchPatientsByIds(Iterable<String> patientIds) async {
+    final uniqueIds =
+        patientIds.where((id) => id.isNotEmpty).toSet().toList(growable: false);
+    if (uniqueIds.isEmpty) return const <Patient>[];
+
+    const int chunkSize = 10; // Firestore whereIn limit
+    final Map<String, Patient> fetchedPatients = {};
+
+    for (var i = 0; i < uniqueIds.length; i += chunkSize) {
+      final chunk = uniqueIds.sublist(
+        i,
+        i + chunkSize > uniqueIds.length ? uniqueIds.length : i + chunkSize,
+      );
+
+      try {
+        final primarySnapshot = await _primaryPatients
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final doc in primarySnapshot.docs) {
+          final patient = _mapDocToPatient(doc);
+          fetchedPatients[patient.patientId] = patient;
+        }
+      } catch (e) {
+        debugPrint('❌ fetchPatientsByIds primary error for $chunk: $e');
+      }
+
+      if (FeatureFlags.dualReadFallbackEnabled) {
+        final missingIds =
+            chunk.where((id) => !fetchedPatients.containsKey(id)).toList();
+        if (missingIds.isNotEmpty) {
+          try {
+            final rootSnapshot = await _rootPatients
+                .where(FieldPath.documentId, whereIn: missingIds)
+                .get();
+            for (final doc in rootSnapshot.docs) {
+              final patient = _mapDocToPatient(doc);
+              fetchedPatients[patient.patientId] = patient;
+            }
+          } catch (e) {
+            debugPrint(
+              '❌ fetchPatientsByIds root fallback error for $missingIds: $e',
+            );
+          }
+
+          final nested = _nestedPatientsOrNull;
+          if (nested != null) {
+            final nestedMissing = missingIds
+                .where((id) => !fetchedPatients.containsKey(id))
+                .toList();
+            if (nestedMissing.isNotEmpty) {
+              try {
+                final nestedSnapshot = await nested
+                    .where(FieldPath.documentId, whereIn: nestedMissing)
+                    .get();
+                for (final doc in nestedSnapshot.docs) {
+                  final patient = _mapDocToPatient(doc);
+                  fetchedPatients[patient.patientId] = patient;
+                }
+              } catch (e) {
+                debugPrint(
+                  '❌ fetchPatientsByIds nested fallback error for $nestedMissing: $e',
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return uniqueIds
+        .map((id) => fetchedPatients[id])
+        .whereType<Patient>()
+        .toList(growable: false);
+  }
+
   Future<Patient?> getPatientById(String patientId) async {
     if (patientId.isEmpty) return null;
     try {

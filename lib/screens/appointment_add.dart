@@ -415,12 +415,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
 
     final confirmedPatient = patient;
-    if (confirmedPatient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ไม่สามารถระบุคนไข้ได้ กรุณาลองอีกครั้ง')),
-      );
-      return;
-    }
+    // The confirmedPatient is guaranteed to be non-null, so this check is unnecessary.
 
     final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
     final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
@@ -595,8 +590,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
               ),
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'กรุณากรอกชื่อคนไข้';
+                if ((value?.isEmpty ?? true) || _selectedPatient == null) {
+                  return 'กรุณาเลือกคนไข้จากรายการ';
                 }
                 return null;
               },
@@ -693,7 +688,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       'หัตถการ',
                       prefixIcon: Image.asset('assets/icons/report.png', width: 24, height: 24),
                     ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'กรุณาใส่หัตถการ' : null,
+                    validator: (value) => (value?.isEmpty ?? true) ? 'กรุณาใส่หัตถการ' : null,
+                    
                   );
                 },
                 optionsViewBuilder: (context, onSelected, options) {
@@ -818,8 +814,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             validator: (value) {
-              if (value == null || value.isEmpty) return 'ใส่เวลา';
-              if (int.tryParse(value) == null) return 'ตัวเลข';
+              final input = value?.trim() ?? '';
+              if (input.isEmpty) return 'ใส่เวลา';
+              if (int.tryParse(input) == null) return 'ตัวเลข';
+              
+              if (int.tryParse(input) == null) return 'ตัวเลข';
               return null;
             },
           ),

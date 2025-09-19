@@ -166,7 +166,16 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     }
 
     try {
-      final appointments = await _appointmentService!.getAppointmentsByDate(selectedDay);
+      var appointments =
+          await _appointmentService!.getAppointmentsByDate(selectedDay);
+      final initialCount = appointments.length;
+      appointments =
+          appointments.where((appt) => appt.patientId.isNotEmpty).toList();
+      final removedMissingIds = initialCount - appointments.length;
+      if (removedMissingIds > 0) {
+        debugPrint(
+            'Removed $removedMissingIds appointments without patient references.');
+      }
       appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
       final patientIds = appointments
@@ -189,6 +198,16 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
           .map((id) => _patientCache[id])
           .whereType<Patient>()
           .toList();
+
+      final validPatientIds = patients.map((p) => p.patientId).toSet();
+      final filteredAppointments = appointments
+          .where((appt) => validPatientIds.contains(appt.patientId))
+          .toList();
+      final removedCount = appointments.length - filteredAppointments.length;
+      if (removedCount > 0) {
+        debugPrint(
+            'Skipped $removedCount orphaned appointments on ${selectedDay.toIso8601String()}');
+      }
 
       List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
       if (allWorkingHours == null) {
@@ -215,7 +234,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       if (!mounted) return;
 
       setState(() {
-        _appointments = appointments;
+        _appointments = filteredAppointments;
         _patients = patients;
         _selectedDayWorkingHours = dayWorkingHours;
         _isLoading = false;

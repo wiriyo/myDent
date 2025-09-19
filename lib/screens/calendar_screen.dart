@@ -138,8 +138,46 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     final endOfMonth = DateTime(month.year, month.month + 1, 1);
 
     try {
-      final appointments =
+      var appointments =
           await _appointmentService!.getAppointmentsInRange(startOfMonth, endOfMonth);
+
+      final initialCount = appointments.length;
+      appointments =
+          appointments.where((appt) => appt.patientId.isNotEmpty).toList();
+      final removedMissingIds = initialCount - appointments.length;
+      if (removedMissingIds > 0) {
+        debugPrint(
+            'Removed $removedMissingIds appointments without patient references.');
+      }
+
+      final patientIds = appointments.map((appt) => appt.patientId).toSet();
+
+      if (patientIds.isNotEmpty) {
+        final missingIds =
+            patientIds.where((id) => !_patientCache.containsKey(id)).toList();
+        if (missingIds.isNotEmpty) {
+          final fetchedPatients =
+              await _patientService.fetchPatientsByIds(missingIds);
+          for (final patient in fetchedPatients) {
+            _patientCache[patient.patientId] = patient;
+          }
+        }
+      }
+
+      final orphanedPatientIds = patientIds
+          .where((id) => !_patientCache.containsKey(id))
+          .toSet();
+      if (orphanedPatientIds.isNotEmpty) {
+        final beforeFilterCount = appointments.length;
+        appointments = appointments
+            .where((appt) => !orphanedPatientIds.contains(appt.patientId))
+            .toList();
+        final removedOrphans = beforeFilterCount - appointments.length;
+        if (removedOrphans > 0) {
+          debugPrint(
+              'Removed $removedOrphans orphaned appointments with missing patients.');
+        }
+      }
 
       final Map<DateTime, List<AppointmentModel>> events = {};
       for (final appointment in appointments) {
@@ -198,6 +236,16 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         .whereType<Patient>()
         .toList();
 
+    final validPatientIds = patients.map((p) => p.patientId).toSet();
+    final filteredAppointments = appointments
+        .where((appt) => validPatientIds.contains(appt.patientId))
+        .toList();
+    final removedCount = appointments.length - filteredAppointments.length;
+    if (removedCount > 0) {
+      debugPrint(
+          'Skipped $removedCount orphaned appointments on ${day.toIso8601String()}');
+    }
+
     List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
     if (allWorkingHours == null) {
       try {
@@ -221,7 +269,13 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
     if (!mounted) return;
     setState(() {
-      _selectedAppointments = appointments;
+      if (removedCount > 0) {
+        _events = {
+          ..._events,
+          dayKey: filteredAppointments,
+        };
+      }
+      _selectedAppointments = filteredAppointments;
       _patientsForAppointments = patients;
       _selectedDayWorkingHours = dayWorkingHours;
       _isLoading = false;

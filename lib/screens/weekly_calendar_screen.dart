@@ -307,16 +307,23 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       final Map<DateTime, List<AppointmentModel>> groupedAppointments = {};
       final Set<String> patientIds = {};
 
+      int removedMissingIds = 0;
       for (final appointment in appointments) {
+        if (appointment.patientId.isEmpty) {
+          removedMissingIds++;
+          continue;
+        }
         final dayKey = DateTime(
           appointment.startTime.year,
           appointment.startTime.month,
           appointment.startTime.day,
         );
         (groupedAppointments[dayKey] ??= []).add(appointment);
-        if (appointment.patientId.isNotEmpty) {
-          patientIds.add(appointment.patientId);
-        }
+        patientIds.add(appointment.patientId);
+      }
+      if (removedMissingIds > 0) {
+        debugPrint(
+            'Removed $removedMissingIds appointments without patient references.');
       }
 
       final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
@@ -325,6 +332,20 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             await _patientService.fetchPatientsByIds(missingIds);
         for (final patient in fetchedPatients) {
           _patientCache[patient.patientId] = patient;
+        }
+      }
+
+      final orphanedIds =
+          patientIds.where((id) => !_patientCache.containsKey(id)).toSet();
+      if (orphanedIds.isNotEmpty) {
+        int removedCount = 0;
+        for (final entry in groupedAppointments.entries) {
+          final originalLength = entry.value.length;
+          entry.value.removeWhere((appt) => orphanedIds.contains(appt.patientId));
+          removedCount += originalLength - entry.value.length;
+        }
+        if (removedCount > 0) {
+          debugPrint('Skipped $removedCount orphaned appointments during weekly load.');
         }
       }
 

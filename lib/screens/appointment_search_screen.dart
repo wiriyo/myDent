@@ -22,11 +22,13 @@ class AppointmentSearchScreen extends StatefulWidget {
   const AppointmentSearchScreen({super.key});
 
   @override
-  State<AppointmentSearchScreen> createState() => _AppointmentSearchScreenState();
+  State<AppointmentSearchScreen> createState() =>
+      _AppointmentSearchScreenState();
 }
 
 class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   final _searchController = TextEditingController();
+  //  final _scrollController = ScrollController();
   final _scrollController = ScrollController();
   final _appointmentSearchService = AppointmentSearchService();
   final _patientService = PatientService();
@@ -35,6 +37,8 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   Timer? _debounce;
   int _searchRequestIdCounter = 0;
   int? _activeSearchRequestId;
+  // int _searchRequestIdCounter = 0;
+  // int? _activeSearchRequestId;
 
   List<AppointmentSearchModel> _appointments = [];
   List<Patient> _allPatients = [];
@@ -77,7 +81,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && !_isLoadingMore) {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoadingMore) {
       _performSearch();
     }
   }
@@ -91,6 +97,29 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
   Future<void> _performSearch({bool isNewSearch = false}) async {
     final query = _searchController.text.trim();
+
+    // if (isNewSearch) {
+    //   _lastDocument = null;
+    //   _hasMore = true;
+    //   setState(() {
+    //     _appointments = [];
+    //     _isLoading = query.isNotEmpty;
+    //     _isFirstLoad = false;
+    //   });
+    // }
+
+    // if (!_hasMore || _isLoadingMore) return;
+
+    // if (query.isEmpty) {
+    //   setState(() {
+    //     _appointments = [];
+    //     _isLoading = false;
+    //     _isLoadingMore = false;
+    //     _isFirstLoad = true;
+    //   });
+    //   _activeSearchRequestId = null;
+    //   return;
+    // }
 
     if (isNewSearch) {
       _lastDocument = null;
@@ -115,13 +144,21 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
       return;
     }
 
+    // final int requestId = ++_searchRequestIdCounter;
+    // _activeSearchRequestId = requestId;
+
+    // setState(() { _isLoadingMore = true; });
+
     final int requestId = ++_searchRequestIdCounter;
     _activeSearchRequestId = requestId;
 
-    setState(() { _isLoadingMore = true; });
+    setState(() {
+      _isLoadingMore = true;
+    });
 
     try {
-      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+      final clinicId =
+          Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
       final result = await _appointmentSearchService.searchAppointments(
         query: query,
         limit: _limit,
@@ -129,7 +166,30 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         clinicId: clinicId,
       );
 
-      final newAppointments = result['appointments'] as List<AppointmentSearchModel>;
+      //   final newAppointments = result['appointments'] as List<AppointmentSearchModel>;
+
+      //   if (!mounted || _activeSearchRequestId != requestId) return;
+
+      //   setState(() {
+      //     _appointments.addAll(newAppointments);
+      //     _lastDocument = result['lastDocument'];
+      //     _hasMore = newAppointments.length == _limit;
+      //     _isLoading = false;
+      //     _isLoadingMore = false;
+      //     _activeSearchRequestId = null;
+      //   });
+      // } catch (e) {
+      //   if (!mounted || _activeSearchRequestId != requestId) return;
+
+      //   setState(() {
+      //     _isLoading = false;
+      //     _isLoadingMore = false;
+      //     _activeSearchRequestId = null;
+      //   });
+      //   if (mounted) {
+      //     ScaffoldMessenger.of(context).showSnackBar(
+      final newAppointments =
+          result['appointments'] as List<AppointmentSearchModel>;
 
       if (!mounted || _activeSearchRequestId != requestId) return;
 
@@ -150,15 +210,17 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         _activeSearchRequestId = null;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาดในการค้นหา: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการค้นหา: $e')));
       }
     }
   }
 
   // ✨ [ADDED] ฟังก์ชันสำหรับจัดการเมื่อมีการคลิกที่การ์ดนัดหมาย
-  Future<void> _showAppointmentDetails(AppointmentSearchModel searchModel) async {
+  Future<void> _showAppointmentDetails(
+    AppointmentSearchModel searchModel,
+  ) async {
     // ถ้ายังไม่ได้เตรียม AppointmentService (เพราะไม่มี clinicId) ให้แจ้งเตือนและยกเลิก
     if (_appointmentServiceFull == null) {
       if (mounted) {
@@ -172,13 +234,19 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+      builder:
+          (context) => const Center(
+            child: CircularProgressIndicator(color: AppTheme.primary),
+          ),
     );
 
     try {
       // ดึงข้อมูล Appointment และ Patient ฉบับเต็ม
-      final appointmentModel = await _appointmentServiceFull!.getAppointmentById(searchModel.appointmentId);
-      final patientModel = await _patientService.getPatientById(searchModel.patientId);
+      final appointmentModel = await _appointmentServiceFull!
+          .getAppointmentById(searchModel.appointmentId);
+      final patientModel = await _patientService.getPatientById(
+        searchModel.patientId,
+      );
 
       if (mounted) Navigator.of(context).pop(); // ปิด loading indicator
 
@@ -190,17 +258,17 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
       if (mounted) {
         await showDialog(
           context: context,
-          builder: (_) => AppointmentDetailDialog(
-            appointment: appointmentModel,
-            patient: patientModel,
-            onDataChanged: () {
-              // เมื่อมีการเปลี่ยนแปลงข้อมูลใน dialog ให้ทำการค้นหาใหม่เพื่ออัปเดตหน้าจอ
-              _performSearch(isNewSearch: true);
-            },
-          ),
+          builder:
+              (_) => AppointmentDetailDialog(
+                appointment: appointmentModel,
+                patient: patientModel,
+                onDataChanged: () {
+                  // เมื่อมีการเปลี่ยนแปลงข้อมูลใน dialog ให้ทำการค้นหาใหม่เพื่ออัปเดตหน้าจอ
+                  _performSearch(isNewSearch: true);
+                },
+              ),
         );
       }
-
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // ปิด loading indicator
       if (mounted) {
@@ -222,10 +290,7 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         elevation: 0,
       ),
       body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(child: _buildContent()),
-        ],
+        children: [_buildSearchBar(), Expanded(child: _buildContent())],
       ),
       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 3),
     );
@@ -247,14 +312,21 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
                 final name = patient.name.toLowerCase();
                 final hn = patient.hnNumber?.toLowerCase() ?? '';
                 final phone = patient.telephone?.toLowerCase() ?? '';
-                return name.contains(query) || hn.contains(query) || phone.contains(query);
+                return name.contains(query) ||
+                    hn.contains(query) ||
+                    phone.contains(query);
               });
             },
             onSelected: (Patient selection) {
               _searchController.text = selection.hnNumber ?? selection.name;
               _performSearch(isNewSearch: true);
             },
-            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            fieldViewBuilder: (
+              context,
+              controller,
+              focusNode,
+              onFieldSubmitted,
+            ) {
               _searchController.value = controller.value;
               return TextField(
                 controller: controller,
@@ -264,18 +336,22 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
                   hintText: 'ค้นหาด้วยชื่อ, เบอร์โทร, หรือ HN...',
                   hintStyle: const TextStyle(fontFamily: AppTheme.fontFamily),
                   prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  suffixIcon: controller.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey),
-                          onPressed: () {
-                            controller.clear();
-                            _searchController.clear();
-                          },
-                        )
-                      : null,
+                  suffixIcon:
+                      controller.text.isNotEmpty
+                          ? IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            onPressed: () {
+                              controller.clear();
+                              _searchController.clear();
+                            },
+                          )
+                          : null,
                   filled: true,
                   fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 10.0,
+                    horizontal: 20.0,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30.0),
                     borderSide: BorderSide.none,
@@ -307,17 +383,35 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
                             onTap: () => onSelected(option),
                             borderRadius: BorderRadius.circular(12),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                               child: Row(
                                 children: [
-                                  Image.asset('assets/icons/user.png', width: 24, height: 24),
+                                  Image.asset(
+                                    'assets/icons/user.png',
+                                    width: 24,
+                                    height: 24,
+                                  ),
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        Text('HN: ${option.hnNumber ?? 'N/A'}', style: const TextStyle(color: AppTheme.textSecondary)),
+                                        Text(
+                                          option.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Text(
+                                          'HN: ${option.hnNumber ?? 'N/A'}',
+                                          style: const TextStyle(
+                                            color: AppTheme.textSecondary,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -333,17 +427,22 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
               );
             },
           );
-        }
+        },
       ),
     );
   }
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primary),
+      );
     }
     if (_isFirstLoad) {
-      return _buildEmptyState('เริ่มต้นค้นหานัดหมายได้เลยค่ะ', Icons.search_off_rounded);
+      return _buildEmptyState(
+        'เริ่มต้นค้นหานัดหมายได้เลยค่ะ',
+        Icons.search_off_rounded,
+      );
     }
     if (_appointments.isEmpty) {
       return _buildEmptyState('ไม่พบผลการค้นหา', Icons.find_in_page_outlined);
@@ -372,24 +471,25 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16.0),
       child: Center(
-        child: _isLoadingMore
-            ? const CircularProgressIndicator(color: AppTheme.primary)
-            : OutlinedButton.icon(
-                onPressed: _performSearch,
-                icon: const Icon(Icons.add),
-                label: const Text('แสดงเพิ่ม'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.primary,
-                  side: const BorderSide(color: AppTheme.primaryLight),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+        child:
+            _isLoadingMore
+                ? const CircularProgressIndicator(color: AppTheme.primary)
+                : OutlinedButton.icon(
+                  onPressed: _performSearch,
+                  icon: const Icon(Icons.add),
+                  label: const Text('แสดงเพิ่ม'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    side: const BorderSide(color: AppTheme.primaryLight),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
-              ),
       ),
     );
   }
-  
+
   Widget _buildEmptyState(String message, IconData icon) {
     return Center(
       child: Column(
@@ -417,18 +517,22 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final isPast = appointment.startTime.isBefore(now);
-    final cardColor = isPast ? Colors.grey.shade200 : const Color.fromARGB(255, 252, 218, 245);
+    final cardColor =
+        isPast
+            ? Colors.grey.shade200
+            : const Color.fromARGB(255, 252, 218, 245);
     final textColor = isPast ? AppTheme.textDisabled : AppTheme.textPrimary;
     final statusColor = _getStatusColor(appointment.status);
     final Color? iconTintColor = isPast ? Colors.grey.shade600 : null;
-
 
     return Card(
       color: cardColor,
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: isPast ? Colors.grey.shade300 : AppTheme.primaryLight)
+        side: BorderSide(
+          color: isPast ? Colors.grey.shade300 : AppTheme.primaryLight,
+        ),
       ),
       elevation: 2,
       shadowColor: AppTheme.primary.withOpacity(0.1),
@@ -441,7 +545,8 @@ class _AppointmentCard extends StatelessWidget {
             const Divider(height: 24),
             _buildInfoRow(
               imagePath: 'assets/icons/user.png',
-              value: '${appointment.patientName} (HN: ${appointment.hnNumber ?? 'N/A'})',
+              value:
+                  '${appointment.patientName}',
               iconColor: iconTintColor,
               textColor: textColor,
             ),
@@ -489,7 +594,11 @@ class _AppointmentCard extends StatelessWidget {
           children: [
             Text(
               '${dayFormat.format(appointment.startTime)} $buddhistYear',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -506,7 +615,11 @@ class _AppointmentCard extends StatelessWidget {
           ),
           child: Text(
             appointment.status,
-            style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(
+              color: statusColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
           ),
         ),
       ],
@@ -529,11 +642,7 @@ class _AppointmentCard extends StatelessWidget {
         color: iconColor,
       );
     } else if (iconData != null) {
-      iconWidget = Icon(
-        iconData,
-        size: 18,
-        color: iconColor,
-      );
+      iconWidget = Icon(iconData, size: 18, color: iconColor);
     } else {
       iconWidget = const SizedBox(width: 18);
     }
@@ -541,15 +650,9 @@ class _AppointmentCard extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(right: 16.0),
-          child: iconWidget,
-        ),
+        Padding(padding: const EdgeInsets.only(right: 16.0), child: iconWidget),
         Expanded(
-          child: Text(
-            value,
-            style: TextStyle(color: textColor, fontSize: 16),
-          ),
+          child: Text(value, style: TextStyle(color: textColor, fontSize: 16)),
         ),
       ],
     );

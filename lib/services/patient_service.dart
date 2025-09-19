@@ -171,7 +171,7 @@ class PatientService {
   }
 
   // ---------- Create ----------
-  Future<void> addPatient(Patient patient) async {
+  Future<Patient> addPatient(Patient patient) async {
     try {
       final newHnNumber = await _generateNewHN();
 
@@ -204,7 +204,24 @@ class PatientService {
         if (nested != null) futures.add(nested.doc(docRef.id).set(map));
       }
       await Future.wait(futures);
-      debugPrint('✅ Added new patient with HN: $newHnNumber');
+      final savedPatient = Patient(
+        patientId: docRef.id,
+        name: patientWithHn.name,
+        prefix: patientWithHn.prefix,
+        clinicId: patientWithHn.clinicId,
+        hnNumber: newHnNumber,
+        telephone: patientWithHn.telephone,
+        address: patientWithHn.address,
+        idCard: patientWithHn.idCard,
+        birthDate: patientWithHn.birthDate,
+        medicalHistory: patientWithHn.medicalHistory,
+        allergy: patientWithHn.allergy,
+        rating: patientWithHn.rating,
+        gender: patientWithHn.gender,
+        age: patientWithHn.age,
+      );
+      debugPrint('✅ Added new patient ${patientWithHn.name} with HN: $newHnNumber');
+      return savedPatient;
     } catch (e) {
       debugPrint('❌ addPatient error: $e');
       rethrow;

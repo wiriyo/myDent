@@ -47,8 +47,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   List<Patient> _allPatients = [];
   List<TreatmentMaster> _allTreatmentsMaster = [];
   Patient? _selectedPatient;
-  
+
   late TextEditingController _patientController;
+  TextEditingController? _patientFieldController;
   late TextEditingController _treatmentController;
   late TextEditingController _durationController;
   late TextEditingController _notesController;
@@ -123,6 +124,51 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         _allPatients = results[0] as List<Patient>;
         _allTreatmentsMaster = results[1] as List<TreatmentMaster>;
       });
+    }
+  }
+
+  String _normalizePatientName(String value) {
+    return value.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+  }
+
+  Patient? _findPatientByDisplayName(String displayName) {
+    final normalizedInput = _normalizePatientName(displayName);
+    final normalizedHnInput = displayName.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    Patient? potentialNameOnlyMatch;
+    bool hasMultipleNameOnlyMatches = false;
+    for (final patient in _allPatients) {
+      final candidate = _normalizePatientName('${patient.prefix}${patient.name}');
+      if (candidate == normalizedInput) {
+        return patient;
+      }
+      final hnNumber = patient.hnNumber;
+      if (hnNumber != null && hnNumber.isNotEmpty) {
+        final normalizedHn = hnNumber.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+        if (normalizedHn == normalizedHnInput) {
+          return patient;
+        }
+      }
+      final normalizedNameOnly = _normalizePatientName(patient.name);
+      if (normalizedNameOnly == normalizedInput) {
+        if (potentialNameOnlyMatch != null &&
+            potentialNameOnlyMatch.patientId != patient.patientId) {
+          hasMultipleNameOnlyMatches = true;
+        } else {
+          potentialNameOnlyMatch = patient;
+        }
+      }
+    }
+    if (potentialNameOnlyMatch != null && !hasMultipleNameOnlyMatches) {
+      return potentialNameOnlyMatch;
+    }
+    return null;
+  }
+
+  void _syncPatientFieldControllers(Patient patient) {
+    final displayName = '${patient.prefix}${patient.name}';
+    _patientController.text = displayName;
+    if (_patientFieldController != null && _patientFieldController!.text != displayName) {
+      _patientFieldController!.text = displayName;
     }
   }
 
@@ -291,9 +337,88 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้')));
       return;
     }
-    
-    if (_selectedPatient == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณาเลือกคนไข้จากรายการค่ะ')));
+    final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+    if (clinicId == null || clinicId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+      );
+      return;
+    }
+
+    final rawPatientName = (_patientFieldController?.text ?? _patientController.text).trim();
+    if (rawPatientName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณากรอกชื่อคนไข้')),
+      );
+      return;
+    }
+    final sanitizedPatientName = rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    Patient? patient = _selectedPatient;
+    if (patient == null) {
+      patient = _findPatientByDisplayName(rawPatientName);
+      if (patient != null) {
+        if (mounted) {
+          setState(() {
+            _selectedPatient = patient;
+          });
+        } else {
+          _selectedPatient = patient;
+        }
+        _syncPatientFieldControllers(patient);
+      }
+    }
+
+    if (patient == null) {
+      try {
+        final patientService = PatientService(clinicId: clinicId);
+        final newPatient = Patient(
+          patientId: '',
+          name: sanitizedPatientName,
+          prefix: '',
+          clinicId: clinicId,
+          gender: 'ไม่ระบุ',
+        );
+        final createdPatient = await patientService.addPatient(newPatient);
+        patient = createdPatient;
+        if (mounted) {
+          setState(() {
+            _selectedPatient = createdPatient;
+            if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
+              final updatedPatients = [..._allPatients, createdPatient];
+              updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
+              _allPatients = updatedPatients;
+            }
+          });
+        } else {
+          _selectedPatient = createdPatient;
+          if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
+            final updatedPatients = [..._allPatients, createdPatient];
+            updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
+            _allPatients = updatedPatients;
+          }
+        }
+        _syncPatientFieldControllers(createdPatient);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'เกิดข้อผิดพลาดในการสร้างข้อมูลคนไข้ใหม่: ${e.toString()}',
+                style: const TextStyle(fontFamily: AppTheme.fontFamily),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    final confirmedPatient = patient;
+    if (confirmedPatient == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่สามารถระบุคนไข้ได้ กรุณาลองอีกครั้ง')),
+      );
       return;
     }
 
@@ -301,15 +426,14 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
     final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
-    final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
     final appointment = AppointmentModel(
       appointmentId: widget.appointment?.appointmentId ?? '',
       userId: userId,
-      patientId: _selectedPatient!.patientId,
-      patientName: _selectedPatient!.name,
+      patientId: confirmedPatient.patientId,
+      patientName: confirmedPatient.name,
       clinicId: clinicId,
-      hnNumber: _selectedPatient!.hnNumber,
-      patientPhone: _selectedPatient!.telephone,
+      hnNumber: confirmedPatient.hnNumber,
+      patientPhone: confirmedPatient.telephone,
       treatment: _treatmentController.text.trim(),
       duration: int.tryParse(_durationController.text.trim()) ?? 30,
       status: _status,
@@ -439,12 +563,30 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             });
           },
           onSelected: (patient) {
-            setState(() {
+            if (mounted) {
+              setState(() {
+                _selectedPatient = patient;
+              });
+            } else {
               _selectedPatient = patient;
-              _patientController.text = '${patient.prefix}${patient.name}';
-            });
+            }
+            _syncPatientFieldControllers(patient);
           },
           fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+            if (_patientFieldController != textEditingController) {
+              _patientFieldController = textEditingController;
+              _patientFieldController!.addListener(() {
+                final currentText = _patientFieldController!.text;
+                if (_selectedPatient == null) return;
+                final selectedDisplay = '${_selectedPatient!.prefix}${_selectedPatient!.name}';
+                if (_normalizePatientName(currentText) !=
+                    _normalizePatientName(selectedDisplay)) {
+                  setState(() {
+                    _selectedPatient = null;
+                  });
+                }
+              });
+            }
             return TextFormField(
               controller: textEditingController,
               focusNode: focusNode,
@@ -453,8 +595,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty || _selectedPatient == null) {
-                  return 'กรุณาเลือกคนไข้จากรายการ';
+                if (value == null || value.trim().isEmpty) {
+                  return 'กรุณากรอกชื่อคนไข้';
                 }
                 return null;
               },

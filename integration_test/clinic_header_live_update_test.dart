@@ -87,6 +87,7 @@ void main() {
         showLineId: true,
         taxId: 'TAX-123',
         showTaxId: true,
+        welcomeScreenEnabled: true,
       );
 
       // Listen and expect new snapshot with timeout to avoid hang

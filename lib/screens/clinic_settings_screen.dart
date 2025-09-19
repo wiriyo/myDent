@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_provider.dart';
 import '../services/clinic_settings_service.dart';
 import '../styles/app_theme.dart';
 import '../services/logo_cache_service.dart';
 import '../config/clinic_defaults.dart';
+import '../config/feature_flags.dart';
 
 class ClinicSettingsScreen extends StatefulWidget {
   const ClinicSettingsScreen({super.key});
@@ -28,6 +30,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
   final _nameCtrl = TextEditingController();
   final _taxCtrl = TextEditingController();
   bool _showTax = false;
+  bool _welcomeScreenEnabled = FeatureFlags.showInAppSplash;
 
   String? _logoUrl;
   File? _logoFile;
@@ -59,6 +62,11 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       _showLine = (data['showLineId'] ?? true) as bool;
       _taxCtrl.text = (data['taxId'] ?? '') as String;
       _showTax = (data['showTaxId'] ?? false) as bool;
+      _welcomeScreenEnabled = (data['welcomeScreenEnabled'] ?? FeatureFlags.showInAppSplash) as bool;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('mydent.welcomeScreenEnabled', _welcomeScreenEnabled);
+      } catch (_) {}
     }
     setState(() => _loading = false);
   }
@@ -100,7 +108,12 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
         showLineId: _showLine,
         taxId: taxVal.isEmpty ? null : taxVal,
         showTaxId: _showTax,
+        welcomeScreenEnabled: _welcomeScreenEnabled,
       );
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('mydent.welcomeScreenEnabled', _welcomeScreenEnabled);
+      } catch (_) {}
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกข้อมูลคลินิกแล้ว')));
       Navigator.pop(context);
@@ -136,6 +149,23 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Welcome Screen',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Switch(
+                            value: _welcomeScreenEnabled,
+                            onChanged: (val) => setState(() => _welcomeScreenEnabled = val),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Center(
                       child: Stack(
                         clipBehavior: Clip.none,

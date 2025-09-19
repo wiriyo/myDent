@@ -66,6 +66,7 @@ class ClinicSettingsService {
     required bool showLineId,
     String? taxId,
     required bool showTaxId,
+    required bool welcomeScreenEnabled,
   }) async {
     final id = _effectiveClinicId(clinicId);
     if (id.isEmpty) return;
@@ -78,6 +79,7 @@ class ClinicSettingsService {
       'showLineId': showLineId,
       'taxId': taxId,
       'showTaxId': showTaxId,
+      'welcomeScreenEnabled': welcomeScreenEnabled,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await _doc(id).set(payload, SetOptions(merge: true));

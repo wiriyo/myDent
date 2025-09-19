@@ -7,6 +7,7 @@ import '../services/logo_cache_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/clinic_context.dart';
 import '../config/clinic_defaults.dart';
+import '../config/feature_flags.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -60,6 +61,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         } catch (_) {}
       }
       final data = await svc.getClinicInfo(clinicId: id);
+      final welcomeEnabled = (data?['welcomeScreenEnabled'] as bool?) ?? FeatureFlags.showInAppSplash;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('mydent.welcomeScreenEnabled', welcomeEnabled);
+      } catch (_) {}
       final url = (data?['logoUrl'] as String?)?.trim();
       if (url != null && url.isNotEmpty) {
         final resp = await http.get(Uri.parse(url));

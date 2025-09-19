@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Project Files
 import 'firebase_options.dart';
@@ -43,45 +44,61 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  bool? welcomeScreenEnabled;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    welcomeScreenEnabled = prefs.getBool('mydent.welcomeScreenEnabled');
+  } catch (_) {}
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => AppAuthProvider(),
-      child: const MyApp(),
+      child: MyApp(initialWelcomeScreenEnabled: welcomeScreenEnabled),
     ),
   );
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.initialWelcomeScreenEnabled});
+
+  final bool? initialWelcomeScreenEnabled;
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
-  bool _showSplash = FeatureFlags.showInAppSplash;
+  late bool _showSplash;
+  bool _splashFlowScheduled = false;
 
   @override
   void initState() {
     super.initState();
-    // แสดง Splash สั้นๆ ให้ดูน่ารักก่อนเข้าแอป
+    _showSplash = widget.initialWelcomeScreenEnabled ?? FeatureFlags.showInAppSplash;
     if (_showSplash) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 3000), () {
-          if (!mounted) return;
-          final authProvider = Provider.of<AppAuthProvider>(
-            context,
-            listen: false,
-          );
-          final next = _buildHomeScreen(authProvider);
-          setState(() => _showSplash = false);
-          // Use global navigatorKey since this context is above MaterialApp's Navigator
-          navigatorKey.currentState?.pushReplacement(
-            MaterialPageRoute(builder: (_) => next),
-          );
-        });
-      });
+      _scheduleSplashNavigation();
     }
+  }
+
+  void _scheduleSplashNavigation() {
+    if (_splashFlowScheduled) return;
+    _splashFlowScheduled = true;
+    // แสดง Splash สั้นๆ ให้ดูน่ารักก่อนเข้าแอป
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 3000), () {
+        if (!mounted) return;
+        final authProvider = Provider.of<AppAuthProvider>(
+          context,
+          listen: false,
+        );
+        final next = _buildHomeScreen(authProvider);
+        setState(() => _showSplash = false);
+        // Use global navigatorKey since this context is above MaterialApp's Navigator
+        navigatorKey.currentState?.pushReplacement(
+          MaterialPageRoute(builder: (_) => next),
+        );
+      });
+    });
   }
 
   // ฟังก์ชันผู้ช่วยสำหรับเลือกหน้าจอที่จะแสดง

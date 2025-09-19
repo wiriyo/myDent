@@ -276,8 +276,9 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                           child: StreamBuilder<List<Prefix>>(
                             stream: PrefixService.getAllPrefixes(),
                             builder: (context, snapshot) {
-                              if (!snapshot.hasData)
+                              if (!snapshot.hasData) {
                                 return const SizedBox.shrink();
+                              }
                               final prefixList = snapshot.data!;
                               return Autocomplete<String>(
                                 initialValue: TextEditingValue(

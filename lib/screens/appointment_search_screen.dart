@@ -546,7 +546,7 @@ class _AppointmentCard extends StatelessWidget {
             _buildInfoRow(
               imagePath: 'assets/icons/user.png',
               value:
-                  '${appointment.patientName}',
+                  appointment.patientName,
               iconColor: iconTintColor,
               textColor: textColor,
             ),

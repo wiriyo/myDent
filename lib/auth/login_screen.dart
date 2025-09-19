@@ -17,8 +17,6 @@ import 'signup_screen.dart';
 
 // --- ✨💖 ไลลาลบบรรทัด 'const bool kDebugMode = true;' ออกจากตรงนี้แล้วนะคะ 💖✨ ---
 
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
-    GlobalKey<ScaffoldMessengerState>();
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -55,11 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showSnackbar(String message) {
-    if (scaffoldMessengerKey.currentState != null) {
-      scaffoldMessengerKey.currentState!.showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppTheme.primary),
-      );
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppTheme.primary),
+    );
   }
 
   void _login() async {

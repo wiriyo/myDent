@@ -22,7 +22,6 @@ import '../../../config/clinic_context.dart';
 import '../../../config/clinic_defaults.dart';
 import 'dart:async';
 import '../../../services/logo_cache_service.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 
 class PrinterSettingsPage extends StatefulWidget {
@@ -58,15 +57,17 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   String? _remoteLogoUrl;
   StreamSubscription<Map<String, dynamic>?>? _clinicSub;
 
-  // --- Permission status (Android) ---
-  bool? _permBtScan;
-  bool? _permBtConnect;
+  // --- Permission & connection status (Android) ---
+  bool? _hasPrinterPermissions;
+  bool? _isPrinterConnected;
+  bool _busyPermissionAction = false;
 
   @override
   void initState() {
     super.initState();
     _prepare();
     _refreshPermStatus();
+    _refreshConnectionStatus();
   }
 
   Future<void> _prepare() async {
@@ -98,29 +99,58 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
 
   Future<void> _refreshPermStatus() async {
     try {
-      if (!mounted) return;
-      final scan = await Permission.bluetoothScan.status;
-      final connect = await Permission.bluetoothConnect.status;
+      final hasPerm = await ThermalPrinterService.instance.hasPrintingPermissions();
       if (!mounted) return;
       setState(() {
-        _permBtScan = scan.isGranted;
-        _permBtConnect = connect.isGranted;
+        _hasPrinterPermissions = hasPerm;
       });
     } catch (_) {}
   }
 
-  Future<void> _preflightPermissions() async {
+  Future<void> _refreshConnectionStatus() async {
     try {
-      // ขอสิทธิ์ตรง ๆ โดยไม่พยายามพิมพ์/เชื่อมต่อ
-      await ThermalPrinterService.instance.ensurePrintingPermissions(context);
-    } catch (_) {
-      // ignore
+      final connected = await ThermalPrinterService.instance.isConnected();
+      if (!mounted) return;
+      setState(() {
+        _isPrinterConnected = connected;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _handlePermissionButton() async {
+    if (_busyPermissionAction) return;
+    setState(() => _busyPermissionAction = true);
+
+    try {
+      final connected = _isPrinterConnected == true;
+      if (connected) {
+        await ThermalPrinterService.instance.disconnect();
+        if (!mounted) return;
+        setState(() {
+          _isPrinterConnected = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ตัดการเชื่อมต่อเครื่องพิมพ์แล้ว')),
+        );
+      } else {
+        final ok = await ThermalPrinterService.instance.connectWithPicker(context);
+        if (!mounted) return;
+        if (ok) {
+          setState(() {
+            _isPrinterConnected = true;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
+        );
+      }
     } finally {
       await _refreshPermStatus();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ตรวจสอบสิทธิ์เรียบร้อย')),
-      );
+      await _refreshConnectionStatus();
+      if (mounted) setState(() => _busyPermissionAction = false);
     }
   }
 
@@ -410,13 +440,29 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   Widget _buildPermFab() {
-    final granted = (_permBtScan == true && _permBtConnect == true);
-    final Color bg = granted ? Colors.green.shade200 : Colors.red.shade200;
+    final bool hasPermission = _hasPrinterPermissions == true;
+    final bool connected = _isPrinterConnected == true;
+
+    final Color bg;
+    if (!hasPermission) {
+      bg = Colors.red.shade200;
+    } else if (connected) {
+      bg = Colors.green.shade200;
+    } else {
+      bg = Colors.amber.shade200;
+    }
+
     return FloatingActionButton(
       heroTag: 'permFab',
       backgroundColor: bg,
-      onPressed: _preflightPermissions,
-      child: Image.asset('assets/icons/printer.png', width: 26, height: 26),
+      onPressed: _busyPermissionAction ? null : _handlePermissionButton,
+      child: _busyPermissionAction
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Image.asset('assets/icons/printer.png', width: 26, height: 26),
     );
   }
 

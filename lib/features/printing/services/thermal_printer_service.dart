@@ -85,6 +85,12 @@ class ThermalPrinterService implements PrinterClient {
     return res.values.every(_statusGranted);
   }
 
+  Future<bool> hasPrintingPermissions() async {
+    final current = await _currentPermissionStatuses();
+    if (current.isEmpty) return true;
+    return current.values.every(_statusGranted);
+  }
+
   Future<bool> ensurePrintingPermissions(BuildContext context) async {
     // เช็คสถานะปัจจุบันก่อน
     final current = await _currentPermissionStatuses();
@@ -151,6 +157,28 @@ class ThermalPrinterService implements PrinterClient {
   }
 
   Future<void> disconnect() async { try { await PrintBluetoothThermal.disconnect; } catch (_) {} }
+
+  Future<bool> connectWithPicker(BuildContext context, {bool rememberSelection = true}) async {
+    if (!Platform.isAndroid) { _toast(context, 'โหมดนี้รองรับ Android ก่อนนะคะ'); return false; }
+
+    final permissionsOk = await ensurePrintingPermissions(context);
+    if (!permissionsOk) {
+      if (mounted(context)) {
+        _toast(context, 'ต้องอนุญาตสิทธิ์การใช้งานก่อนเชื่อมต่อ');
+      }
+      return false;
+    }
+
+    final picked = await _showPickerDialog(context);
+    if (picked == null) return false;
+
+    final ok = await connectByMac(picked.mac);
+    if (ok && rememberSelection) await saveDefault(picked);
+
+    if (!mounted(context)) return ok;
+    _toast(context, ok ? 'เชื่อมต่อเครื่องพิมพ์เรียบร้อย' : 'เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ');
+    return ok;
+  }
 
   Future<void> saveDefault(PrinterDevice d) async {
     final sp = await SharedPreferences.getInstance();

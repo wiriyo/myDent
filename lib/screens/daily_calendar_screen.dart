@@ -49,6 +49,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+  final Map<String, Patient> _patientCache = {};
+  List<DayWorkingHours>? _workingHoursCache;
 
   late DateTime _currentDate;
   
@@ -121,6 +123,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   void _handleDataChange() {
     debugPrint("📱 [DailyCalendarScreen] Data change detected! Refetching data...");
+    _patientCache.clear();
+    _workingHoursCache = null;
     _fetchDataForSelectedDay(_currentDate);
   }
 
@@ -163,25 +167,50 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
     try {
       final appointments = await _appointmentService!.getAppointmentsByDate(selectedDay);
-      final patientIds = appointments.map((appt) => appt.patientId).toSet();
-      
-      List<Patient> patients = [];
+      appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      final patientIds = appointments
+          .map((appt) => appt.patientId)
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
       if (patientIds.isNotEmpty) {
-        for (String id in patientIds) {
-          final patient = await _patientService.getPatientById(id);
-          if (patient != null) {
-            patients.add(patient);
+        final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
+        if (missingIds.isNotEmpty) {
+          final fetchedPatients = await Future.wait(
+            missingIds.map((id) => _patientService.getPatientById(id)),
+          );
+          for (final patient in fetchedPatients.whereType<Patient>()) {
+            _patientCache[patient.patientId] = patient;
           }
         }
       }
-      
+
+      final patients = patientIds
+          .map((id) => _patientCache[id])
+          .whereType<Patient>()
+          .toList();
+
+      List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
+      if (allWorkingHours == null) {
+        try {
+          allWorkingHours = await _workingHoursService.loadWorkingHours();
+          _workingHoursCache = allWorkingHours;
+        } catch (e) {
+          allWorkingHours = null;
+          debugPrint("Could not find working hours for this day.");
+        }
+      }
+
       DayWorkingHours? dayWorkingHours;
-      try {
-        final allWorkingHours = await _workingHoursService.loadWorkingHours();
-        dayWorkingHours = allWorkingHours.firstWhere((day) => day.dayName == _getThaiDayName(selectedDay.weekday));
-      } catch (e) { 
-        dayWorkingHours = null; 
-        debugPrint("Could not find working hours for this day.");
+      if (allWorkingHours != null) {
+        try {
+          dayWorkingHours = allWorkingHours.firstWhere(
+            (day) => day.dayName == _getThaiDayName(selectedDay.weekday),
+          );
+        } catch (e) {
+          dayWorkingHours = null;
+        }
       }
 
       if (!mounted) return;

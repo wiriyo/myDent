@@ -119,20 +119,25 @@ class AppointmentService {
   Future<List<AppointmentModel>> getAppointmentsByDate(DateTime selectedDate) async {
     final startOfDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
+    return getAppointmentsInRange(startOfDay, endOfDay);
+  }
 
+  Future<List<AppointmentModel>> getAppointmentsInRange(
+    DateTime start,
+    DateTime end,
+  ) async {
     try {
       Query query = _primaryAppointments
-          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('startTime', isLessThan: Timestamp.fromDate(end));
 
       final id = _effectiveClinicId;
-      // If primary is root, keep clinic filter
       if (!(FeatureFlags.useNestedCollections && id != null && id.isNotEmpty)) {
         if (id != null && id.isNotEmpty) {
           query = _rootAppointments
               .where('clinicId', isEqualTo: id)
-              .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-              .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+              .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+              .where('startTime', isLessThan: Timestamp.fromDate(end));
         }
       }
 
@@ -141,8 +146,8 @@ class AppointmentService {
       if (FeatureFlags.dualReadFallbackEnabled && snapshot.docs.isEmpty) {
         final fbQuery = _rootAppointments
             .where('clinicId', isEqualTo: id)
-            .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-            .where('startTime', isLessThan: Timestamp.fromDate(endOfDay));
+            .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('startTime', isLessThan: Timestamp.fromDate(end));
         snapshot = await fbQuery.get();
       }
 
@@ -150,7 +155,7 @@ class AppointmentService {
           .map((doc) => AppointmentModel.fromFirestore(doc))
           .toList();
     } catch (e) {
-      debugPrint("Error fetching appointments by date: $e");
+      debugPrint("Error fetching appointments in range: $e");
       return [];
     }
   }

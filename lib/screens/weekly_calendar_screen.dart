@@ -69,6 +69,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+  final Map<String, Patient> _patientCache = {};
+  List<DayWorkingHours>? _workingHoursCache;
   late DateTime _focusedDay;
   DateTime? _selectedDay;
   bool _isLoading = true;
@@ -197,6 +199,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     debugPrint(
       "📱 [WeeklyViewScreen] Data change detected! Refetching data...",
     );
+    _patientCache.clear();
+    _workingHoursCache = null;
     _fetchDataForWeek(_focusedDay);
   }
 
@@ -291,48 +295,72 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       _isLoading = true;
     });
 
-    DateTime firstDayOfWeek = focusedDay.subtract(
+    final firstDayOfWeek = focusedDay.subtract(
       Duration(days: focusedDay.weekday - 1),
     );
-    Map<
-      DateTime,
-      ({
-        List<AppointmentModel> appointments,
-        List<Patient> patients,
-        DayWorkingHours? workingHours,
-      })
-    >
-    weeklyData = {};
+    final endOfWeek = firstDayOfWeek.add(const Duration(days: 7));
 
-    final allWorkingHours = await _workingHoursService.loadWorkingHours();
+    try {
+      final appointments =
+          await _appointmentService!.getAppointmentsInRange(firstDayOfWeek, endOfWeek);
 
-    final List<Future> fetchTasks = [];
+      final Map<DateTime, List<AppointmentModel>> groupedAppointments = {};
+      final Set<String> patientIds = {};
 
-    for (int i = 0; i < 7; i++) {
-      DateTime currentDay = firstDayOfWeek.add(Duration(days: i));
-      DateTime dayKey = DateTime(
-        currentDay.year,
-        currentDay.month,
-        currentDay.day,
-      );
+      for (final appointment in appointments) {
+        final dayKey = DateTime(
+          appointment.startTime.year,
+          appointment.startTime.month,
+          appointment.startTime.day,
+        );
+        (groupedAppointments[dayKey] ??= []).add(appointment);
+        if (appointment.patientId.isNotEmpty) {
+          patientIds.add(appointment.patientId);
+        }
+      }
 
-      fetchTasks.add(
-        _appointmentService!.getAppointmentsByDate(currentDay).then((
-          dailyAppointments,
-        ) async {
-          final patientIds = dailyAppointments.map((a) => a.patientId).toSet();
+      final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final fetchedPatients = await Future.wait(
+          missingIds.map((id) => _patientService.getPatientById(id)),
+        );
+        for (final patient in fetchedPatients.whereType<Patient>()) {
+          _patientCache[patient.patientId] = patient;
+        }
+      }
 
-          final List<Patient> dailyPatients = [];
-          if (patientIds.isNotEmpty) {
-            for (final id in patientIds) {
-              final patient = await _patientService.getPatientById(id);
-              if (patient != null) {
-                dailyPatients.add(patient);
-              }
-            }
-          }
+      List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
+      if (allWorkingHours == null) {
+        try {
+          allWorkingHours = await _workingHoursService.loadWorkingHours();
+          _workingHoursCache = allWorkingHours;
+        } catch (e) {
+          allWorkingHours = null;
+        }
+      }
 
-          DayWorkingHours? dayWorkingHours;
+      final Map<
+        DateTime,
+        ({
+          List<AppointmentModel> appointments,
+          List<Patient> patients,
+          DayWorkingHours? workingHours,
+        })
+      > weeklyData = {};
+
+      for (int i = 0; i < 7; i++) {
+        final currentDay = firstDayOfWeek.add(Duration(days: i));
+        final dayKey = DateTime(currentDay.year, currentDay.month, currentDay.day);
+        final dailyAppointments =
+            List<AppointmentModel>.from(groupedAppointments[dayKey] ?? [])
+              ..sort((a, b) => a.startTime.compareTo(b.startTime));
+        final patients = dailyAppointments
+            .map((appt) => _patientCache[appt.patientId])
+            .whereType<Patient>()
+            .toList();
+
+        DayWorkingHours? dayWorkingHours;
+        if (allWorkingHours != null) {
           try {
             dayWorkingHours = allWorkingHours.firstWhere(
               (day) => day.dayName == _getThaiDayName(currentDay.weekday),
@@ -340,25 +368,30 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           } catch (e) {
             dayWorkingHours = null;
           }
+        }
 
-          weeklyData[dayKey] = (
-            appointments: dailyAppointments,
-            patients: dailyPatients,
-            workingHours: dayWorkingHours,
-          );
-        }),
-      );
+        weeklyData[dayKey] = (
+          appointments: dailyAppointments,
+          patients: patients,
+          workingHours: dayWorkingHours,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _weeklyData = weeklyData;
+        _isLoading = false;
+      });
+
+      _calculateAndSetWeekHourRange();
+    } catch (e) {
+      debugPrint('Error loading weekly appointments: $e');
+      if (!mounted) return;
+      setState(() {
+        _weeklyData = {};
+        _isLoading = false;
+      });
     }
-
-    await Future.wait(fetchTasks);
-
-    if (!mounted) return;
-    setState(() {
-      _weeklyData = weeklyData;
-      _isLoading = false;
-    });
-
-    _calculateAndSetWeekHourRange();
   }
 
   String _getThaiDayName(int weekday) {

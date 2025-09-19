@@ -48,6 +48,9 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
+  final Map<String, Patient> _patientCache = {};
+  List<DayWorkingHours>? _workingHoursCache;
+
   Map<DateTime, List<AppointmentModel>> _events = {};
   List<AppointmentModel> _selectedAppointments = [];
   List<Patient> _patientsForAppointments = [];
@@ -111,6 +114,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   }
 
   Future<void> _handleDataChange() {
+    _patientCache.clear();
+    _workingHoursCache = null;
     return _loadDataForMonth(_focusedDay);
   }
 
@@ -129,55 +134,90 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       return;
     }
 
-    final firstDayOfMonth = DateTime(month.year, month.month, 1);
-    final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
-    final List<Future> fetchTasks = [];
-    final Map<DateTime, List<AppointmentModel>> events = {};
+    final startOfMonth = DateTime(month.year, month.month, 1);
+    final endOfMonth = DateTime(month.year, month.month + 1, 1);
 
-    for (int i = 0; i < lastDayOfMonth.day; i++) {
-      final day = firstDayOfMonth.add(Duration(days: i));
-      fetchTasks.add(
-        _appointmentService!.getAppointmentsByDate(day).then((dailyAppointments) {
-          if (dailyAppointments.isNotEmpty) {
-            final dayKey = DateTime.utc(day.year, day.month, day.day);
-            events[dayKey] = dailyAppointments;
-          }
-        }),
-      );
+    try {
+      final appointments =
+          await _appointmentService!.getAppointmentsInRange(startOfMonth, endOfMonth);
+
+      final Map<DateTime, List<AppointmentModel>> events = {};
+      for (final appointment in appointments) {
+        final dayKey = DateTime.utc(
+          appointment.startTime.year,
+          appointment.startTime.month,
+          appointment.startTime.day,
+        );
+        (events[dayKey] ??= []).add(appointment);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _events = events;
+      });
+
+      await _populateTimelineForDay(_selectedDay);
+    } catch (e) {
+      debugPrint('Error loading monthly appointments: $e');
+      if (!mounted) return;
+      setState(() {
+        _events = {};
+        _selectedAppointments = [];
+        _patientsForAppointments = [];
+        _selectedDayWorkingHours = null;
+        _isLoading = false;
+      });
     }
-
-    await Future.wait(fetchTasks);
-    if (!mounted) return;
-    
-    setState(() { _events = events; });
-    
-    await _populateTimelineForDay(_selectedDay);
   }
 
   Future<void> _populateTimelineForDay(DateTime day) async {
     final dayKey = DateTime.utc(day.year, day.month, day.day);
-    final appointments = _events[dayKey] ?? [];
-    
+    final appointments = List<AppointmentModel>.from(_events[dayKey] ?? []);
+
     appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-    final patientIds = appointments.map((appt) => appt.patientId).toSet();
-    final List<Patient> patients = [];
+    final patientIds = appointments
+        .map((appt) => appt.patientId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
 
     if (patientIds.isNotEmpty) {
-      for (String id in patientIds) {
-        final patient = await _patientService.getPatientById(id);
-        if (patient != null) {
-          patients.add(patient);
+      final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final fetchedPatients = await Future.wait(
+          missingIds.map((id) => _patientService.getPatientById(id)),
+        );
+        for (final patient in fetchedPatients.whereType<Patient>()) {
+          _patientCache[patient.patientId] = patient;
         }
       }
     }
 
+    final patients = patientIds
+        .map((id) => _patientCache[id])
+        .whereType<Patient>()
+        .toList();
+
+    List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
+    if (allWorkingHours == null) {
+      try {
+        allWorkingHours = await _workingHoursService.loadWorkingHours();
+        _workingHoursCache = allWorkingHours;
+      } catch (e) {
+        allWorkingHours = null;
+      }
+    }
+
     DayWorkingHours? dayWorkingHours;
-    try {
-      final allWorkingHours = await _workingHoursService.loadWorkingHours();
-      dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
-    } catch (e) {
-      dayWorkingHours = null;
+    if (allWorkingHours != null) {
+      try {
+        dayWorkingHours = allWorkingHours.firstWhere(
+          (d) => d.dayName == _getThaiDayName(day.weekday),
+        );
+      } catch (e) {
+        dayWorkingHours = null;
+      }
     }
 
     if (!mounted) return;

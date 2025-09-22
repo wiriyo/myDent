@@ -232,8 +232,20 @@ class _TreatmentFormState extends State<TreatmentForm> {
     if (!mounted) return;
 
     if (success) {
+      final nav = Navigator.of(context);
+
       if (_isEditing) {
-        Navigator.of(context).pop(true);
+        debugPrint("💖 Laila Debug: Editing treatment. Showing receipt preview.");
+        final receipt = await _buildReceiptFromForm();
+        await nav.push(
+          MaterialPageRoute(
+            builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
+          ),
+        );
+
+        if (mounted) {
+          nav.pop(true);
+        }
         return;
       }
 
@@ -252,7 +264,6 @@ class _TreatmentFormState extends State<TreatmentForm> {
       debugPrint("💖 Laila Debug: User wants to schedule: $shouldSchedule");
 
       if (!mounted) return;
-      final nav = Navigator.of(context);
 
       if (shouldSchedule == true) {
         final patientForScheduling = await _getPatientForScheduling();

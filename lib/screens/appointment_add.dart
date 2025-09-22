@@ -355,6 +355,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final sanitizedPatientName = rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     Patient? patient = _selectedPatient;
+    bool createdNewPatient = false;
+    String? createdPatientHn;
     if (patient == null) {
       patient = _findPatientByDisplayName(rawPatientName);
       if (patient != null) {
@@ -381,6 +383,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         );
         final createdPatient = await patientService.addPatient(newPatient);
         patient = createdPatient;
+        createdNewPatient = true;
+        createdPatientHn = createdPatient.hnNumber;
         if (mounted) {
           setState(() {
             _selectedPatient = createdPatient;
@@ -449,8 +453,21 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           'appointment': appointment,
           'patient': _selectedPatient!,
         });
+        final buffer = StringBuffer('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨');
+        if (createdNewPatient) {
+          final hnInfo = (createdPatientHn != null && createdPatientHn!.isNotEmpty)
+              ? ' (HN: ${createdPatientHn!})'
+              : '';
+          buffer.writeln();
+          buffer.write('สร้างคนไข้ใหม่: ${appointment.patientName}$hnInfo');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨', style: TextStyle(fontFamily: AppTheme.fontFamily))),
+          SnackBar(
+            content: Text(
+              buffer.toString(),
+              style: const TextStyle(fontFamily: AppTheme.fontFamily),
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -462,13 +479,16 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
   }
 
-  InputDecoration _buildInputDecoration(String label, {Widget? prefixIcon}) {
+  InputDecoration _buildInputDecoration(String label,
+      {Widget? prefixIcon, String? helperText}) {
     return InputDecoration(
       prefixIcon: prefixIcon != null ? Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12.0),
         child: prefixIcon,
       ) : null,
       labelText: label,
+      helperText: helperText,
+      helperStyle: const TextStyle(fontFamily: AppTheme.fontFamily, color: AppTheme.textSecondary),
       filled: true,
       fillColor: Colors.white.withOpacity(0.7),
       contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
@@ -588,10 +608,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
               decoration: _buildInputDecoration(
                 'ค้นหาคนไข้ (ชื่อ หรือ HN)',
                 prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
+                helperText: 'ถ้าไม่พบในรายชื่อ สามารถพิมพ์ชื่อใหม่ได้เลยค่ะ',
               ),
               validator: (value) {
-                if ((value?.isEmpty ?? true) || _selectedPatient == null) {
-                  return 'กรุณาเลือกคนไข้จากรายการ';
+                if (value == null || value.trim().isEmpty) {
+                  return 'กรุณากรอกชื่อคนไข้';
                 }
                 return null;
               },

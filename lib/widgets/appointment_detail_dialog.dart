@@ -150,7 +150,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       context: context,
       builder: (_) => AppointmentAddDialog(appointment: widget.appointment),
     ).then((value) {
-      if (value == true) {
+      if (value == true || value is Map) {
         widget.onDataChanged();
       }
     });

@@ -455,8 +455,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         });
         final buffer = StringBuffer('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨');
         if (createdNewPatient) {
-          final hnInfo = (createdPatientHn != null && createdPatientHn!.isNotEmpty)
-              ? ' (HN: ${createdPatientHn!})'
+          final hn = createdPatientHn;
+          final hnInfo = (hn != null && hn.isNotEmpty)
+              ? ' (HN: $hn)'
               : '';
           buffer.writeln();
           buffer.write('สร้างคนไข้ใหม่: ${appointment.patientName}$hnInfo');

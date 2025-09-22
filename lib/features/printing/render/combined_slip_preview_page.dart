@@ -258,6 +258,17 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       }
       
       if (_lastPng != null) {
+        final fileName = 'MyDent-CombinedSlip-${DateTime.now().millisecondsSinceEpoch}.png';
+        final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
+        if (!saved) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบเสร็จ+ใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+            );
+          }
+          return;
+        }
+
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
         await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) Navigator.of(context).pop();

@@ -421,6 +421,17 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       }
       
       if (_lastPng != null) {
+        final fileName = 'MyDent-PrinterSample-${DateTime.now().millisecondsSinceEpoch}.png';
+        final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
+        if (!saved) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('ไม่สามารถบันทึกรูปภาพตัวอย่างได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+            );
+          }
+          return;
+        }
+
         await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ส่งคำสั่งพิมพ์ตัวอย่างแล้ว')));

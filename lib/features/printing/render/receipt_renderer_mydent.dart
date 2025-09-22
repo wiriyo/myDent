@@ -200,6 +200,17 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       }
       
       if (_lastPng != null) {
+        final fileName = 'MyDent-Receipt-${DateTime.now().millisecondsSinceEpoch}.png';
+        final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
+        if (!saved) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบเสร็จได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+            );
+          }
+          return;
+        }
+
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
         await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
         if (mounted) {

@@ -12,8 +12,8 @@ class ImageSaverService {
   static Future<bool> saveImage(Uint8List imageBytes, String fileName) async {
     // 1. ขออนุญาตเข้าถึง Photos/Storage ก่อน
     // library 'gal' ต้องการให้เราจัดการ permission เองค่ะ
-    final status = await Permission.photos.request();
-    if (!status.isGranted && !status.isLimited) {
+    final hasPermission = await _ensurePermission();
+    if (!hasPermission) {
       debugPrint('Photos permission not granted');
       return false;
     }
@@ -27,5 +27,34 @@ class ImageSaverService {
       debugPrint('Error saving image with gal: $e');
       return false;
     }
+  }
+
+  /// ตรวจสอบและขอสิทธิ์ในการบันทึกรูปภาพตามแพลตฟอร์ม
+  static Future<bool> ensurePermission() => _ensurePermission();
+
+  static Future<bool> _ensurePermission() async {
+    // ถ้าเป็นเว็บก็ยังไม่รองรับการบันทึกภาพนะคะ
+    if (kIsWeb) return false;
+
+    PermissionStatus status = await Permission.photos.status;
+    if (!status.isGranted && !status.isLimited) {
+      status = await Permission.photos.request();
+    }
+    if (status.isGranted || status.isLimited) {
+      return true;
+    }
+
+    // สำหรับ Android บางเวอร์ชันอาจยังต้องใช้ storage permission
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      PermissionStatus storageStatus = await Permission.storage.status;
+      if (!storageStatus.isGranted) {
+        storageStatus = await Permission.storage.request();
+      }
+      if (storageStatus.isGranted) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

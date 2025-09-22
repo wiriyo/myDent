@@ -422,25 +422,10 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            'เบอร์โทรศัพท์',
-                            _phoneController,
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTextField(
-                            'HN',
-                            _hnController,
-                            readOnly: true,
-                            hintText: _isEditing ? null : 'สร้างอัตโนมัติ',
-                          ),
-                        ),
-                      ],
+                    _buildTextField(
+                      'เบอร์โทรศัพท์',
+                      _phoneController,
+                      keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 12),
                     _buildTextField(

@@ -16,6 +16,7 @@ import '../services/medical_image_service.dart';
 import '../config/feature_flags.dart';
 import '../config/clinic_context.dart';
 import '../providers/treatment_provider.dart';
+import '../utils/thai_number_formatter.dart';
 
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../widgets/treatment_form.dart';
@@ -262,7 +263,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     final String hnNumber = patient!.hnNumber ?? 'N/A';
     final String gender = patient!.gender;
     final int age = _calculateAge(patient!.birthDate);
-    final String phone = patient!.telephone ?? '-';
+    final String rawPhone = patient!.telephone ?? '';
+    final String formattedPhone =
+        ThaiNumberFormatter.formatPhoneNumber(rawPhone);
+    final String phoneDisplay = formattedPhone.isEmpty ? '-' : formattedPhone;
     final double rating = patient!.rating;
 
     final Color cardColor;
@@ -360,8 +364,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       iconPath: AppTheme.iconPathPhone,
                       child: Row(
                         children: [
-                          Expanded(child: Text('เบอร์โทร: $phone', style: const TextStyle(fontSize: 16))),
-                          if (phone != '-')
+                          Expanded(
+                            child: Text(
+                              'เบอร์โทร: $phoneDisplay',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                          if (rawPhone.isNotEmpty)
                             SizedBox(
                               height: 40,
                               width: 40,
@@ -374,7 +383,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                   tooltip: 'โทรหา $name',
                                   icon: Image.asset('assets/icons/phone.png', width: 22, height: 22),
                                   onPressed: () async {
-                                    final uri = Uri.parse('tel:$phone');
+                                    final uri = Uri.parse('tel:$rawPhone');
                                     if (await canLaunchUrl(uri)) {
                                       await launchUrl(uri);
                                     }

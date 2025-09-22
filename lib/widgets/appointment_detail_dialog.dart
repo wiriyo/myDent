@@ -18,6 +18,7 @@ import '../features/printing/render/appointment_slip_preview_page.dart';
 import '../features/printing/render/receipt_mapper.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
+import '../utils/thai_number_formatter.dart';
 
 class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
@@ -370,7 +371,11 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     final int age = _calculateAge(widget.patient.birthDate);
     final String patientName = widget.patient.name;
     final double rating = widget.patient.rating;
-    final String telephone = widget.patient.telephone ?? '-';
+    final String rawTelephone = widget.patient.telephone ?? '';
+    final String formattedTelephone =
+        ThaiNumberFormatter.formatPhoneNumber(rawTelephone);
+    final String displayTelephone =
+        formattedTelephone.isEmpty ? '-' : formattedTelephone;
     final String gender = widget.patient.gender;
     final String medicalHistory = widget.patient.medicalHistory ?? 'ไม่มี';
     final String allergy = widget.patient.allergy ?? 'ไม่มี';
@@ -454,14 +459,14 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                   Row(
                     children: [
                       Text(
-                        'โทร: $telephone',
+                        'โทร: $displayTelephone',
                         style: const TextStyle(
                           fontSize: 16,
                           fontFamily: AppTheme.fontFamily,
                         ),
                       ),
                       const Spacer(),
-                      if (telephone.isNotEmpty && telephone != '-')
+                      if (rawTelephone.isNotEmpty)
                         SizedBox(
                           height: 38,
                           width: 38,

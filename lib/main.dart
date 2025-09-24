@@ -1,6 +1,6 @@
 // 📁 lib/main.dart
-// v4.0.0 - Laila's StreamBuilder Solution
-// เปลี่ยนมาใช้ StreamBuilder เพื่อรับ "โทรศัพท์สายตรง" จาก Provider ค่ะ! 💖
+// v4.1.0 - Laila's Release Optimisation
+// ลดภาระงานในเฟรมเวิร์กด้วย AnimatedBuilder ให้ลื่นไหลสุด ๆ ค่ะ! 💖
 
 // Dart & Flutter Packages
 import 'package:flutter/material.dart';
@@ -34,7 +34,7 @@ import 'home/home_dentist.dart';
 import 'home/home_officer.dart';
 import 'home/home_guest.dart';
 import 'home/home_super_admin.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
@@ -103,9 +103,11 @@ class _MyAppState extends State<MyApp> {
 
   // ฟังก์ชันผู้ช่วยสำหรับเลือกหน้าจอที่จะแสดง
   Widget _buildHomeScreen(AppAuthProvider authProvider) {
-    print(
-      '🕵️‍♀️ Laila Debug: _buildHomeScreen is deciding! Status is: ${authProvider.status}',
-    );
+    if (kDebugMode) {
+      debugPrint(
+        '🕵️‍♀️ Laila Debug: _buildHomeScreen is deciding! Status is: ${authProvider.status}',
+      );
+    }
     switch (authProvider.status) {
       case AuthStatus.loggedOut:
         return const LoginScreen();
@@ -113,9 +115,11 @@ class _MyAppState extends State<MyApp> {
         return const StaffLoginScreen();
       case AuthStatus.loggedIn:
         final staffRole = authProvider.currentStaff?.role;
-        print(
-          '🕵️‍♀️ Laila Debug: Staff role is: $staffRole. Navigating to home screen...',
-        );
+        if (kDebugMode) {
+          debugPrint(
+            '🕵️‍♀️ Laila Debug: Staff role is: $staffRole. Navigating to home screen...',
+          );
+        }
         switch (staffRole) {
           case 'super_admin':
             return const HomeSuperAdminScreen();
@@ -138,18 +142,14 @@ class _MyAppState extends State<MyApp> {
     // 1. ✨ เราจะดึง Provider มาแค่ครั้งเดียว โดยไม่ต้อง "ฟัง" แล้ว
     final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
 
-    // 2. ✨ เราจะใช้ StreamBuilder เป็นตัว "ฟัง" สัญญาณโทรศัพท์สายตรงแทน
-    return StreamBuilder<AuthStatus>(
-      stream: authProvider.statusStream,
-      initialData: authProvider.status, // กำหนดสถานะเริ่มต้น
-      builder: (context, snapshot) {
-        // เรายังสามารถใช้ authProvider ตัวเดิมได้เลย
+    // 2. ✨ ใช้ AnimatedBuilder เพื่อฟังสัญญาณจาก Provider แบบเบาแรง
+    return AnimatedBuilder(
+      animation: authProvider,
+      builder: (context, _) {
         final homeScreen = _buildHomeScreen(authProvider);
 
-        // 3. ✨ เราจะสร้าง MaterialApp ขึ้นมาใหม่ทุกครั้งที่มีสัญญาณโทรศัพท์เข้ามา
         return MaterialApp(
-          // Key จะช่วยให้ Flutter รู้ว่านี่คือ MaterialApp "คนใหม่"
-          key: ValueKey(snapshot.data),
+          key: ValueKey(authProvider.status),
 
           title: 'MyDent',
           debugShowCheckedModeBanner: false,

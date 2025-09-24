@@ -1,6 +1,8 @@
 // 💖 สวัสดีค่ะพี่ทะเล! ไลลาอัปเกรดหน้าแสดงรายชื่อคนไข้ให้แล้วนะคะ
 // ตอนนี้การ์ดคนไข้ของเราสามารถแสดงผลคะแนนแบบ double และมีฟันสีชมพูได้แล้วค่ะ! 😊
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/patient.dart';
@@ -24,20 +26,28 @@ class _PatientsScreenState extends State<PatientsScreen> {
   List<Patient> _allPatients = [];
   List<Patient> _searchResults = [];
   bool _isLoading = true;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _fetchAllPatients();
-    _searchController.addListener(() {
-      _filterPatients(_searchController.text);
-    });
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      _filterPatients(_searchController.text);
+    });
   }
 
   Future<void> _fetchAllPatients() async {

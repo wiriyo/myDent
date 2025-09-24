@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/treatment_provider.dart';
 import '../models/treatment_master.dart';
@@ -18,6 +17,7 @@ import '../styles/app_theme.dart';
 import '../features/printing/render/receipt_mapper.dart' show ReceiptLineInput, buildReceiptModel;
 import '../features/printing/render/preview_pages.dart' as pv;
 import '../features/printing/domain/receipt_model.dart' as receipt;
+import '../features/printing/services/receipt_number_service.dart';
 
 class TreatmentForm extends StatefulWidget {
   final String patientId;
@@ -92,22 +92,15 @@ class _TreatmentFormState extends State<TreatmentForm> {
   }
 
   Future<String> _nextBillNo() async {
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
-    final beYY = (now.year + 543) % 100;
-    const lastYyKey = 'bill_last_be_yy';
-    const seqKey = 'bill_seq';
-    final lastYy = prefs.getInt(lastYyKey);
-    int seq = prefs.getInt(seqKey) ?? 0;
-    if (lastYy == null || lastYy != beYY) {
-      seq = 0;
+    try {
+      return await ReceiptNumberService.next();
+    } catch (e) {
+      debugPrint('❌ _nextBillNo error: $e');
+      final now = DateTime.now();
+      final beYY = (now.year + 543) % 100;
+      final yy = beYY.toString().padLeft(2, '0');
+      return '$yy-000';
     }
-    seq += 1;
-    await prefs.setInt(seqKey, seq);
-    await prefs.setInt(lastYyKey, beYY);
-    final yy = beYY.toString().padLeft(2, '0');
-    final nn = seq.toString().padLeft(3, '0');
-    return '$yy-$nn';
   }
 
   Future<String> _resolvePatientName() async {

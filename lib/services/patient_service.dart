@@ -9,6 +9,7 @@ import '../models/patient.dart';
 import 'medical_image_service.dart';
 import '../config/feature_flags.dart';
 import '../config/clinic_context.dart';
+import 'clinic_sequence_service.dart';
 
 class PatientService {
   static const String _collectionName = 'patients';
@@ -234,30 +235,61 @@ class PatientService {
     final yearPrefix = (buddhistYear % 100).toString().padLeft(2, '0');
     final hnPrefix = 'HN-$yearPrefix-';
 
-    // Use ascending order + startAt/endAt and limitToLast(1)
-    // This typically uses composite index: clinicId Asc, hn_number Asc
-    final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
-    Query query = _primaryPatients.orderBy('hn_number')
-        .startAt([hnPrefix])
-        .endAt(['HN-$yearPrefix-\uf8ff']);
-    if (!(FeatureFlags.useNestedCollections && effectiveClinicId != null && effectiveClinicId.isNotEmpty)) {
-      if (effectiveClinicId != null && effectiveClinicId.isNotEmpty) {
-        query = _rootPatients
-            .where('clinicId', isEqualTo: effectiveClinicId)
-            .orderBy('hn_number')
-            .startAt([hnPrefix])
-            .endAt(['HN-$yearPrefix-\uf8ff']);
-      }
-    }
-    final querySnapshot = await query.limitToLast(1).get();
+    ClinicSequenceSeed? fallbackSeed;
+    int lastCounter = 0;
 
-    int nextNumber = 1;
-    if (querySnapshot.docs.isNotEmpty) {
-      final lastHn = querySnapshot.docs.first.get('hn_number') as String;
-      final lastNumberStr = lastHn.split('-').last;
-      final lastNumber = int.tryParse(lastNumberStr) ?? 0;
-      nextNumber = lastNumber + 1;
+    try {
+      final effectiveClinicId = clinicId ?? ClinicContext.activeClinicId;
+      Query query = _primaryPatients
+          .orderBy('hn_number')
+          .startAt([hnPrefix])
+          .endAt(['$hnPrefix\uf8ff']);
+      if (!(FeatureFlags.useNestedCollections &&
+          effectiveClinicId != null &&
+          effectiveClinicId.isNotEmpty)) {
+        if (effectiveClinicId != null && effectiveClinicId.isNotEmpty) {
+          query = _rootPatients
+              .where('clinicId', isEqualTo: effectiveClinicId)
+              .orderBy('hn_number')
+              .startAt([hnPrefix])
+              .endAt(['$hnPrefix\uf8ff']);
+        }
+      }
+      final querySnapshot = await query.limitToLast(1).get();
+      if (querySnapshot.docs.isNotEmpty) {
+        final lastHn = querySnapshot.docs.first.get('hn_number') as String?;
+        if (lastHn != null && lastHn.isNotEmpty) {
+          final parts = lastHn.split('-');
+          if (parts.length >= 3) {
+            final yearPart = parts[1];
+            final numberPart = parts.last;
+            final parsedNumber = int.tryParse(numberPart) ?? 0;
+            if (yearPart == yearPrefix) {
+              lastCounter = parsedNumber;
+              fallbackSeed = ClinicSequenceSeed(
+                year: buddhistYear,
+                counter: parsedNumber,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ _generateNewHN lookup error: $e');
     }
+
+    try {
+      final sequenceService = ClinicSequenceService(clinicId: clinicId);
+      final seedResolver = fallbackSeed != null
+          ? () async => fallbackSeed
+          : null;
+      final result = await sequenceService.nextHn(seedResolver: seedResolver);
+      return result.value;
+    } catch (e) {
+      debugPrint('❌ _generateNewHN sequence error: $e');
+    }
+
+    final nextNumber = lastCounter + 1;
     return '$hnPrefix${nextNumber.toString().padLeft(4, '0')}';
   }
 

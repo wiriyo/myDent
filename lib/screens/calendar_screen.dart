@@ -119,6 +119,18 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     return _loadDataForMonth(_focusedDay);
   }
 
+  Future<void> _ensurePatientsLoaded(Iterable<String> patientIds) async {
+    final missingIds = patientIds
+        .where((id) => id.isNotEmpty && !_patientCache.containsKey(id))
+        .toList(growable: false);
+    if (missingIds.isEmpty) return;
+
+    final fetchedPatients = await _patientService.fetchPatientsByIds(missingIds);
+    for (final patient in fetchedPatients) {
+      _patientCache[patient.patientId] = patient;
+    }
+  }
+
   Future<void> _loadDataForMonth(DateTime month) async {
     if (!mounted) return;
     setState(() { _isLoading = true; });
@@ -151,18 +163,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       }
 
       final patientIds = appointments.map((appt) => appt.patientId).toSet();
-
-      if (patientIds.isNotEmpty) {
-        final missingIds =
-            patientIds.where((id) => !_patientCache.containsKey(id)).toList();
-        if (missingIds.isNotEmpty) {
-          final fetchedPatients =
-              await _patientService.fetchPatientsByIds(missingIds);
-          for (final patient in fetchedPatients) {
-            _patientCache[patient.patientId] = patient;
-          }
-        }
-      }
+      await _ensurePatientsLoaded(patientIds);
 
       final orphanedPatientIds = patientIds
           .where((id) => !_patientCache.containsKey(id))
@@ -181,12 +182,12 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
       final Map<DateTime, List<AppointmentModel>> events = {};
       for (final appointment in appointments) {
-        final dayKey = DateTime.utc(
-          appointment.startTime.year,
-          appointment.startTime.month,
-          appointment.startTime.day,
-        );
+        final dayKey = DateUtils.dateOnly(appointment.startTime);
         (events[dayKey] ??= []).add(appointment);
+      }
+
+      for (final entry in events.entries) {
+        entry.value.sort((a, b) => a.startTime.compareTo(b.startTime));
       }
 
       if (!mounted) return;
@@ -210,25 +211,34 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   }
 
   Future<void> _populateTimelineForDay(DateTime day) async {
-    final dayKey = DateTime.utc(day.year, day.month, day.day);
-    final appointments = List<AppointmentModel>.from(_events[dayKey] ?? []);
-
-    appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
+    final dayKey = DateUtils.dateOnly(day);
+    final appointments = List<AppointmentModel>.from(_events[dayKey] ?? const []);
 
     final patientIds = appointments
         .map((appt) => appt.patientId)
         .where((id) => id.isNotEmpty)
         .toSet();
 
+    List<DayWorkingHours>? workingHours = _workingHoursCache;
+    final tasks = <Future<void>>[];
+
     if (patientIds.isNotEmpty) {
-      final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
-      if (missingIds.isNotEmpty) {
-        final fetchedPatients =
-            await _patientService.fetchPatientsByIds(missingIds);
-        for (final patient in fetchedPatients) {
-          _patientCache[patient.patientId] = patient;
+      tasks.add(_ensurePatientsLoaded(patientIds));
+    }
+
+    if (workingHours == null) {
+      tasks.add(() async {
+        try {
+          workingHours = await _workingHoursService.loadWorkingHours();
+          _workingHoursCache = workingHours;
+        } catch (_) {
+          workingHours = null;
         }
-      }
+      }());
+    }
+
+    if (tasks.isNotEmpty) {
+      await Future.wait(tasks);
     }
 
     final patients = patientIds
@@ -246,20 +256,10 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
           'Skipped $removedCount orphaned appointments on ${day.toIso8601String()}');
     }
 
-    List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
-    if (allWorkingHours == null) {
-      try {
-        allWorkingHours = await _workingHoursService.loadWorkingHours();
-        _workingHoursCache = allWorkingHours;
-      } catch (e) {
-        allWorkingHours = null;
-      }
-    }
-
     DayWorkingHours? dayWorkingHours;
-    if (allWorkingHours != null) {
+    if (workingHours != null) {
       try {
-        dayWorkingHours = allWorkingHours.firstWhere(
+        dayWorkingHours = workingHours!.firstWhere(
           (d) => d.dayName == _getThaiDayName(day.weekday),
         );
       } catch (e) {
@@ -285,6 +285,35 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   String _getThaiDayName(int weekday) {
     const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
     return days[weekday - 1];
+  }
+
+  Widget _buildEventCountBadge(int count) {
+    final displayText = count > 99 ? '99+' : '$count';
+
+    return Align(
+      alignment: Alignment.bottomRight,
+      child: Container(
+        margin: const EdgeInsets.only(right: 2, bottom: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF06292),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+        child: Center(
+          child: Text(
+            displayText,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              fontFamily: AppTheme.fontFamily,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _onAppointmentFlowComplete({bool clearPatient = false}) {
@@ -433,7 +462,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
               ),
-              child: TableCalendar(
+              child: TableCalendar<AppointmentModel>(
                 locale: 'th_TH',
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
@@ -450,26 +479,16 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   titleCentered: true,
                   titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
                 ),
-                calendarBuilders: CalendarBuilders(
+                calendarBuilders: CalendarBuilders<AppointmentModel>(
                   headerTitleBuilder: (context, date) {
                     final year = date.year + 543;
                     final month = DateFormat.MMMM('th_TH').format(date);
                     return Center(child: Text('$month $year', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)));
                   },
                   markerBuilder: (context, day, events) {
-                    if (events.isNotEmpty) {
-                      return Positioned(
-                        right: 1,
-                        bottom: 1,
-                        child: Container(
-                          padding: const EdgeInsets.all(1.0),
-                          decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Center(child: Text('${events.length}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily))),
-                        ),
-                      );
-                    }
-                    return null;
+                    if (events.isEmpty) return const SizedBox.shrink();
+
+                    return _buildEventCountBadge(events.length);
                   },
                 ),
                 calendarStyle: CalendarStyle(

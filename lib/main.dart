@@ -42,11 +42,12 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefsFuture = SharedPreferences.getInstance();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   bool? welcomeScreenEnabled;
   try {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await prefsFuture;
     welcomeScreenEnabled = prefs.getBool('mydent.welcomeScreenEnabled');
   } catch (_) {}
 
@@ -103,9 +104,6 @@ class _MyAppState extends State<MyApp> {
 
   // ฟังก์ชันผู้ช่วยสำหรับเลือกหน้าจอที่จะแสดง
   Widget _buildHomeScreen(AppAuthProvider authProvider) {
-    print(
-      '🕵️‍♀️ Laila Debug: _buildHomeScreen is deciding! Status is: ${authProvider.status}',
-    );
     switch (authProvider.status) {
       case AuthStatus.loggedOut:
         return const LoginScreen();
@@ -113,9 +111,6 @@ class _MyAppState extends State<MyApp> {
         return const StaffLoginScreen();
       case AuthStatus.loggedIn:
         final staffRole = authProvider.currentStaff?.role;
-        print(
-          '🕵️‍♀️ Laila Debug: Staff role is: $staffRole. Navigating to home screen...',
-        );
         switch (staffRole) {
           case 'super_admin':
             return const HomeSuperAdminScreen();

@@ -156,6 +156,18 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   }
   // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
 
+  Future<void> _ensurePatientsLoaded(Iterable<String> patientIds) async {
+    final missingIds = patientIds
+        .where((id) => id.isNotEmpty && !_patientCache.containsKey(id))
+        .toList(growable: false);
+    if (missingIds.isEmpty) return;
+
+    final fetchedPatients = await _patientService.fetchPatientsByIds(missingIds);
+    for (final patient in fetchedPatients) {
+      _patientCache[patient.patientId] = patient;
+    }
+  }
+
   Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
     if (!mounted) return;
     setState(() { _isLoading = true; });
@@ -183,15 +195,27 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
           .where((id) => id.isNotEmpty)
           .toSet();
 
+      List<DayWorkingHours>? workingHours = _workingHoursCache;
+      final tasks = <Future<void>>[];
+
       if (patientIds.isNotEmpty) {
-        final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
-        if (missingIds.isNotEmpty) {
-          final fetchedPatients =
-              await _patientService.fetchPatientsByIds(missingIds);
-          for (final patient in fetchedPatients) {
-            _patientCache[patient.patientId] = patient;
+        tasks.add(_ensurePatientsLoaded(patientIds));
+      }
+
+      if (workingHours == null) {
+        tasks.add(() async {
+          try {
+            workingHours = await _workingHoursService.loadWorkingHours();
+            _workingHoursCache = workingHours;
+          } catch (_) {
+            workingHours = null;
+            debugPrint("Could not find working hours for this day.");
           }
-        }
+        }());
+      }
+
+      if (tasks.isNotEmpty) {
+        await Future.wait(tasks);
       }
 
       final patients = patientIds
@@ -209,21 +233,10 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
             'Skipped $removedCount orphaned appointments on ${selectedDay.toIso8601String()}');
       }
 
-      List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
-      if (allWorkingHours == null) {
-        try {
-          allWorkingHours = await _workingHoursService.loadWorkingHours();
-          _workingHoursCache = allWorkingHours;
-        } catch (e) {
-          allWorkingHours = null;
-          debugPrint("Could not find working hours for this day.");
-        }
-      }
-
       DayWorkingHours? dayWorkingHours;
-      if (allWorkingHours != null) {
+      if (workingHours != null) {
         try {
-          dayWorkingHours = allWorkingHours.firstWhere(
+          dayWorkingHours = workingHours!.firstWhere(
             (day) => day.dayName == _getThaiDayName(selectedDay.weekday),
           );
         } catch (e) {

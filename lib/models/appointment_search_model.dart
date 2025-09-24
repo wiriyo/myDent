@@ -19,6 +19,15 @@ class AppointmentSearchModel {
   final List<String>? teeth;
   final List<String>? searchKeywords;
 
+  late final String normalizedPatientName = patientName.trim().toLowerCase();
+  late final Set<String> normalizedNameTokens = normalizedPatientName
+      .split(RegExp(r'\s+'))
+      .where((token) => token.isNotEmpty)
+      .toSet();
+  late final Set<String> normalizedKeywordTokens = (searchKeywords ?? const <String>[])
+      .map((keyword) => keyword.toLowerCase())
+      .toSet();
+
   AppointmentSearchModel({
     required this.appointmentId,
     required this.userId,

@@ -204,6 +204,18 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     _fetchDataForWeek(_focusedDay);
   }
 
+  Future<void> _ensurePatientsLoaded(Iterable<String> patientIds) async {
+    final missingIds = patientIds
+        .where((id) => id.isNotEmpty && !_patientCache.containsKey(id))
+        .toList(growable: false);
+    if (missingIds.isEmpty) return;
+
+    final fetchedPatients = await _patientService.fetchPatientsByIds(missingIds);
+    for (final patient in fetchedPatients) {
+      _patientCache[patient.patientId] = patient;
+    }
+  }
+
   void _onAppointmentFlowComplete({bool clearPatient = false}) {
     if (clearPatient && mounted) {
       setState(() {
@@ -313,11 +325,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           removedMissingIds++;
           continue;
         }
-        final dayKey = DateTime(
-          appointment.startTime.year,
-          appointment.startTime.month,
-          appointment.startTime.day,
-        );
+        final dayKey = DateUtils.dateOnly(appointment.startTime);
         (groupedAppointments[dayKey] ??= []).add(appointment);
         patientIds.add(appointment.patientId);
       }
@@ -326,14 +334,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             'Removed $removedMissingIds appointments without patient references.');
       }
 
-      final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
-      if (missingIds.isNotEmpty) {
-        final fetchedPatients =
-            await _patientService.fetchPatientsByIds(missingIds);
-        for (final patient in fetchedPatients) {
-          _patientCache[patient.patientId] = patient;
-        }
-      }
+      await _ensurePatientsLoaded(patientIds);
 
       final orphanedIds =
           patientIds.where((id) => !_patientCache.containsKey(id)).toSet();
@@ -349,13 +350,13 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         }
       }
 
-      List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
-      if (allWorkingHours == null) {
+      List<DayWorkingHours>? workingHours = _workingHoursCache;
+      if (workingHours == null) {
         try {
-          allWorkingHours = await _workingHoursService.loadWorkingHours();
-          _workingHoursCache = allWorkingHours;
+          workingHours = await _workingHoursService.loadWorkingHours();
+          _workingHoursCache = workingHours;
         } catch (e) {
-          allWorkingHours = null;
+          workingHours = null;
         }
       }
 
@@ -370,9 +371,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
 
       for (int i = 0; i < 7; i++) {
         final currentDay = firstDayOfWeek.add(Duration(days: i));
-        final dayKey = DateTime(currentDay.year, currentDay.month, currentDay.day);
+        final dayKey = DateUtils.dateOnly(currentDay);
         final dailyAppointments =
-            List<AppointmentModel>.from(groupedAppointments[dayKey] ?? [])
+            List<AppointmentModel>.from(groupedAppointments[dayKey] ?? const [])
               ..sort((a, b) => a.startTime.compareTo(b.startTime));
         final patients = dailyAppointments
             .map((appt) => _patientCache[appt.patientId])
@@ -380,9 +381,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             .toList();
 
         DayWorkingHours? dayWorkingHours;
-        if (allWorkingHours != null) {
+        if (workingHours != null) {
           try {
-            dayWorkingHours = allWorkingHours.firstWhere(
+            dayWorkingHours = workingHours!.firstWhere(
               (day) => day.dayName == _getThaiDayName(currentDay.weekday),
             );
           } catch (e) {

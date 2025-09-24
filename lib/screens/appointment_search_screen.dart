@@ -27,18 +27,16 @@ class AppointmentSearchScreen extends StatefulWidget {
 }
 
 class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
-  final _searchController = TextEditingController();
-  //  final _scrollController = ScrollController();
-  final _scrollController = ScrollController();
-  final _appointmentSearchService = AppointmentSearchService();
-  final _patientService = PatientService();
-  // ✨ [UPDATED] สร้าง AppointmentService พร้อมส่ง clinicId ที่จำเป็น
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final AppointmentSearchService _appointmentSearchService = AppointmentSearchService();
+  final PatientService _patientService = PatientService();
   AppointmentService? _appointmentServiceFull;
+  String? _clinicId;
+  Set<String> _patientNameIndex = {};
   Timer? _debounce;
   int _searchRequestIdCounter = 0;
   int? _activeSearchRequestId;
-  // int _searchRequestIdCounter = 0;
-  // int? _activeSearchRequestId;
 
   List<AppointmentSearchModel> _appointments = [];
   List<Patient> _allPatients = [];
@@ -52,7 +50,6 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPatientsForSuggestions();
     _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(_onScroll);
 
@@ -63,12 +60,28 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
     final clinicId = authProvider.verifiedClinicId;
     if (clinicId != null && clinicId.isNotEmpty) {
+      _clinicId = clinicId;
       _appointmentServiceFull = AppointmentService(clinicId: clinicId);
     }
+
+    _loadPatientsForSuggestions();
   }
 
   Future<void> _loadPatientsForSuggestions() async {
-    _allPatients = await _patientService.fetchPatientsOnce();
+    final clinicId = _clinicId ??
+        Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+
+    if (clinicId != null && clinicId.isNotEmpty) {
+      _clinicId = clinicId;
+      _allPatients = await PatientService(clinicId: clinicId).fetchPatientsOnce();
+    } else {
+      _allPatients = await _patientService.fetchPatientsOnce();
+    }
+
+    _patientNameIndex = _allPatients
+        .map((patient) => patient.name.trim().toLowerCase())
+        .where((name) => name.isNotEmpty)
+        .toSet();
   }
 
   @override
@@ -98,29 +111,6 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
   Future<void> _performSearch({bool isNewSearch = false}) async {
     final query = _searchController.text.trim();
 
-    // if (isNewSearch) {
-    //   _lastDocument = null;
-    //   _hasMore = true;
-    //   setState(() {
-    //     _appointments = [];
-    //     _isLoading = query.isNotEmpty;
-    //     _isFirstLoad = false;
-    //   });
-    // }
-
-    // if (!_hasMore || _isLoadingMore) return;
-
-    // if (query.isEmpty) {
-    //   setState(() {
-    //     _appointments = [];
-    //     _isLoading = false;
-    //     _isLoadingMore = false;
-    //     _isFirstLoad = true;
-    //   });
-    //   _activeSearchRequestId = null;
-    //   return;
-    // }
-
     if (isNewSearch) {
       _lastDocument = null;
       _hasMore = true;
@@ -144,11 +134,6 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
       return;
     }
 
-    // final int requestId = ++_searchRequestIdCounter;
-    // _activeSearchRequestId = requestId;
-
-    // setState(() { _isLoadingMore = true; });
-
     final int requestId = ++_searchRequestIdCounter;
     _activeSearchRequestId = requestId;
 
@@ -157,37 +142,20 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     });
 
     try {
-      final clinicId =
+      final clinicId = _clinicId ??
           Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+      if (_clinicId == null && clinicId != null && clinicId.isNotEmpty) {
+        _clinicId = clinicId;
+        if (_appointmentServiceFull == null) {
+          _appointmentServiceFull = AppointmentService(clinicId: clinicId);
+        }
+      }
       final result = await _appointmentSearchService.searchAppointments(
         query: query,
         limit: _limit,
         lastDocument: _lastDocument,
         clinicId: clinicId,
       );
-
-      //   final newAppointments = result['appointments'] as List<AppointmentSearchModel>;
-
-      //   if (!mounted || _activeSearchRequestId != requestId) return;
-
-      //   setState(() {
-      //     _appointments.addAll(newAppointments);
-      //     _lastDocument = result['lastDocument'];
-      //     _hasMore = newAppointments.length == _limit;
-      //     _isLoading = false;
-      //     _isLoadingMore = false;
-      //     _activeSearchRequestId = null;
-      //   });
-      // } catch (e) {
-      //   if (!mounted || _activeSearchRequestId != requestId) return;
-
-      //   setState(() {
-      //     _isLoading = false;
-      //     _isLoadingMore = false;
-      //     _activeSearchRequestId = null;
-      //   });
-      //   if (mounted) {
-      //     ScaffoldMessenger.of(context).showSnackBar(
       final newAppointments =
           result['appointments'] as List<AppointmentSearchModel>;
       final filteredAppointments =
@@ -202,6 +170,12 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         _isLoading = false;
         _isLoadingMore = false;
         _activeSearchRequestId = null;
+        for (final appointment in filteredAppointments) {
+          final normalizedName = appointment.normalizedPatientName;
+          if (normalizedName.isNotEmpty) {
+            _patientNameIndex.add(normalizedName);
+          }
+        }
       });
     } catch (e) {
       if (!mounted || _activeSearchRequestId != requestId) return;
@@ -242,11 +216,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     }
 
     final bool matchesKnownPatient =
-        _allPatients.any((patient) =>
-            patient.name.trim().toLowerCase() == normalizedQuery) ||
+        _patientNameIndex.contains(normalizedQuery) ||
             appointments.any((appointment) =>
-                appointment.patientName.trim().toLowerCase() ==
-                normalizedQuery);
+                appointment.normalizedPatientName == normalizedQuery);
 
     if (!matchesKnownPatient) {
       return appointments;
@@ -256,18 +228,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         normalizedQuery.replaceAll(RegExp(r'\s+'), '');
 
     return appointments.where((appointment) {
-      final normalizedName =
-          appointment.patientName.trim().toLowerCase();
-      final Set<String> nameTokens = normalizedName
-          .split(RegExp(r'\s+'))
-          .where((token) => token.isNotEmpty)
-          .toSet();
-
-      final Set<String> keywordTokens = {
-        for (final keyword in appointment.searchKeywords ??
-            const <String>[])
-          keyword.toLowerCase(),
-      };
+      final normalizedName = appointment.normalizedPatientName;
+      final Set<String> nameTokens = appointment.normalizedNameTokens;
+      final Set<String> keywordTokens = appointment.normalizedKeywordTokens;
 
       if (normalizedName == normalizedQuery) {
         return true;

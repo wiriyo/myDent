@@ -10,13 +10,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle, ByteData;
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/th_format.dart';
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
 // 💖 NEW: import service ที่จำเป็นสำหรับการทำงานของปุ่มใหม่ค่ะ
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
+import '../services/print_settings_service.dart';
 import '../../../services/clinic_settings_service.dart';
 import '../../../config/clinic_context.dart';
 import '../../../config/clinic_defaults.dart';
@@ -44,9 +44,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
-  static const String _scaleKey = 'mydent.printing.scale';
-  static const String _postFeedKey = 'mydent.printing.postfeed';
-  static const String _headerSpaceKey = 'mydent.printing.headerspace';
+  final PrintSettingsService _printSettingsService = PrintSettingsService();
 
   // --- Clinic header state (live from settings) ---
   String _clinicName = ClinicDefaults.defaultClinicName;
@@ -71,10 +69,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   Future<void> _prepare() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedScale = prefs.getDouble(_scaleKey) ?? 1.0;
-    final savedPostFeed = prefs.getInt(_postFeedKey) ?? 3;
-    final savedHeaderSpace = prefs.getInt(_headerSpaceKey) ?? 0;
+    final settings = await _printSettingsService.load();
 
     try {
       // Load initial clinic header and subscribe for updates
@@ -84,9 +79,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       final logo = await _loadLogo();
       if (mounted) {
         setState(() {
-          _printingScale = savedScale;
-          _printingPostFeed = savedPostFeed;
-          _printingHeaderSpace = savedHeaderSpace;
+          _applyPrintSettings(settings);
           _logo = logo;
         });
       }
@@ -207,32 +200,54 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   Future<void> _updateScale(double newScale) async {
-    final prefs = await SharedPreferences.getInstance();
-    final clampedScale = newScale.clamp(0.5, 2.0);
-    await prefs.setDouble(_scaleKey, clampedScale);
+    final settings = _buildPrintSettings(scale: newScale);
     setState(() {
-      _printingScale = clampedScale;
+      _applyPrintSettings(settings);
       _lastPng = null; // 💖 NEW: ถ้าปรับค่า ต้องแคปภาพใหม่นะคะ
     });
+    await _persistSettings(settings);
   }
 
   Future<void> _updatePostFeed(int newFeed) async {
-    final prefs = await SharedPreferences.getInstance();
-    final clampedFeed = newFeed.clamp(0, 10);
-    await prefs.setInt(_postFeedKey, clampedFeed);
+    final settings = _buildPrintSettings(postFeed: newFeed);
     setState(() {
-      _printingPostFeed = clampedFeed;
+      _applyPrintSettings(settings);
     });
+    await _persistSettings(settings);
   }
 
   Future<void> _updateHeaderSpace(int newSpace) async {
-    final prefs = await SharedPreferences.getInstance();
-    final clampedSpace = newSpace.clamp(0, 50);
-    await prefs.setInt(_headerSpaceKey, clampedSpace);
+    final settings = _buildPrintSettings(headerSpace: newSpace);
     setState(() {
-      _printingHeaderSpace = clampedSpace;
-       _lastPng = null; // 💖 NEW: ถ้าปรับค่า ต้องแคปภาพใหม่นะคะ
+      _applyPrintSettings(settings);
+      _lastPng = null; // 💖 NEW: ถ้าปรับค่า ต้องแคปภาพใหม่นะคะ
     });
+    await _persistSettings(settings);
+  }
+
+  void _applyPrintSettings(PrintSettings settings) {
+    _printingScale = settings.scale;
+    _printingPostFeed = settings.postFeed;
+    _printingHeaderSpace = settings.headerSpace;
+  }
+
+  PrintSettings _buildPrintSettings({double? scale, int? postFeed, int? headerSpace}) {
+    return PrintSettings(
+      scale: scale ?? _printingScale,
+      postFeed: postFeed ?? _printingPostFeed,
+      headerSpace: headerSpace ?? _printingHeaderSpace,
+    );
+  }
+
+  Future<void> _persistSettings(PrintSettings settings) async {
+    try {
+      await _printSettingsService.save(settings);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('บันทึกการตั้งค่าการพิมพ์ไม่สำเร็จ: $e')),
+      );
+    }
   }
 
   @override

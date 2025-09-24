@@ -10,13 +10,13 @@ import 'package:http/http.dart' as http;
 import '../../../services/clinic_settings_service.dart';
 import '../../../config/clinic_defaults.dart';
 import '../../../config/clinic_context.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 💖 NEW: import เพื่ออ่านค่า
 import '../utils/th_format.dart';
 import '../domain/receipt_model.dart';
 import '../domain/appointment_slip_model.dart';
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
 import '../../../services/logo_cache_service.dart';
+import '../services/print_settings_service.dart';
 
 class CombinedSlipPreviewPage extends StatefulWidget {
   final ReceiptModel receipt;
@@ -48,13 +48,10 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
   String? _clinicLineId;
   String? _remoteLogoUrl;
 
-  // 💖 NEW: สร้างตัวแปรสำหรับเก็บค่าที่อ่านมาจาก SharedPreferences
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
-  static const String _scaleKey = 'mydent.printing.scale';
-  static const String _postFeedKey = 'mydent.printing.postfeed';
-  static const String _headerSpaceKey = 'mydent.printing.headerspace';
+  final PrintSettingsService _printSettingsService = PrintSettingsService();
 
   @override
   void initState() {
@@ -63,21 +60,16 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
   }
 
   Future<void> _prepare() async {
-    // 💖 NEW: อ่านค่าการตั้งค่าทั้งหมดจาก SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final savedScale = prefs.getDouble(_scaleKey) ?? 1.0;
-    final savedPostFeed = prefs.getInt(_postFeedKey) ?? 3;
-    final savedHeaderSpace = prefs.getInt(_headerSpaceKey) ?? 0;
+    final settings = await _printSettingsService.load();
 
     try {
       await _loadClinicHeader();
       final logo = await _loadLogo();
       if (mounted) {
         setState(() {
-          // 💖 NEW: นำค่าที่อ่านได้มาใช้งาน
-          _printingScale = savedScale;
-          _printingPostFeed = savedPostFeed;
-          _printingHeaderSpace = savedHeaderSpace;
+          _printingScale = settings.scale;
+          _printingPostFeed = settings.postFeed;
+          _printingHeaderSpace = settings.headerSpace;
           _logo = logo;
         });
       }

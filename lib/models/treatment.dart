@@ -12,10 +12,12 @@ class Treatment {
   final double price;
   final DateTime date;
   final List<String> imageUrls;
-  
+
   // 📝 [NEW v1.3.0] เพิ่มช่องสำหรับเก็บ "สมุดบันทึกการรักษา"
   // เป็น String? (nullable) เพื่อให้รองรับข้อมูลเก่าที่ยังไม่มี field นี้ได้ค่ะ
   final String? notes;
+  final String? receiptNumber;
+  final DateTime? receiptIssuedAt;
 
   Treatment({
     required this.id,
@@ -27,13 +29,15 @@ class Treatment {
     required this.date,
     this.imageUrls = const [],
     this.notes, // 📝 [NEW v1.3.0] เพิ่มใน constructor
+    this.receiptNumber,
+    this.receiptIssuedAt,
   });
 
   // --- ⚙️ เครื่องมือแปลงข้อมูล ---
 
   /// แปลง Object Treatment ของเราให้กลายเป็น Map
   Map<String, dynamic> toMap() {
-    return {
+    final map = {
       'id': id,
       'patientId': patientId,
       'treatmentMasterId': treatmentMasterId,
@@ -44,6 +48,13 @@ class Treatment {
       'imageUrls': imageUrls,
       'notes': notes, // 📝 [NEW v1.3.0] เพิ่มตอนแปลงเป็น Map
     };
+    if (receiptNumber != null && receiptNumber!.isNotEmpty) {
+      map['receiptNumber'] = receiptNumber;
+    }
+    if (receiptIssuedAt != null) {
+      map['receiptIssuedAt'] = Timestamp.fromDate(receiptIssuedAt!);
+    }
+    return map;
   }
 
   /// สร้าง Object Treatment ขึ้นมาจากข้อมูล Map ที่ได้รับจาก Firestore
@@ -68,6 +79,8 @@ class Treatment {
       date: (map['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
       imageUrls: imageUrlsList,
       notes: map['notes'], // 📝 [NEW v1.3.0] อ่านค่า notes จาก Firestore
+      receiptNumber: map['receiptNumber'],
+      receiptIssuedAt: (map['receiptIssuedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -82,6 +95,8 @@ class Treatment {
     DateTime? date,
     List<String>? imageUrls,
     String? notes, // 📝 [NEW v1.3.0] เพิ่มใน copyWith
+    String? receiptNumber,
+    DateTime? receiptIssuedAt,
   }) {
     return Treatment(
       id: id ?? this.id,
@@ -93,6 +108,8 @@ class Treatment {
       date: date ?? this.date,
       imageUrls: imageUrls ?? this.imageUrls,
       notes: notes ?? this.notes, // 📝 [NEW v1.3.0]
+      receiptNumber: receiptNumber ?? this.receiptNumber,
+      receiptIssuedAt: receiptIssuedAt ?? this.receiptIssuedAt,
     );
   }
 }

@@ -63,6 +63,8 @@ class AppTheme {
   static const String iconPathXRay = 'assets/icons/x_ray.png';
   static const String iconPathHn = 'assets/icons/hn_id.png';
   static const String iconPathNotes = 'assets/icons/note.png';
+  static const String iconPathClock = 'assets/icons/clock.png';
+  static const String iconPathReceipt = 'assets/icons/id_card.png';
 
 
 

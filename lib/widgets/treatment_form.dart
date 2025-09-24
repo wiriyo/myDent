@@ -51,6 +51,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
   final TextEditingController _notesController = TextEditingController();
   DateTime? _selectedDate;
   String? _selectedTreatmentMasterId;
+  String? _receiptNumber;
+  DateTime? _receiptIssuedAt;
 
   final List<File> _newImages = [];
   List<String> _existingImageUrls = [];
@@ -68,6 +70,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
       _selectedDate = t.date;
       _existingImageUrls = List.from(t.imageUrls);
       _notesController.text = t.notes ?? '';
+      _receiptNumber = t.receiptNumber;
+      _receiptIssuedAt = t.receiptIssuedAt;
     } else {
       _procedureController.text = widget.initialProcedure ?? '';
       _selectedDate = widget.initialDate;
@@ -127,13 +131,14 @@ class _TreatmentFormState extends State<TreatmentForm> {
   }
 
   Future<receipt.ReceiptModel> _buildReceiptFromForm() async {
+    await _ensureReceiptInfo();
     final patientName = await _resolvePatientName();
     final proc = _procedureController.text.trim();
     final tooth = _toothNumberController.text.trim();
     final price = double.tryParse(_priceController.text.replaceAll(',', '')) ?? 0.0;
     final lineName = tooth.isEmpty ? proc : '$proc (#$tooth)';
-    final billNo = await _nextBillNo();
-    final now = DateTime.now();
+    final billNo = _receiptNumber ?? '';
+    final issuedAt = _receiptIssuedAt ?? DateTime.now();
     const clinicName = 'คลินิกทันตกรรมหมอกุสุมาภรณ์';
     const clinicAddress = '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด';
     const clinicPhone = '094-5639334';
@@ -142,7 +147,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       clinicAddress: clinicAddress,
       clinicPhone: clinicPhone,
       billNo: billNo,
-      issuedAt: now,
+      issuedAt: issuedAt,
       patientName: patientName,
       items: [ReceiptLineInput(name: lineName, qty: 1, price: price)],
       subTotal: price,
@@ -198,6 +203,23 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
+  Future<void> _ensureReceiptInfo() async {
+    if (_receiptNumber != null && _receiptIssuedAt != null) {
+      return;
+    }
+    final billNo = await _nextBillNo();
+    final now = DateTime.now();
+    if (!mounted) {
+      _receiptNumber = billNo;
+      _receiptIssuedAt = now;
+      return;
+    }
+    setState(() {
+      _receiptNumber = billNo;
+      _receiptIssuedAt = now;
+    });
+  }
+
   void _showErrorSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message, style: const TextStyle(color: Colors.white)), backgroundColor: Colors.redAccent),
@@ -209,6 +231,14 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
     final provider = context.read<TreatmentProvider>();
 
+    await _ensureReceiptInfo();
+    if (_receiptNumber == null || _receiptIssuedAt == null) {
+      if (mounted) {
+        _showErrorSnackBar(context, 'ไม่สามารถสร้างเลขที่ใบเสร็จได้');
+      }
+      return;
+    }
+
     final treatmentData = Treatment(
       id: widget.treatment?.id ?? '',
       patientId: widget.patientId,
@@ -219,6 +249,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
       date: _selectedDate ?? DateTime.now(),
       imageUrls: _existingImageUrls,
       notes: _notesController.text.trim(),
+      receiptNumber: _receiptNumber,
+      receiptIssuedAt: _receiptIssuedAt,
     );
 
     final success = await provider.saveTreatment(
@@ -274,7 +306,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
         final receipt = await _buildReceiptFromForm();
         debugPrint("💖 Laila Debug: Replacing current route with CalendarScreen.");
-        
+
         // 💖✨ THE NEW FLOW FIX v2.4: ใช้ pushReplacementNamed เพื่อ "สลับหน้า"
         // วิธีนี้จะปิดหน้าฟอร์มปัจจุบันทิ้ง แล้วเอาหน้าปฏิทินเข้ามาแทนที่
         // ทำให้ Flow การทำงานถูกต้องและไม่เกิดข้อผิดพลาดค่ะ
@@ -291,7 +323,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
         final receipt = await _buildReceiptFromForm();
         await nav.push(MaterialPageRoute(builder: (_) => pv.ReceiptPreviewPage(receipt: receipt)));
-        
+
         debugPrint("💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.");
         if (mounted) {
           nav.pop(true);

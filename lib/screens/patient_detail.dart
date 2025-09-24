@@ -584,6 +584,26 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                                   Text(DateFormat('dd/MM/yy').format(treatment.date)),
                                                 ],
                                               ),
+                                              if (treatment.receiptNumber != null && treatment.receiptNumber!.isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Image.asset(AppTheme.iconPathReceipt, width: 16, height: 16),
+                                                    const SizedBox(width: 4),
+                                                    Text('ใบเสร็จ: ${treatment.receiptNumber}'),
+                                                  ],
+                                                ),
+                                              ],
+                                              if (treatment.receiptIssuedAt != null) ...[
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Image.asset(AppTheme.iconPathClock, width: 16, height: 16),
+                                                    const SizedBox(width: 4),
+                                                    Text('บันทึก: ${DateFormat('dd/MM/yy HH:mm').format(treatment.receiptIssuedAt!)} น.'),
+                                                  ],
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ],

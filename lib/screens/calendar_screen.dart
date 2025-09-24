@@ -291,24 +291,26 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     final displayText = count > 99 ? '99+' : '$count';
 
     return Align(
-      alignment: Alignment.bottomRight,
-      child: Container(
-        margin: const EdgeInsets.only(right: 2, bottom: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF06292),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-        child: Center(
-          child: Text(
-            displayText,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              fontFamily: AppTheme.fontFamily,
+      alignment: Alignment.bottomLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF06292),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+          child: Center(
+            child: Text(
+              displayText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                fontFamily: AppTheme.fontFamily,
+              ),
             ),
           ),
         ),
@@ -471,7 +473,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 calendarFormat: _calendarFormat,
                 daysOfWeekHeight: 22,
                 eventLoader: (day) {
-                  final dayKey = DateTime.utc(day.year, day.month, day.day);
+                  final dayKey = DateUtils.dateOnly(day);
                   return _events[dayKey] ?? [];
                 },
                 headerStyle: const HeaderStyle(

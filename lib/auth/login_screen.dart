@@ -122,18 +122,20 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       setState(() {
         if (e.code == 'account-pending') {
-          errorMessage = 'Your account is waiting for admin approval.';
+          errorMessage =
+              'บัญชีของคุณกำลังรอให้แอดมินอนุมัติอยู่นะคะ อดใจรออีกนิดน้า 💖';
         } else if (e.code == 'account-rejected') {
           errorMessage =
-              'This account request was rejected. Please contact support.';
+              'คำขอสมัครนี้ถูกปฏิเสธไปแล้วค่ะ หากสงสัยทักทีมซัพพอร์ตให้ไลลาช่วยดูได้เลยน้า 💌';
         } else if (e.code == 'account-revoked') {
           errorMessage =
-              'This account has been revoked. Please contact support.';
+              'บัญชีนี้ถูกระงับการใช้งานชั่วคราวนะคะ ติดต่อทีมซัพพอร์ตเพื่อให้ไลลาช่วยดูให้น้า 💬';
         } else if (e.code == 'account-disabled') {
           errorMessage =
-              'This account has been disabled. Please reach out to support.';
+              'บัญชีนี้ถูกปิดการใช้งานอยู่ค่ะ ถ้าอยากกลับมาใช้อีกครั้งแจ้งทีมซัพพอร์ตได้เลยนะคะ 🌸';
         } else {
-          errorMessage = e.message ?? 'Login failed. Please try again.';
+          errorMessage =
+              'เข้าสู่ระบบไม่สำเร็จค่ะ ลองใหม่อีกครั้งนะคะ ไลลาเป็นกำลังใจให้เสมอ 💪💜';
         }
       });
       _showSnackbar(errorMessage);
@@ -173,9 +175,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
-        _showSnackbar('ไม่พบผู้ใช้นี้ในระบบค่ะ');
+        _showSnackbar('ไลลาไม่พบอีเมลนี้ในระบบเลยค่ะ ลองตรวจสอบอีกครั้งน้า 💌');
       } else {
-        _showSnackbar('เกิดข้อผิดพลาด: ${e.message}');
+        _showSnackbar(
+            'อุ๊ย...ระบบแอบงอแงนิดหน่อย ลองใหม่อีกครั้งหรือบอกทีมไลลาให้ช่วยได้เลยนะคะ 💜');
       }
     }
   }

@@ -190,11 +190,13 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
       //     ScaffoldMessenger.of(context).showSnackBar(
       final newAppointments =
           result['appointments'] as List<AppointmentSearchModel>;
+      final filteredAppointments =
+          _filterAppointmentsByQuery(newAppointments, query);
 
       if (!mounted || _activeSearchRequestId != requestId) return;
 
       setState(() {
-        _appointments.addAll(newAppointments);
+        _appointments.addAll(filteredAppointments);
         _lastDocument = result['lastDocument'];
         _hasMore = newAppointments.length == _limit;
         _isLoading = false;
@@ -215,6 +217,82 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการค้นหา: $e')));
       }
     }
+  }
+
+  List<AppointmentSearchModel> _filterAppointmentsByQuery(
+    List<AppointmentSearchModel> appointments,
+    String query,
+  ) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      return appointments;
+    }
+
+    final List<String> tokens = normalizedQuery
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+
+    if (tokens.length <= 1) {
+      return appointments;
+    }
+
+    if (RegExp(r'\d').hasMatch(normalizedQuery)) {
+      return appointments;
+    }
+
+    final bool matchesKnownPatient =
+        _allPatients.any((patient) =>
+            patient.name.trim().toLowerCase() == normalizedQuery) ||
+            appointments.any((appointment) =>
+                appointment.patientName.trim().toLowerCase() ==
+                normalizedQuery);
+
+    if (!matchesKnownPatient) {
+      return appointments;
+    }
+
+    final String condensedQuery =
+        normalizedQuery.replaceAll(RegExp(r'\s+'), '');
+
+    return appointments.where((appointment) {
+      final normalizedName =
+          appointment.patientName.trim().toLowerCase();
+      final Set<String> nameTokens = normalizedName
+          .split(RegExp(r'\s+'))
+          .where((token) => token.isNotEmpty)
+          .toSet();
+
+      final Set<String> keywordTokens = {
+        for (final keyword in appointment.searchKeywords ??
+            const <String>[])
+          keyword.toLowerCase(),
+      };
+
+      if (normalizedName == normalizedQuery) {
+        return true;
+      }
+
+      if (condensedQuery.isNotEmpty &&
+          keywordTokens.contains(condensedQuery)) {
+        return true;
+      }
+
+      if (keywordTokens.contains(normalizedQuery)) {
+        return true;
+      }
+
+      if (tokens.every((token) => nameTokens.contains(token))) {
+        return true;
+      }
+
+      if (keywordTokens.isNotEmpty &&
+          tokens.every((token) => keywordTokens.contains(token))) {
+        return true;
+      }
+
+      return false;
+    }).toList();
   }
 
   // ✨ [ADDED] ฟังก์ชันสำหรับจัดการเมื่อมีการคลิกที่การ์ดนัดหมาย

@@ -36,16 +36,8 @@ class ImageSaverService {
     // ถ้าเป็นเว็บก็ยังไม่รองรับการบันทึกภาพนะคะ
     if (kIsWeb) return false;
 
-    PermissionStatus status = await Permission.photos.status;
-    if (!status.isGranted && !status.isLimited) {
-      status = await Permission.photos.request();
-    }
-    if (status.isGranted || status.isLimited) {
-      return true;
-    }
-
-    // สำหรับ Android บางเวอร์ชันอาจยังต้องใช้ storage permission
     if (defaultTargetPlatform == TargetPlatform.android) {
+      // Android 12 ลงไปใช้ storage permission แบบเดิม
       PermissionStatus storageStatus = await Permission.storage.status;
       if (!storageStatus.isGranted) {
         storageStatus = await Permission.storage.request();
@@ -53,8 +45,24 @@ class ImageSaverService {
       if (storageStatus.isGranted) {
         return true;
       }
+
+      // Android 13 ขึ้นไปใช้ READ_MEDIA_IMAGES (photos)
+      PermissionStatus photosStatus = await Permission.photos.status;
+      if (!photosStatus.isGranted && !photosStatus.isLimited) {
+        photosStatus = await Permission.photos.request();
+      }
+      if (photosStatus.isGranted || photosStatus.isLimited) {
+        return true;
+      }
+
+      return false;
     }
 
-    return false;
+    // iOS / อื่น ๆ ใช้ photos permission ตามปกติ
+    PermissionStatus status = await Permission.photos.status;
+    if (!status.isGranted && !status.isLimited) {
+      status = await Permission.photos.request();
+    }
+    return status.isGranted || status.isLimited;
   }
 }

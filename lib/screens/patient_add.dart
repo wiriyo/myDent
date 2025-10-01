@@ -527,6 +527,82 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   Widget _buildActionButtons(PatientProvider provider) {
     return Row(
       children: [
+        if (_isEditing) ...[
+          Expanded(
+            child: ElevatedButton(
+              onPressed:
+                  provider.isLoading
+                      ? null
+                      : () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder:
+                              (context) => AlertDialog(
+                                title: const Text('ยืนยันการลบ'),
+                                content: const Text(
+                                  'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, false),
+                                    child: const Text('ยกเลิก'),
+                                  ),
+                                  TextButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, true),
+                                    child: const Text('ลบ'),
+                                  ),
+                                ],
+                              ),
+                        );
+
+                        if (confirm != true) return;
+
+                        if (_editingPatient != null &&
+                            _editingPatient!.patientId.isNotEmpty) {
+                          final success = await provider.deletePatient(
+                            _editingPatient!.patientId,
+                          );
+
+                          if (success) {
+                            _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/patients',
+                              (Route<dynamic> route) => false,
+                            );
+                          } else {
+                            _showSnackBar(
+                              provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก',
+                              isError: true,
+                            );
+                          }
+                        } else {
+                          _showSnackBar(
+                            'เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้ที่จะลบ',
+                            isError: true,
+                          );
+                        }
+                      },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent.shade100,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child:
+                  provider.isLoading
+                      ? const SizedBox.shrink()
+                      : Image.asset(
+                        'assets/icons/delete.png',
+                        width: 24,
+                        height: 24,
+                      ),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: ElevatedButton(
             onPressed:
@@ -627,82 +703,6 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                     ),
           ),
         ),
-        if (_isEditing) ...[
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              onPressed:
-                  provider.isLoading
-                      ? null
-                      : () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder:
-                              (context) => AlertDialog(
-                                title: const Text('ยืนยันการลบ'),
-                                content: const Text(
-                                  'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนี้?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed:
-                                        () => Navigator.pop(context, false),
-                                    child: const Text('ยกเลิก'),
-                                  ),
-                                  TextButton(
-                                    onPressed:
-                                        () => Navigator.pop(context, true),
-                                    child: const Text('ลบ'),
-                                  ),
-                                ],
-                              ),
-                        );
-
-                        if (confirm != true) return;
-
-                        if (_editingPatient != null &&
-                            _editingPatient!.patientId.isNotEmpty) {
-                          final success = await provider.deletePatient(
-                            _editingPatient!.patientId,
-                          );
-
-                          if (success) {
-                            _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              '/patients',
-                              (Route<dynamic> route) => false,
-                            );
-                          } else {
-                            _showSnackBar(
-                              provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก',
-                              isError: true,
-                            );
-                          }
-                        } else {
-                          _showSnackBar(
-                            'เกิดข้อผิดพลาด: ไม่พบ ID ของคนไข้ที่จะลบ',
-                            isError: true,
-                          );
-                        }
-                      },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent.shade100,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child:
-                  provider.isLoading
-                      ? const SizedBox.shrink()
-                      : Image.asset(
-                        'assets/icons/delete.png',
-                        width: 24,
-                        height: 24,
-                      ),
-            ),
-          ),
-        ],
       ],
     );
   }

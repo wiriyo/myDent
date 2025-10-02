@@ -64,6 +64,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
   final List<File> _newImages = [];
   List<String> _existingImageUrls = [];
   bool get _isEditing => widget.treatment != null;
+  bool _isSaveButtonLocked = false;
 
   @override
   void initState() {
@@ -433,11 +434,24 @@ class _TreatmentFormState extends State<TreatmentForm> {
   }
 
   void _handleSave() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isSaveButtonLocked) return;
+
+    setState(() => _isSaveButtonLocked = true);
+
+    final formState = _formKey.currentState;
+    if (formState == null || !formState.validate()) {
+      if (mounted) setState(() => _isSaveButtonLocked = false);
+      return;
+    }
 
     final decision = await _showSaveConfirmationDialog();
 
-    if (decision?.confirmed != true || !mounted) return;
+    if (!mounted) return;
+
+    if (decision?.confirmed != true) {
+      setState(() => _isSaveButtonLocked = false);
+      return;
+    }
 
     final bool shouldScheduleAfterSave = !_isEditing && decision!.shouldSchedule;
 
@@ -447,6 +461,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     if (_receiptNumber == null || _receiptIssuedAt == null) {
       if (mounted) {
         _showErrorSnackBar(context, 'ไม่สามารถสร้างเลขที่ใบเสร็จได้');
+        setState(() => _isSaveButtonLocked = false);
       }
       return;
     }
@@ -500,7 +515,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
       if (shouldScheduleAfterSave) {
         final patientForScheduling = await _getPatientForScheduling();
         if (patientForScheduling == null) {
-          if (mounted) _showErrorSnackBar(context, 'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้');
+          if (mounted) {
+            _showErrorSnackBar(context, 'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้');
+            setState(() => _isSaveButtonLocked = false);
+          }
           return;
         }
 
@@ -532,6 +550,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       return;
     } else {
       _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
+      setState(() => _isSaveButtonLocked = false);
     }
   }
 
@@ -569,11 +588,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
   @override
   Widget build(BuildContext context) {
     final treatmentProvider = context.watch<TreatmentProvider>();
+    final isSaving = treatmentProvider.isLoading;
 
     return Form(
       key: _formKey,
       child: AbsorbPointer(
-        absorbing: treatmentProvider.isLoading,
+        absorbing: treatmentProvider.isLoading || _isSaveButtonLocked,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -716,15 +736,18 @@ class _TreatmentFormState extends State<TreatmentForm> {
             Row(children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _handleSave,
+                  onPressed: treatmentProvider.isLoading || _isSaveButtonLocked ? null : _handleSave,
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent.shade100, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
                   child: treatmentProvider.isLoading
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black54))
-                      : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Image.asset('assets/icons/save.png', width: 24, height: 24),
-                          const SizedBox(width: 8),
-                          const Text('บันทึก'),
-                        ]),
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset('assets/icons/save.png', width: 24, height: 24),
+                            const SizedBox(width: 8),
+                            const Text('บันทึก'),
+                          ],
+                        ),
                 ),
               ),
               if (_isEditing) ...[

@@ -42,6 +42,12 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
   List<AppointmentSearchModel> _appointments = [];
   List<Patient> _allPatients = [];
+  final Set<String> _normalizedPatientNames = <String>{};
+  final Map<String, String> _normalizedNameCache = <String, String>{};
+  final Map<String, Set<String>> _nameTokenCache =
+      <String, Set<String>>{};
+  final Map<String, Set<String>> _keywordTokenCache =
+      <String, Set<String>>{};
   bool _isLoading = false;
   bool _isFirstLoad = true;
   bool _isLoadingMore = false;
@@ -69,6 +75,13 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
   Future<void> _loadPatientsForSuggestions() async {
     _allPatients = await _patientService.fetchPatientsOnce();
+    _normalizedPatientNames
+      ..clear()
+      ..addAll(
+        _allPatients
+            .map((patient) => patient.name.trim().toLowerCase())
+            .where((name) => name.isNotEmpty),
+      );
   }
 
   @override
@@ -124,6 +137,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     if (isNewSearch) {
       _lastDocument = null;
       _hasMore = true;
+      _normalizedNameCache.clear();
+      _nameTokenCache.clear();
+      _keywordTokenCache.clear();
       setState(() {
         _appointments = [];
         _isLoading = query.isNotEmpty;
@@ -190,6 +206,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
       //     ScaffoldMessenger.of(context).showSnackBar(
       final newAppointments =
           result['appointments'] as List<AppointmentSearchModel>;
+      for (final appointment in newAppointments) {
+        _primeAppointmentCaches(appointment);
+      }
       final filteredAppointments =
           _filterAppointmentsByQuery(newAppointments, query);
 
@@ -242,11 +261,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
     }
 
     final bool matchesKnownPatient =
-        _allPatients.any((patient) =>
-            patient.name.trim().toLowerCase() == normalizedQuery) ||
+        _normalizedPatientNames.contains(normalizedQuery) ||
             appointments.any((appointment) =>
-                appointment.patientName.trim().toLowerCase() ==
-                normalizedQuery);
+                _getNormalizedName(appointment) == normalizedQuery);
 
     if (!matchesKnownPatient) {
       return appointments;
@@ -256,18 +273,9 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
         normalizedQuery.replaceAll(RegExp(r'\s+'), '');
 
     return appointments.where((appointment) {
-      final normalizedName =
-          appointment.patientName.trim().toLowerCase();
-      final Set<String> nameTokens = normalizedName
-          .split(RegExp(r'\s+'))
-          .where((token) => token.isNotEmpty)
-          .toSet();
-
-      final Set<String> keywordTokens = {
-        for (final keyword in appointment.searchKeywords ??
-            const <String>[])
-          keyword.toLowerCase(),
-      };
+      final normalizedName = _getNormalizedName(appointment);
+      final Set<String> nameTokens = _getNameTokens(appointment);
+      final Set<String> keywordTokens = _getKeywordTokens(appointment);
 
       if (normalizedName == normalizedQuery) {
         return true;
@@ -293,6 +301,47 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
       return false;
     }).toList();
+  }
+
+  void _primeAppointmentCaches(AppointmentSearchModel appointment) {
+    final normalizedName = appointment.patientName.trim().toLowerCase();
+    _normalizedNameCache[appointment.appointmentId] = normalizedName;
+    _nameTokenCache[appointment.appointmentId] = normalizedName
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toSet();
+    _keywordTokenCache[appointment.appointmentId] =
+        (appointment.searchKeywords ?? const <String>[])
+            .map((keyword) => keyword.toLowerCase())
+            .where((keyword) => keyword.isNotEmpty)
+            .toSet();
+  }
+
+  String _getNormalizedName(AppointmentSearchModel appointment) {
+    return _normalizedNameCache.putIfAbsent(
+      appointment.appointmentId,
+      () => appointment.patientName.trim().toLowerCase(),
+    );
+  }
+
+  Set<String> _getNameTokens(AppointmentSearchModel appointment) {
+    return _nameTokenCache.putIfAbsent(
+      appointment.appointmentId,
+      () => _getNormalizedName(appointment)
+          .split(RegExp(r'\s+'))
+          .where((token) => token.isNotEmpty)
+          .toSet(),
+    );
+  }
+
+  Set<String> _getKeywordTokens(AppointmentSearchModel appointment) {
+    return _keywordTokenCache.putIfAbsent(
+      appointment.appointmentId,
+      () => (appointment.searchKeywords ?? const <String>[])
+          .map((keyword) => keyword.toLowerCase())
+          .where((keyword) => keyword.isNotEmpty)
+          .toSet(),
+    );
   }
 
   // ✨ [ADDED] ฟังก์ชันสำหรับจัดการเมื่อมีการคลิกที่การ์ดนัดหมาย
@@ -588,6 +637,8 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
 
 class _AppointmentCard extends StatelessWidget {
   final AppointmentSearchModel appointment;
+  static final DateFormat _dayFormat = DateFormat('dd MMMM', 'th_TH');
+  static final DateFormat _timeFormat = DateFormat('HH:mm');
 
   const _AppointmentCard({required this.appointment});
 
@@ -660,8 +711,6 @@ class _AppointmentCard extends StatelessWidget {
   }
 
   Widget _buildHeader(Color textColor, Color statusColor) {
-    final dayFormat = DateFormat('dd MMMM', 'th_TH');
-    final timeFormat = DateFormat('HH:mm');
     final buddhistYear = appointment.startTime.year + 543;
 
     return Row(
@@ -671,7 +720,7 @@ class _AppointmentCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${dayFormat.format(appointment.startTime)} $buddhistYear',
+              '${_dayFormat.format(appointment.startTime)} $buddhistYear',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -680,7 +729,7 @@ class _AppointmentCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${timeFormat.format(appointment.startTime)} - ${timeFormat.format(appointment.endTime)} น. (${appointment.duration} นาที)',
+              '${_timeFormat.format(appointment.startTime)} - ${_timeFormat.format(appointment.endTime)} น. (${appointment.duration} นาที)',
               style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.8)),
             ),
           ],

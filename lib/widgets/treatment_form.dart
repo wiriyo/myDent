@@ -19,6 +19,13 @@ import '../features/printing/render/preview_pages.dart' as pv;
 import '../features/printing/domain/receipt_model.dart' as receipt;
 import '../features/printing/services/receipt_number_service.dart';
 
+class _SaveDecision {
+  final bool confirmed;
+  final bool shouldSchedule;
+
+  const _SaveDecision({required this.confirmed, required this.shouldSchedule});
+}
+
 class TreatmentForm extends StatefulWidget {
   final String patientId;
   final Treatment? treatment;
@@ -219,23 +226,220 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
   }
 
+  Future<_SaveDecision?> _showSaveConfirmationDialog() async {
+    return showDialog<_SaveDecision>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        bool? selection = _isEditing ? false : null;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final textTheme = Theme.of(context).textTheme;
+            final bool disableConfirm = !_isEditing && selection == null;
+
+            Widget buildOption({
+              required bool value,
+              required IconData icon,
+              required String title,
+              required String subtitle,
+            }) {
+              final bool isSelected = selection == value;
+              return InkWell(
+                onTap: () => setState(() => selection = value),
+                borderRadius: BorderRadius.circular(16),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppTheme.primary.withOpacity(0.12) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppTheme.primary
+                          : AppTheme.primary.withOpacity(0.2),
+                      width: 1.5,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.primary.withOpacity(0.18),
+                              offset: const Offset(0, 6),
+                              blurRadius: 14,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: AppTheme.primary),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: textTheme.titleMedium?.copyWith(
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Radio<bool>(
+                        value: value,
+                        groupValue: selection,
+                        onChanged: (val) => setState(() => selection = val),
+                        activeColor: AppTheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              titlePadding: EdgeInsets.zero,
+              contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              title: Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                decoration: const BoxDecoration(
+                  color: AppTheme.primaryLight,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: AppTheme.primary,
+                      child: const Icon(Icons.content_paste_rounded, color: Colors.white, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'ยืนยันการบันทึก',
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'ตรวจสอบข้อมูลอีกครั้งก่อนดำเนินการนะคะ',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ระบบจะบันทึกข้อมูลการรักษาให้ทันทีหลังจากกดยืนยันค่ะ',
+                    style: textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+                  ),
+                  if (!_isEditing) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      'เลือกขั้นตอนถัดไป',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    buildOption(
+                      value: true,
+                      icon: Icons.event_available_rounded,
+                      title: 'นัดหมายครั้งต่อไป',
+                      subtitle: 'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
+                    ),
+                    buildOption(
+                      value: false,
+                      icon: Icons.insert_drive_file_rounded,
+                      title: 'ไม่มีนัดหมาย',
+                      subtitle: 'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '* เลือกได้เพียง 1 ตัวเลือกก่อนกดยืนยัน',
+                      style: textTheme.bodySmall?.copyWith(color: AppTheme.textDisabled),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(const _SaveDecision(confirmed: false, shouldSchedule: false)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('ยกเลิก'),
+                ),
+                TextButton(
+                  onPressed: disableConfirm
+                      ? null
+                      : () => Navigator.of(context).pop(
+                            _SaveDecision(
+                              confirmed: true,
+                              shouldSchedule: selection ?? false,
+                            ),
+                          ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    disabledForegroundColor: AppTheme.textDisabled,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  child: const Text('ยืนยัน'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final confirmSave = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('ยืนยันการบันทึก'),
-        content: const Text('ต้องการบันทึกข้อมูลการรักษานี้ใช่หรือไม่?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ยืนยัน')),
-        ],
-      ),
-    );
+    final decision = await _showSaveConfirmationDialog();
 
-    if (confirmSave != true || !mounted) return;
+    if (decision?.confirmed != true || !mounted) return;
+
+    final bool shouldScheduleAfterSave = !_isEditing && decision!.shouldSchedule;
 
     final provider = context.read<TreatmentProvider>();
 
@@ -289,23 +493,11 @@ class _TreatmentFormState extends State<TreatmentForm> {
         return;
       }
 
-      final shouldSchedule = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('นัดหมายครั้งต่อไป'),
-          content: const Text('ต้องการนัดหมายครั้งต่อไปหรือไม่?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ไม่มีนัดหมาย')),
-            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('นัดหมายครั้งต่อไป')),
-          ],
-        ),
-      );
-      debugPrint("💖 Laila Debug: User wants to schedule: $shouldSchedule");
+      debugPrint("💖 Laila Debug: Should schedule after save: $shouldScheduleAfterSave");
 
       if (!mounted) return;
 
-      if (shouldSchedule == true) {
+      if (shouldScheduleAfterSave) {
         final patientForScheduling = await _getPatientForScheduling();
         if (patientForScheduling == null) {
           if (mounted) _showErrorSnackBar(context, 'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้');
@@ -327,17 +519,17 @@ class _TreatmentFormState extends State<TreatmentForm> {
         );
         return;
 
-      } else {
-        debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
-        final receipt = await _buildReceiptFromForm();
-        await nav.push(MaterialPageRoute(builder: (_) => pv.ReceiptPreviewPage(receipt: receipt)));
-
-        debugPrint("💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.");
-        if (mounted) {
-          nav.pop(true);
-        }
-        return;
       }
+
+      debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
+      final receipt = await _buildReceiptFromForm();
+      await nav.push(MaterialPageRoute(builder: (_) => pv.ReceiptPreviewPage(receipt: receipt)));
+
+      debugPrint("💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.");
+      if (mounted) {
+        nav.pop(true);
+      }
+      return;
     } else {
       _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
     }

@@ -222,6 +222,21 @@ class _TreatmentFormState extends State<TreatmentForm> {
   void _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final confirmSave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันการบันทึก'),
+        content: const Text('ต้องการบันทึกข้อมูลการรักษานี้ใช่หรือไม่?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ยืนยัน')),
+        ],
+      ),
+    );
+
+    if (confirmSave != true || !mounted) return;
+
     final provider = context.read<TreatmentProvider>();
 
     await _ensureReceiptInfo();

@@ -354,22 +354,48 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
     final sanitizedPatientName = rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
 
-    Patient? patient = _selectedPatient;
-    bool createdNewPatient = false;
-    String? createdPatientHn;
-    if (patient == null) {
-      patient = _findPatientByDisplayName(rawPatientName);
-      if (patient != null) {
+    FocusScope.of(context).unfocus();
+
+    Patient? resolvedPatient = _selectedPatient;
+    if (resolvedPatient == null) {
+      final matchedPatient = _findPatientByDisplayName(rawPatientName);
+      if (matchedPatient != null) {
+        resolvedPatient = matchedPatient;
         if (mounted) {
           setState(() {
-            _selectedPatient = patient;
+            _selectedPatient = matchedPatient;
           });
         } else {
-          _selectedPatient = patient;
+          _selectedPatient = matchedPatient;
         }
-        _syncPatientFieldControllers(patient);
+        _syncPatientFieldControllers(matchedPatient);
       }
     }
+
+    final bool confirmed = await _showSaveConfirmationDialog(
+      patientDisplayName: resolvedPatient != null
+          ? '${resolvedPatient.prefix}${resolvedPatient.name}'.trim()
+          : sanitizedPatientName,
+      appointmentDate: DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+      ),
+      startTime: _startTime!,
+      endTime: _endTime!,
+      treatment: _treatmentController.text.trim(),
+      notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      isEditing: _isEditing,
+      isNewPatient: resolvedPatient == null,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    Patient? patient = resolvedPatient;
+    bool createdNewPatient = false;
+    String? createdPatientHn;
 
     if (patient == null) {
       try {
@@ -418,8 +444,19 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       }
     }
 
-    final confirmedPatient = patient;
-    // The confirmedPatient is guaranteed to be non-null, so this check is unnecessary.
+    patient ??= _selectedPatient;
+    if (patient == null) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _selectedPatient = patient;
+      });
+    } else {
+      _selectedPatient = patient;
+    }
+    _syncPatientFieldControllers(patient);
 
     final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
     final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
@@ -428,11 +465,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final appointment = AppointmentModel(
       appointmentId: widget.appointment?.appointmentId ?? '',
       userId: userId,
-      patientId: confirmedPatient.patientId,
-      patientName: confirmedPatient.name,
+      patientId: patient.patientId,
+      patientName: patient.name,
       clinicId: clinicId,
-      hnNumber: confirmedPatient.hnNumber,
-      patientPhone: confirmedPatient.telephone,
+      hnNumber: patient.hnNumber,
+      patientPhone: patient.telephone,
       treatment: _treatmentController.text.trim(),
       duration: int.tryParse(_durationController.text.trim()) ?? 30,
       status: _status,
@@ -451,7 +488,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       if (mounted) {
         Navigator.of(context).pop({
           'appointment': appointment,
-          'patient': _selectedPatient!,
+          'patient': patient,
         });
         final buffer = StringBuffer('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨');
         if (createdNewPatient) {
@@ -478,6 +515,218 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         );
       }
     }
+  }
+
+  Future<bool> _showSaveConfirmationDialog({
+    required String patientDisplayName,
+    required DateTime appointmentDate,
+    required TimeOfDay startTime,
+    required TimeOfDay endTime,
+    required String treatment,
+    String? notes,
+    required bool isEditing,
+    required bool isNewPatient,
+  }) async {
+    final dateText = DateFormat('EEEEที่ d MMM yyyy', 'th_TH').format(appointmentDate);
+
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            final materialLocalizations = MaterialLocalizations.of(dialogContext);
+            final startTimeText = materialLocalizations.formatTimeOfDay(startTime);
+            final endTimeText = materialLocalizations.formatTimeOfDay(endTime);
+            final timeRangeText = '$startTimeText – $endTimeText';
+
+            Widget infoTile({
+              required IconData icon,
+              required String label,
+              required String value,
+            }) {
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.primary.withOpacity(0.08)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.all(10),
+                      child: Icon(icon, color: AppTheme.primary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              fontFamily: AppTheme.fontFamily,
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            value,
+                            style: const TextStyle(
+                              fontFamily: AppTheme.fontFamily,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return AlertDialog(
+              backgroundColor: AppTheme.background,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.16),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.event_available_rounded, color: AppTheme.primary, size: 30),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    isEditing ? 'ยืนยันการบันทึกการแก้ไข' : 'ยืนยันการเพิ่มนัดหมาย',
+                    style: const TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'โปรดตรวจสอบรายละเอียดก่อนกดบันทึกนะคะ',
+                    style: const TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isNewPatient)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primary),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'ระบบจะสร้างข้อมูลคนไข้ใหม่ให้อัตโนมัติพร้อมกับนัดหมายนี้ค่ะ',
+                                style: TextStyle(
+                                  fontFamily: AppTheme.fontFamily,
+                                  fontSize: 13,
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    infoTile(
+                      icon: Icons.person_outline_rounded,
+                      label: 'คนไข้',
+                      value: patientDisplayName,
+                    ),
+                    infoTile(
+                      icon: Icons.calendar_today_rounded,
+                      label: 'วันที่',
+                      value: dateText,
+                    ),
+                    infoTile(
+                      icon: Icons.access_time_rounded,
+                      label: 'เวลา',
+                      value: timeRangeText,
+                    ),
+                    if (treatment.isNotEmpty)
+                      infoTile(
+                        icon: Icons.medical_services_rounded,
+                        label: 'หัตถการ',
+                        value: treatment,
+                      ),
+                    if (notes != null && notes!.isNotEmpty)
+                      infoTile(
+                        icon: Icons.sticky_note_2_outlined,
+                        label: 'บันทึกเพิ่มเติม',
+                        value: notes!,
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    textStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontWeight: FontWeight.w500),
+                  ),
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('ตรวจสอบอีกครั้ง'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    textStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(isEditing ? 'บันทึกการแก้ไข' : 'ยืนยันบันทึก'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   InputDecoration _buildInputDecoration(String label,

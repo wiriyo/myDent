@@ -60,6 +60,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   String _status = 'รอยืนยัน';
   bool _isEditing = false;
   bool _isChainedAppointment = false;
+  bool _isInteractionLocked = false;
 
   @override
   void initState() {
@@ -197,6 +198,17 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
   }
 
+  void _setInteractionLocked(bool value) {
+    if (_isInteractionLocked == value) return;
+    if (mounted) {
+      setState(() {
+        _isInteractionLocked = value;
+      });
+    } else {
+      _isInteractionLocked = value;
+    }
+  }
+
   Future<void> _pickDate() async {
     final DateTime? picked = await showBuddhistDatePicker(
       context: context,
@@ -319,201 +331,210 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Future<void> _saveAppointment() async {
-    if (_appointmentService == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
-      );
+    if (_isInteractionLocked) {
       return;
     }
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้')));
-      return;
-    }
-    if (_startTime == null || _endTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้')));
-      return;
-    }
-    final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
-    if (clinicId == null || clinicId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
-      );
-      return;
-    }
+    _setInteractionLocked(true);
 
-    final rawPatientName = (_patientFieldController?.text ?? _patientController.text).trim();
-    if (rawPatientName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณากรอกชื่อคนไข้')),
-      );
-      return;
-    }
-    final sanitizedPatientName = rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    FocusScope.of(context).unfocus();
-
-    Patient? resolvedPatient = _selectedPatient;
-    if (resolvedPatient == null) {
-      final matchedPatient = _findPatientByDisplayName(rawPatientName);
-      if (matchedPatient != null) {
-        resolvedPatient = matchedPatient;
-        if (mounted) {
-          setState(() {
-            _selectedPatient = matchedPatient;
-          });
-        } else {
-          _selectedPatient = matchedPatient;
-        }
-        _syncPatientFieldControllers(matchedPatient);
-      }
-    }
-
-    final bool confirmed = await _showSaveConfirmationDialog(
-      patientDisplayName: resolvedPatient != null
-          ? '${resolvedPatient.prefix}${resolvedPatient.name}'.trim()
-          : sanitizedPatientName,
-      appointmentDate: DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-      ),
-      startTime: _startTime!,
-      endTime: _endTime!,
-      treatment: _treatmentController.text.trim(),
-      notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-      isEditing: _isEditing,
-      isNewPatient: resolvedPatient == null,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    Patient? patient = resolvedPatient;
-    bool createdNewPatient = false;
-    String? createdPatientHn;
-
-    if (patient == null) {
-      try {
-        final patientService = PatientService(clinicId: clinicId);
-        final newPatient = Patient(
-          patientId: '',
-          name: sanitizedPatientName,
-          prefix: '',
-          clinicId: clinicId,
-          gender: 'ไม่ระบุ',
+    try {
+      if (_appointmentService == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
         );
-        final createdPatient = await patientService.addPatient(newPatient);
-        patient = createdPatient;
-        createdNewPatient = true;
-        createdPatientHn = createdPatient.hnNumber;
-        if (mounted) {
-          setState(() {
+        return;
+      }
+      if (!_formKey.currentState!.validate()) {
+        return;
+      }
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้')));
+        return;
+      }
+      if (_startTime == null || _endTime == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้')));
+        return;
+      }
+      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+      if (clinicId == null || clinicId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
+        );
+        return;
+      }
+
+      final rawPatientName = (_patientFieldController?.text ?? _patientController.text).trim();
+      if (rawPatientName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('กรุณากรอกชื่อคนไข้')),
+        );
+        return;
+      }
+      final sanitizedPatientName = rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+      FocusScope.of(context).unfocus();
+
+      Patient? resolvedPatient = _selectedPatient;
+      if (resolvedPatient == null) {
+        final matchedPatient = _findPatientByDisplayName(rawPatientName);
+        if (matchedPatient != null) {
+          resolvedPatient = matchedPatient;
+          if (mounted) {
+            setState(() {
+              _selectedPatient = matchedPatient;
+            });
+          } else {
+            _selectedPatient = matchedPatient;
+          }
+          _syncPatientFieldControllers(matchedPatient);
+        }
+      }
+
+      final bool confirmed = await _showSaveConfirmationDialog(
+        patientDisplayName: resolvedPatient != null
+            ? '${resolvedPatient.prefix}${resolvedPatient.name}'.trim()
+            : sanitizedPatientName,
+        appointmentDate: DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+        ),
+        startTime: _startTime!,
+        endTime: _endTime!,
+        treatment: _treatmentController.text.trim(),
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        isEditing: _isEditing,
+        isNewPatient: resolvedPatient == null,
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      Patient? patient = resolvedPatient;
+      bool createdNewPatient = false;
+      String? createdPatientHn;
+
+      if (patient == null) {
+        try {
+          final patientService = PatientService(clinicId: clinicId);
+          final newPatient = Patient(
+            patientId: '',
+            name: sanitizedPatientName,
+            prefix: '',
+            clinicId: clinicId,
+            gender: 'ไม่ระบุ',
+          );
+          final createdPatient = await patientService.addPatient(newPatient);
+          patient = createdPatient;
+          createdNewPatient = true;
+          createdPatientHn = createdPatient.hnNumber;
+          if (mounted) {
+            setState(() {
+              _selectedPatient = createdPatient;
+              if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
+                final updatedPatients = [..._allPatients, createdPatient];
+                updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
+                _allPatients = updatedPatients;
+              }
+            });
+          } else {
             _selectedPatient = createdPatient;
             if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
               final updatedPatients = [..._allPatients, createdPatient];
               updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
               _allPatients = updatedPatients;
             }
-          });
-        } else {
-          _selectedPatient = createdPatient;
-          if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
-            final updatedPatients = [..._allPatients, createdPatient];
-            updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
-            _allPatients = updatedPatients;
           }
+          _syncPatientFieldControllers(createdPatient);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'เกิดข้อผิดพลาดในการสร้างข้อมูลคนไข้ใหม่: ${e.toString()}',
+                  style: const TextStyle(fontFamily: AppTheme.fontFamily),
+                ),
+              ),
+            );
+          }
+          return;
         }
-        _syncPatientFieldControllers(createdPatient);
-      } catch (e) {
+      }
+
+      patient ??= _selectedPatient;
+      if (patient == null) {
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _selectedPatient = patient;
+        });
+      } else {
+        _selectedPatient = patient;
+      }
+      _syncPatientFieldControllers(patient);
+
+      final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
+      final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
+      final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
+      final appointment = AppointmentModel(
+        appointmentId: widget.appointment?.appointmentId ?? '',
+        userId: userId,
+        patientId: patient.patientId,
+        patientName: patient.name,
+        clinicId: clinicId,
+        hnNumber: patient.hnNumber,
+        patientPhone: patient.telephone,
+        treatment: _treatmentController.text.trim(),
+        duration: int.tryParse(_durationController.text.trim()) ?? 30,
+        status: _status,
+        startTime: startTime,
+        endTime: endTime,
+        notes: _notesController.text.trim(),
+        teeth: teethList,
+      );
+
+      try {
+        if (_isEditing) {
+          await _appointmentService!.updateAppointment(appointment);
+        } else {
+          await _appointmentService!.addAppointment(appointment);
+        }
         if (mounted) {
+          Navigator.of(context).pop({
+            'appointment': appointment,
+            'patient': patient,
+          });
+          final buffer = StringBuffer('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨');
+          if (createdNewPatient) {
+            final hn = createdPatientHn;
+            final hnInfo = (hn != null && hn.isNotEmpty)
+                ? ' (HN: $hn)'
+                : '';
+            buffer.writeln();
+            buffer.write('สร้างคนไข้ใหม่: ${appointment.patientName}$hnInfo');
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'เกิดข้อผิดพลาดในการสร้างข้อมูลคนไข้ใหม่: ${e.toString()}',
+                buffer.toString(),
                 style: const TextStyle(fontFamily: AppTheme.fontFamily),
               ),
             ),
           );
         }
-        return;
-      }
-    }
-
-    patient ??= _selectedPatient;
-    if (patient == null) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _selectedPatient = patient;
-      });
-    } else {
-      _selectedPatient = patient;
-    }
-    _syncPatientFieldControllers(patient);
-
-    final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
-    final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
-    final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-
-    final appointment = AppointmentModel(
-      appointmentId: widget.appointment?.appointmentId ?? '',
-      userId: userId,
-      patientId: patient.patientId,
-      patientName: patient.name,
-      clinicId: clinicId,
-      hnNumber: patient.hnNumber,
-      patientPhone: patient.telephone,
-      treatment: _treatmentController.text.trim(),
-      duration: int.tryParse(_durationController.text.trim()) ?? 30,
-      status: _status,
-      startTime: startTime,
-      endTime: endTime,
-      notes: _notesController.text.trim(),
-      teeth: teethList,
-    );
-
-    try {
-      if (_isEditing) {
-        await _appointmentService!.updateAppointment(appointment);
-      } else {
-        await _appointmentService!.addAppointment(appointment);
-      }
-      if (mounted) {
-        Navigator.of(context).pop({
-          'appointment': appointment,
-          'patient': patient,
-        });
-        final buffer = StringBuffer('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨');
-        if (createdNewPatient) {
-          final hn = createdPatientHn;
-          final hnInfo = (hn != null && hn.isNotEmpty)
-              ? ' (HN: $hn)'
-              : '';
-          buffer.writeln();
-          buffer.write('สร้างคนไข้ใหม่: ${appointment.patientName}$hnInfo');
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}', style: const TextStyle(fontFamily: AppTheme.fontFamily))),
+          );
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              buffer.toString(),
-              style: const TextStyle(fontFamily: AppTheme.fontFamily),
-            ),
-          ),
-        );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}', style: const TextStyle(fontFamily: AppTheme.fontFamily))),
-        );
-      }
+    } finally {
+      _setInteractionLocked(false);
     }
   }
 
@@ -762,33 +783,36 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     return Dialog(
       backgroundColor: AppTheme.background,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _isEditing ? 'แก้ไขนัดหมาย' : 'เพิ่มนัดหมายใหม่',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary),
-                ),
-                const SizedBox(height: 24),
-                _isChainedAppointment
-                    ? _buildLockedPatientField()
-                    : _buildPatientAutocompleteField(),
-                const SizedBox(height: 16),
-                _buildTreatmentAndTeethFields(),
-                const SizedBox(height: 16),
-                _buildDateField(),
-                const SizedBox(height: 16),
-                _buildTimeAndDurationFields(),
-                const SizedBox(height: 16),
-                _buildNotesField(),
-                const SizedBox(height: 24),
-                _buildActionButtons(),
-              ],
+      child: AbsorbPointer(
+        absorbing: _isInteractionLocked,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _isEditing ? 'แก้ไขนัดหมาย' : 'เพิ่มนัดหมายใหม่',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary),
+                  ),
+                  const SizedBox(height: 24),
+                  _isChainedAppointment
+                      ? _buildLockedPatientField()
+                      : _buildPatientAutocompleteField(),
+                  const SizedBox(height: 16),
+                  _buildTreatmentAndTeethFields(),
+                  const SizedBox(height: 16),
+                  _buildDateField(),
+                  const SizedBox(height: 16),
+                  _buildTimeAndDurationFields(),
+                  const SizedBox(height: 16),
+                  _buildNotesField(),
+                  const SizedBox(height: 24),
+                  _buildActionButtons(),
+                ],
+              ),
             ),
           ),
         ),
@@ -1120,7 +1144,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             elevation: 4,
             shadowColor: AppTheme.primary.withOpacity(0.3),
             child: InkWell(
-              onTap: _saveAppointment,
+              onTap: _isInteractionLocked ? null : _saveAppointment,
               child: Tooltip(
                 message: _isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มนัดหมาย',
                 child: Padding(

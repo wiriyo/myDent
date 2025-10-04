@@ -42,6 +42,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   final PatientService _patientService = PatientService();
   late String _currentStatus;
   late TextEditingController _reasonController;
+  bool _isSaving = false;
   final List<String> statusOptions = const [
     'รอยืนยัน',
     'ยืนยันแล้ว',
@@ -218,6 +219,12 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       }
       return;
     }
+    if (_isSaving) {
+      return;
+    }
+    setState(() {
+      _isSaving = true;
+    });
     try {
       final updatedAppointment = AppointmentModel(
         appointmentId: widget.appointment.appointmentId,
@@ -301,7 +308,17 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('เกิดข้อผิดพลาดในการบันทึก: $e')),
         );
+        setState(() {
+          _isSaving = false;
+        });
       }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+      });
     }
   }
 
@@ -611,6 +628,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               backgroundColor: AppTheme.buttonCallBg,
               tooltip: 'บันทึกการเปลี่ยนแปลง',
               onPressed: _saveChanges,
+              isEnabled: !_isSaving,
             ),
             const SizedBox(width: 8),
             _buildIconActionButton(
@@ -659,6 +677,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     required Color backgroundColor,
     required String tooltip,
     required VoidCallback onPressed,
+    bool isEnabled = true,
   }) {
     return SizedBox(
       height: 48,
@@ -670,7 +689,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         child: IconButton(
           tooltip: tooltip,
           icon: Image.asset(iconPath, width: 26, height: 26),
-          onPressed: onPressed,
+          onPressed: isEnabled ? onPressed : null,
         ),
       ),
     );

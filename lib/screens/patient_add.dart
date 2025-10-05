@@ -426,12 +426,18 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                       'เบอร์โทรศัพท์',
                       _phoneController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: const [
+                        _ThaiPhoneInputFormatter(),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     _buildTextField(
                       'เลขบัตรประจำตัวประชาชน',
                       _idCardController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: const [
+                        _ThaiIdCardInputFormatter(),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Row(

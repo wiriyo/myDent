@@ -543,10 +543,6 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         }
       }
 
-      patient ??= _selectedPatient;
-      if (patient == null) {
-        return;
-      }
 
       if (mounted) {
         setState(() {

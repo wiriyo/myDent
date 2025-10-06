@@ -759,7 +759,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     return Form(
       key: _formKey,
       child: AbsorbPointer(
-        absorbing: treatmentProvider.isLoading || _isSaveButtonLocked,
+        absorbing: isSaving || _isSaveButtonLocked,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

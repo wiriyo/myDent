@@ -10,6 +10,7 @@ import '../models/treatment_master.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/treatment_master_service.dart';
+import '../services/tooth_history_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_date_picker.dart';
 import 'package:provider/provider.dart';
@@ -33,7 +34,7 @@ class AppointmentAddDialog extends StatefulWidget {
     this.initialStartTime,
     this.initialPatient,
     this.initialTreatment, // เพิ่มใน constructor
-    this.initialTeeth,     // เพิ่มใน constructor
+    this.initialTeeth, // เพิ่มใน constructor
   });
 
   @override
@@ -47,6 +48,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   List<Patient> _allPatients = [];
   List<TreatmentMaster> _allTreatmentsMaster = [];
   Patient? _selectedPatient;
+  final ToothHistoryService _toothHistoryService = ToothHistoryService();
+  List<String> _teethHistory = [];
+  final FocusNode _teethFocusNode = FocusNode();
 
   late TextEditingController _patientController;
   TextEditingController? _patientFieldController;
@@ -72,9 +76,12 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     String initialPatientName = '';
     if (_isChainedAppointment) {
       _selectedPatient = widget.initialPatient;
-      initialPatientName = '${widget.initialPatient!.prefix}${widget.initialPatient!.name}';
+      initialPatientName =
+          '${widget.initialPatient!.prefix}${widget.initialPatient!.name}';
     } else if (_isEditing) {
-      _patientService.getPatientById(initialAppointment!.patientId).then((patient) {
+      _patientService.getPatientById(initialAppointment!.patientId).then((
+        patient,
+      ) {
         if (patient != null && mounted) {
           setState(() {
             _selectedPatient = patient;
@@ -83,21 +90,31 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       });
       initialPatientName = initialAppointment.patientName;
     }
-    
+
     _patientController = TextEditingController(text: initialPatientName);
     // 💖✨ START: TREATMENT INFO UPGRADE v1.8 ✨💖
     // ใช้ข้อมูลจาก "โพย" ที่ได้รับมาเพื่อกรอกข้อมูลเริ่มต้นค่ะ
-    _treatmentController = TextEditingController(text: initialAppointment?.treatment ?? widget.initialTreatment ?? '');
-    _teethController = TextEditingController(text: initialAppointment?.teeth?.join(', ') ?? widget.initialTeeth ?? '');
+    _treatmentController = TextEditingController(
+      text: initialAppointment?.treatment ?? widget.initialTreatment ?? '',
+    );
+    _teethController = TextEditingController(
+      text: initialAppointment?.teeth?.join(', ') ?? widget.initialTeeth ?? '',
+    );
     // 💖✨ END: TREATMENT INFO UPGRADE v1.8 ✨💖
-    _durationController = TextEditingController(text: initialAppointment?.duration.toString() ?? '30');
-    _notesController = TextEditingController(text: initialAppointment?.notes ?? '');
+    _durationController = TextEditingController(
+      text: initialAppointment?.duration.toString() ?? '30',
+    );
+    _notesController = TextEditingController(
+      text: initialAppointment?.notes ?? '',
+    );
     _status = initialAppointment?.status ?? 'รอยืนยัน';
-    _selectedDate = initialAppointment?.startTime ?? widget.initialDate ?? DateTime.now();
-    
-    _startTime = initialAppointment != null
-        ? TimeOfDay.fromDateTime(initialAppointment.startTime)
-        : widget.initialStartTime != null
+    _selectedDate =
+        initialAppointment?.startTime ?? widget.initialDate ?? DateTime.now();
+
+    _startTime =
+        initialAppointment != null
+            ? TimeOfDay.fromDateTime(initialAppointment.startTime)
+            : widget.initialStartTime != null
             ? TimeOfDay.fromDateTime(widget.initialStartTime!)
             : const TimeOfDay(hour: 9, minute: 0);
     _calculateEndTime();
@@ -112,20 +129,33 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   }
 
   Future<void> _loadInitialData() async {
-    // ใช้ clinicId เพื่อดึงรายชื่อคนไข้เฉพาะคลินิก
     final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
     final clinicId = authProvider.verifiedClinicId;
-    final patientsFuture = (clinicId != null && clinicId.isNotEmpty)
-        ? PatientService(clinicId: clinicId).fetchPatientsOnce()
-        : _patientService.fetchPatientsOnce();
+    final patientsFuture =
+        (clinicId != null && clinicId.isNotEmpty)
+            ? PatientService(clinicId: clinicId).fetchPatientsOnce()
+            : _patientService.fetchPatientsOnce();
     final treatmentsFuture = TreatmentMasterService.getAllTreatments().first;
-    final results = await Future.wait([patientsFuture, treatmentsFuture]);
-    if (mounted) {
-      setState(() {
-        _allPatients = results[0] as List<Patient>;
-        _allTreatmentsMaster = results[1] as List<TreatmentMaster>;
-      });
+    final toothHistoryFuture = _toothHistoryService.loadHistory();
+    final results = await Future.wait([
+      patientsFuture,
+      treatmentsFuture,
+      toothHistoryFuture,
+    ]);
+    final patients = results[0] as List<Patient>;
+    final treatments = results[1] as List<TreatmentMaster>;
+    final teethHistory = List<String>.from(results[2] as List<String>);
+    if (!mounted) {
+      _allPatients = patients;
+      _allTreatmentsMaster = treatments;
+      _teethHistory = teethHistory;
+      return;
     }
+    setState(() {
+      _allPatients = patients;
+      _allTreatmentsMaster = treatments;
+      _teethHistory = teethHistory;
+    });
   }
 
   String _normalizePatientName(String value) {
@@ -134,17 +164,21 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
   Patient? _findPatientByDisplayName(String displayName) {
     final normalizedInput = _normalizePatientName(displayName);
-    final normalizedHnInput = displayName.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    final normalizedHnInput =
+        displayName.replaceAll(RegExp(r'\s+'), '').toLowerCase();
     Patient? potentialNameOnlyMatch;
     bool hasMultipleNameOnlyMatches = false;
     for (final patient in _allPatients) {
-      final candidate = _normalizePatientName('${patient.prefix}${patient.name}');
+      final candidate = _normalizePatientName(
+        '${patient.prefix}${patient.name}',
+      );
       if (candidate == normalizedInput) {
         return patient;
       }
       final hnNumber = patient.hnNumber;
       if (hnNumber != null && hnNumber.isNotEmpty) {
-        final normalizedHn = hnNumber.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+        final normalizedHn =
+            hnNumber.replaceAll(RegExp(r'\s+'), '').toLowerCase();
         if (normalizedHn == normalizedHnInput) {
           return patient;
         }
@@ -168,7 +202,8 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   void _syncPatientFieldControllers(Patient patient) {
     final displayName = '${patient.prefix}${patient.name}';
     _patientController.text = displayName;
-    if (_patientFieldController != null && _patientFieldController!.text != displayName) {
+    if (_patientFieldController != null &&
+        _patientFieldController!.text != displayName) {
       _patientFieldController!.text = displayName;
     }
   }
@@ -177,9 +212,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
   void dispose() {
     _patientController.dispose();
     _treatmentController.dispose();
+    _durationController.removeListener(_calculateEndTime);
     _durationController.dispose();
     _notesController.dispose();
     _teethController.dispose();
+    _teethFocusNode.dispose();
     super.dispose();
   }
 
@@ -216,7 +253,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       firstDate: DateTime(DateTime.now().year - 100),
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
     );
-    
+
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
@@ -228,28 +265,35 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     final List<int> hours = List<int>.generate(24, (i) => i);
     final List<int> minutes = [0, 15, 30, 45];
     final initialTime = _startTime ?? const TimeOfDay(hour: 9, minute: 0);
-    
+
     int initialHourIndex = hours.indexOf(initialTime.hour);
-    if(initialHourIndex == -1) initialHourIndex = 9;
+    if (initialHourIndex == -1) initialHourIndex = 9;
     int initialMinuteIndex = 0;
     int minDiff = 60;
-    for(int i=0; i < minutes.length; i++){
+    for (int i = 0; i < minutes.length; i++) {
       int diff = (minutes[i] - initialTime.minute).abs();
-      if(diff < minDiff){
+      if (diff < minDiff) {
         minDiff = diff;
         initialMinuteIndex = i;
       }
     }
 
-    final hourController = FixedExtentScrollController(initialItem: initialHourIndex);
-    final minuteController = FixedExtentScrollController(initialItem: initialMinuteIndex);
+    final hourController = FixedExtentScrollController(
+      initialItem: initialHourIndex,
+    );
+    final minuteController = FixedExtentScrollController(
+      initialItem: initialMinuteIndex,
+    );
     TimeOfDay? pickedTime;
 
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('เลือกเวลาเริ่ม', style: TextStyle(fontFamily: AppTheme.fontFamily)),
+          title: const Text(
+            'เลือกเวลาเริ่ม',
+            style: TextStyle(fontFamily: AppTheme.fontFamily),
+          ),
           content: SizedBox(
             height: 200,
             width: 200,
@@ -269,7 +313,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                         return Center(
                           child: Text(
                             hours[index].toString().padLeft(2, '0'),
-                            style: const TextStyle(fontSize: 24, fontFamily: AppTheme.fontFamily),
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontFamily: AppTheme.fontFamily,
+                            ),
                           ),
                         );
                       },
@@ -278,7 +325,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text(':', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    ':',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
                 ),
                 Expanded(
                   child: ListWheelScrollView.useDelegate(
@@ -293,7 +343,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                         return Center(
                           child: Text(
                             minutes[index].toString().padLeft(2, '0'),
-                            style: const TextStyle(fontSize: 24, fontFamily: AppTheme.fontFamily),
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontFamily: AppTheme.fontFamily,
+                            ),
                           ),
                         );
                       },
@@ -313,7 +366,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
               onPressed: () {
                 final selectedHour = hours[hourController.selectedItem];
                 final selectedMinute = minutes[minuteController.selectedItem];
-                pickedTime = TimeOfDay(hour: selectedHour, minute: selectedMinute);
+                pickedTime = TimeOfDay(
+                  hour: selectedHour,
+                  minute: selectedMinute,
+                );
                 Navigator.of(context).pop();
               },
             ),
@@ -348,14 +404,21 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       }
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูลผู้ใช้')),
+        );
         return;
       }
       if (_startTime == null || _endTime == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('เกิดข้อผิดพลาด: ไม่สามารถคำนวณเวลาสิ้นสุดได้'),
+          ),
+        );
         return;
       }
-      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+      final clinicId =
+          Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
       if (clinicId == null || clinicId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
@@ -363,14 +426,16 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         return;
       }
 
-      final rawPatientName = (_patientFieldController?.text ?? _patientController.text).trim();
+      final rawPatientName =
+          (_patientFieldController?.text ?? _patientController.text).trim();
       if (rawPatientName.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกชื่อคนไข้')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อคนไข้')));
         return;
       }
-      final sanitizedPatientName = rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
+      final sanitizedPatientName =
+          rawPatientName.replaceAll(RegExp(r'\s+'), ' ').trim();
 
       FocusScope.of(context).unfocus();
 
@@ -391,9 +456,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       }
 
       final bool confirmed = await _showSaveConfirmationDialog(
-        patientDisplayName: resolvedPatient != null
-            ? '${resolvedPatient.prefix}${resolvedPatient.name}'.trim()
-            : sanitizedPatientName,
+        patientDisplayName:
+            resolvedPatient != null
+                ? '${resolvedPatient.prefix}${resolvedPatient.name}'.trim()
+                : sanitizedPatientName,
         appointmentDate: DateTime(
           _selectedDate.year,
           _selectedDate.month,
@@ -402,7 +468,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         startTime: _startTime!,
         endTime: _endTime!,
         treatment: _treatmentController.text.trim(),
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes:
+            _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
         isEditing: _isEditing,
         isNewPatient: resolvedPatient == null,
       );
@@ -432,17 +501,29 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
           if (mounted) {
             setState(() {
               _selectedPatient = createdPatient;
-              if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
+              if (!_allPatients.any(
+                (p) => p.patientId == createdPatient.patientId,
+              )) {
                 final updatedPatients = [..._allPatients, createdPatient];
-                updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
+                updatedPatients.sort(
+                  (a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo(
+                    '${b.prefix}${b.name}'.toLowerCase(),
+                  ),
+                );
                 _allPatients = updatedPatients;
               }
             });
           } else {
             _selectedPatient = createdPatient;
-            if (!_allPatients.any((p) => p.patientId == createdPatient.patientId)) {
+            if (!_allPatients.any(
+              (p) => p.patientId == createdPatient.patientId,
+            )) {
               final updatedPatients = [..._allPatients, createdPatient];
-              updatedPatients.sort((a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo('${b.prefix}${b.name}'.toLowerCase()));
+              updatedPatients.sort(
+                (a, b) => '${a.prefix}${a.name}'.toLowerCase().compareTo(
+                  '${b.prefix}${b.name}'.toLowerCase(),
+                ),
+              );
               _allPatients = updatedPatients;
             }
           }
@@ -476,9 +557,26 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       }
       _syncPatientFieldControllers(patient);
 
-      final startTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _startTime!.hour, _startTime!.minute);
-      final endTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _endTime!.hour, _endTime!.minute);
-      final teethList = _teethController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      final startTime = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _startTime!.hour,
+        _startTime!.minute,
+      );
+      final endTime = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _endTime!.hour,
+        _endTime!.minute,
+      );
+      final teethList =
+          _teethController.text
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
 
       final appointment = AppointmentModel(
         appointmentId: widget.appointment?.appointmentId ?? '',
@@ -503,17 +601,17 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         } else {
           await _appointmentService!.addAppointment(appointment);
         }
+        if (teethList.isNotEmpty) {
+          await _toothHistoryService.addEntries(teethList);
+        }
         if (mounted) {
-          Navigator.of(context).pop({
-            'appointment': appointment,
-            'patient': patient,
-          });
+          Navigator.of(
+            context,
+          ).pop({'appointment': appointment, 'patient': patient});
           final buffer = StringBuffer('บันทึกนัดหมายเรียบร้อยแล้วค่ะ! ✨');
           if (createdNewPatient) {
             final hn = createdPatientHn;
-            final hnInfo = (hn != null && hn.isNotEmpty)
-                ? ' (HN: $hn)'
-                : '';
+            final hnInfo = (hn != null && hn.isNotEmpty) ? ' (HN: $hn)' : '';
             buffer.writeln();
             buffer.write('สร้างคนไข้ใหม่: ${appointment.patientName}$hnInfo');
           }
@@ -529,7 +627,12 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.toString()}', style: const TextStyle(fontFamily: AppTheme.fontFamily))),
+            SnackBar(
+              content: Text(
+                'เกิดข้อผิดพลาด: ${e.toString()}',
+                style: const TextStyle(fontFamily: AppTheme.fontFamily),
+              ),
+            ),
           );
         }
       }
@@ -548,13 +651,20 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     required bool isEditing,
     required bool isNewPatient,
   }) async {
-    final dateText = DateFormat('EEEEที่ d MMM yyyy', 'th_TH').format(appointmentDate);
+    final dateText = DateFormat(
+      'EEEEที่ d MMM yyyy',
+      'th_TH',
+    ).format(appointmentDate);
 
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) {
-            final materialLocalizations = MaterialLocalizations.of(dialogContext);
-            final startTimeText = materialLocalizations.formatTimeOfDay(startTime);
+            final materialLocalizations = MaterialLocalizations.of(
+              dialogContext,
+            );
+            final startTimeText = materialLocalizations.formatTimeOfDay(
+              startTime,
+            );
             final endTimeText = materialLocalizations.formatTimeOfDay(endTime);
             final timeRangeText = '$startTimeText – $endTimeText';
 
@@ -623,8 +733,13 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
 
             return AlertDialog(
               backgroundColor: AppTheme.background,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
               titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
               contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -637,11 +752,17 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       color: AppTheme.primary.withOpacity(0.16),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.event_available_rounded, color: AppTheme.primary, size: 30),
+                    child: const Icon(
+                      Icons.event_available_rounded,
+                      color: AppTheme.primary,
+                      size: 30,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    isEditing ? 'ยืนยันการบันทึกการแก้ไข' : 'ยืนยันการเพิ่มนัดหมาย',
+                    isEditing
+                        ? 'ยืนยันการบันทึกการแก้ไข'
+                        : 'ยืนยันการเพิ่มนัดหมาย',
                     style: const TextStyle(
                       fontFamily: AppTheme.fontFamily,
                       fontSize: 20,
@@ -677,7 +798,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
-                            Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primary),
+                            Icon(
+                              Icons.person_add_alt_1_rounded,
+                              color: AppTheme.primary,
+                            ),
                             SizedBox(width: 12),
                             Expanded(
                               child: Text(
@@ -714,11 +838,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                         label: 'หัตถการ',
                         value: treatment,
                       ),
-                    if (notes != null && notes!.isNotEmpty)
+                    if (notes != null && notes.isNotEmpty)
                       infoTile(
                         icon: Icons.sticky_note_2_outlined,
                         label: 'บันทึกเพิ่มเติม',
-                        value: notes!,
+                        value: notes,
                       ),
                   ],
                 ),
@@ -727,7 +851,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 TextButton(
                   style: TextButton.styleFrom(
                     foregroundColor: AppTheme.textSecondary,
-                    textStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontWeight: FontWeight.w500),
+                    textStyle: const TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   onPressed: () => Navigator.of(dialogContext).pop(false),
                   child: const Text('ตรวจสอบอีกครั้ง'),
@@ -736,9 +863,17 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    textStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontWeight: FontWeight.bold),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    textStyle: const TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   onPressed: () => Navigator.of(dialogContext).pop(true),
                   child: Text(isEditing ? 'บันทึกการแก้ไข' : 'ยืนยันบันทึก'),
@@ -750,26 +885,41 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         false;
   }
 
-  InputDecoration _buildInputDecoration(String label,
-      {Widget? prefixIcon, String? helperText}) {
+  InputDecoration _buildInputDecoration(
+    String label, {
+    Widget? prefixIcon,
+    String? helperText,
+  }) {
     return InputDecoration(
-      prefixIcon: prefixIcon != null ? Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-        child: prefixIcon,
-      ) : null,
+      prefixIcon:
+          prefixIcon != null
+              ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: prefixIcon,
+              )
+              : null,
       labelText: label,
       helperText: helperText,
-      helperStyle: const TextStyle(fontFamily: AppTheme.fontFamily, color: AppTheme.textSecondary),
+      helperStyle: const TextStyle(
+        fontFamily: AppTheme.fontFamily,
+        color: AppTheme.textSecondary,
+      ),
       filled: true,
       fillColor: Colors.white.withOpacity(0.7),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 16.0,
+        horizontal: 16.0,
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.5), width: 1.5),
+        borderSide: BorderSide(
+          color: AppTheme.primary.withOpacity(0.5),
+          width: 1.5,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -795,7 +945,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 children: [
                   Text(
                     _isEditing ? 'แก้ไขนัดหมาย' : 'เพิ่มนัดหมายใหม่',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primary,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   _isChainedAppointment
@@ -835,17 +989,19 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return Autocomplete<Patient>(
-          displayStringForOption: (patient) => '${patient.prefix}${patient.name}',
+          displayStringForOption:
+              (patient) => '${patient.prefix}${patient.name}',
           initialValue: TextEditingValue(text: _patientController.text),
           optionsBuilder: (TextEditingValue textEditingValue) {
             if (textEditingValue.text.isEmpty) {
               setState(() {
-                  _selectedPatient = null;
+                _selectedPatient = null;
               });
               return const Iterable<Patient>.empty();
             }
             return _allPatients.where((patient) {
-              final patientName = '${patient.prefix}${patient.name}'.toLowerCase();
+              final patientName =
+                  '${patient.prefix}${patient.name}'.toLowerCase();
               final hnNumber = patient.hnNumber?.toLowerCase() ?? '';
               final query = textEditingValue.text.toLowerCase();
               return patientName.contains(query) || hnNumber.contains(query);
@@ -861,13 +1017,19 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             }
             _syncPatientFieldControllers(patient);
           },
-          fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+          fieldViewBuilder: (
+            context,
+            textEditingController,
+            focusNode,
+            onFieldSubmitted,
+          ) {
             if (_patientFieldController != textEditingController) {
               _patientFieldController = textEditingController;
               _patientFieldController!.addListener(() {
                 final currentText = _patientFieldController!.text;
                 if (_selectedPatient == null) return;
-                final selectedDisplay = '${_selectedPatient!.prefix}${_selectedPatient!.name}';
+                final selectedDisplay =
+                    '${_selectedPatient!.prefix}${_selectedPatient!.name}';
                 if (_normalizePatientName(currentText) !=
                     _normalizePatientName(selectedDisplay)) {
                   setState(() {
@@ -881,7 +1043,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
               focusNode: focusNode,
               decoration: _buildInputDecoration(
                 'ค้นหาคนไข้ (ชื่อ หรือ HN)',
-                prefixIcon: Image.asset('assets/icons/user.png', width: 24, height: 24),
+                prefixIcon: Image.asset(
+                  'assets/icons/user.png',
+                  width: 24,
+                  height: 24,
+                ),
                 helperText: 'ถ้าไม่พบในรายชื่อ สามารถพิมพ์ชื่อใหม่ได้เลยค่ะ',
               ),
               validator: (value) {
@@ -905,7 +1071,12 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 child: SizedBox(
                   width: constraints.maxWidth,
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: ((68.0 * options.length) + 24.0).clamp(0.0, 272.0 + 24.0)),
+                    constraints: BoxConstraints(
+                      maxHeight: ((68.0 * options.length) + 24.0).clamp(
+                        0.0,
+                        272.0 + 24.0,
+                      ),
+                    ),
                     child: ListView.builder(
                       shrinkWrap: true,
                       padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 16.0),
@@ -916,17 +1087,35 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                           onTap: () => onSelected(option),
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             child: Row(
                               children: [
-                                Image.asset('assets/icons/user.png', width: 24, height: 24),
+                                Image.asset(
+                                  'assets/icons/user.png',
+                                  width: 24,
+                                  height: 24,
+                                ),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text('${option.prefix}${option.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      Text('HN: ${option.hnNumber ?? 'N/A'}', style: const TextStyle(color: AppTheme.textSecondary)),
+                                      Text(
+                                        '${option.prefix}${option.name}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        'HN: ${option.hnNumber ?? 'N/A'}',
+                                        style: const TextStyle(
+                                          color: AppTheme.textSecondary,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -942,7 +1131,62 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             );
           },
         );
+      },
+    );
+  }
+
+  Iterable<String> _buildTeethOptions(TextEditingValue editingValue) {
+    if (_teethHistory.isEmpty) {
+      return const Iterable<String>.empty();
+    }
+    final rawText = editingValue.text;
+    final rawSegments = rawText.split(',');
+    final trimmedSegments =
+        rawSegments.map((segment) => segment.trim()).toList();
+    final String query =
+        trimmedSegments.isNotEmpty ? trimmedSegments.last : rawText.trim();
+    final lowerQuery = query.toLowerCase();
+    final used =
+        trimmedSegments
+            .where((segment) => segment.isNotEmpty)
+            .map((segment) => segment.toLowerCase())
+            .toSet();
+    used.remove(lowerQuery);
+    if (query.isEmpty) {
+      return _teethHistory.where(
+        (option) => !used.contains(option.toLowerCase()),
+      );
+    }
+    return _teethHistory.where((option) {
+      final normalized = option.toLowerCase();
+      if (used.contains(normalized)) return false;
+      return normalized.contains(lowerQuery);
+    });
+  }
+
+  void _handleTeethOptionSelected(String selection) {
+    final rawSegments = _teethController.text.split(',');
+    if (rawSegments.isEmpty) {
+      rawSegments.add(selection);
+    } else {
+      rawSegments[rawSegments.length - 1] = selection;
+    }
+    final deduped = <String>[];
+    final seen = <String>{};
+    for (final segment in rawSegments) {
+      final trimmed = segment.trim();
+      if (trimmed.isEmpty) continue;
+      final normalized = trimmed.toLowerCase();
+      if (seen.add(normalized)) {
+        deduped.add(trimmed);
       }
+    }
+    final updatedText = deduped.join(', ');
+    _teethController.value = TextEditingValue(
+      text: updatedText,
+      selection: TextSelection.fromPosition(
+        TextPosition(offset: updatedText.length),
+      ),
     );
   }
 
@@ -963,9 +1207,9 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                     return const Iterable<TreatmentMaster>.empty();
                   }
                   return _allTreatmentsMaster.where((treatment) {
-                    return treatment.name
-                        .toLowerCase()
-                        .contains(textEditingValue.text.toLowerCase());
+                    return treatment.name.toLowerCase().contains(
+                      textEditingValue.text.toLowerCase(),
+                    );
                   });
                 },
                 onSelected: (treatment) {
@@ -975,16 +1219,26 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                     _calculateEndTime();
                   });
                 },
-                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                fieldViewBuilder: (
+                  context,
+                  controller,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
                   return TextFormField(
                     controller: controller,
                     focusNode: focusNode,
                     decoration: _buildInputDecoration(
                       'หัตถการ',
-                      prefixIcon: Image.asset('assets/icons/report.png', width: 24, height: 24),
+                      prefixIcon: Image.asset(
+                        'assets/icons/report.png',
+                        width: 24,
+                        height: 24,
+                      ),
                     ),
-                    validator: (value) => (value?.isEmpty ?? true) ? 'กรุณาใส่หัตถการ' : null,
-                    
+                    validator:
+                        (value) =>
+                            (value?.isEmpty ?? true) ? 'กรุณาใส่หัตถการ' : null,
                   );
                 },
                 optionsViewBuilder: (context, onSelected, options) {
@@ -995,15 +1249,27 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       color: const Color(0xFFFCF5FF),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+                        side: BorderSide(
+                          color: AppTheme.primary.withOpacity(0.3),
+                        ),
                       ),
                       child: SizedBox(
                         width: constraints.maxWidth,
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(maxHeight: ((64.0 * options.length) + 24.0).clamp(0.0, 256.0 + 24.0)),
+                          constraints: BoxConstraints(
+                            maxHeight: ((64.0 * options.length) + 24.0).clamp(
+                              0.0,
+                              256.0 + 24.0,
+                            ),
+                          ),
                           child: ListView.builder(
                             shrinkWrap: true,
-                            padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 16.0),
+                            padding: const EdgeInsets.fromLTRB(
+                              8.0,
+                              8.0,
+                              8.0,
+                              16.0,
+                            ),
                             itemCount: options.length,
                             itemBuilder: (context, index) {
                               final option = options.elementAt(index);
@@ -1011,17 +1277,35 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                                 onTap: () => onSelected(option),
                                 borderRadius: BorderRadius.circular(12),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                   child: Row(
                                     children: [
-                                      Image.asset('assets/icons/report.png', width: 24, height: 24),
+                                      Image.asset(
+                                        'assets/icons/report.png',
+                                        width: 24,
+                                        height: 24,
+                                      ),
                                       const SizedBox(width: 16),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            Text(option.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                            Text('เวลา: ${option.duration} นาที', style: const TextStyle(color: AppTheme.textSecondary)),
+                                            Text(
+                                              option.name,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              'เวลา: ${option.duration} นาที',
+                                              style: const TextStyle(
+                                                color: AppTheme.textSecondary,
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -1037,19 +1321,109 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   );
                 },
               );
-            }
+            },
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           flex: 4,
-          child: TextFormField(
-            controller: _teethController,
-            keyboardType: TextInputType.number,
-            decoration: _buildInputDecoration(
-              'ซี่ฟัน',
-              prefixIcon: Image.asset('assets/icons/tooth.png', width: 24, height: 24),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return RawAutocomplete<String>(
+                focusNode: _teethFocusNode,
+                textEditingController: _teethController,
+                optionsBuilder: _buildTeethOptions,
+                displayStringForOption: (option) => option,
+                onSelected: (selection) {
+                  _handleTeethOptionSelected(selection);
+                },
+                fieldViewBuilder: (
+                  context,
+                  controller,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    keyboardType: TextInputType.text,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: _buildInputDecoration(
+                      '?,<?,?1^?,Y?,?,T',
+                      prefixIcon: Image.asset(
+                        'assets/icons/tooth.png',
+                        width: 24,
+                        height: 24,
+                      ),
+                    ),
+                    onFieldSubmitted: (_) => onFieldSubmitted(),
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  final optionList = options.toList();
+                  if (optionList.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  final maxVisible =
+                      optionList.length > 6 ? 6 : optionList.length;
+                  final maxHeight =
+                      maxVisible <= 0 ? 0.0 : (maxVisible * 48.0) + 16.0;
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      color: const Color(0xFFFCF5FF),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: AppTheme.primary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: maxHeight),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            itemCount: optionList.length,
+                            itemBuilder: (context, index) {
+                              final option = optionList[index];
+                              return InkWell(
+                                onTap: () => onSelected(option),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Image.asset(
+                                        'assets/icons/tooth.png',
+                                        width: 24,
+                                        height: 24,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Text(
+                                          option,
+                                          style: const TextStyle(fontSize: 16),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
@@ -1062,11 +1436,19 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
       child: InputDecorator(
         decoration: _buildInputDecoration(
           'วันที่',
-          prefixIcon: Image.asset('assets/icons/calendar.png', width: 24, height: 24),
+          prefixIcon: Image.asset(
+            'assets/icons/calendar.png',
+            width: 24,
+            height: 24,
+          ),
         ),
         child: Text(
           DateFormat('dd MMMM yy', 'th_TH').format(
-            DateTime(_selectedDate.year + 543, _selectedDate.month, _selectedDate.day)
+            DateTime(
+              _selectedDate.year + 543,
+              _selectedDate.month,
+              _selectedDate.day,
+            ),
           ),
           style: const TextStyle(fontSize: 16),
         ),
@@ -1091,7 +1473,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             child: InputDecorator(
               decoration: _buildInputDecoration(
                 'เวลาเริ่ม',
-                prefixIcon: Image.asset('assets/icons/clock.png', width: 24, height: 24),
+                prefixIcon: Image.asset(
+                  'assets/icons/clock.png',
+                  width: 24,
+                  height: 24,
+                ),
               ),
               child: Text(
                 formatTimeOfDay(_startTime),
@@ -1112,7 +1498,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
               final input = value?.trim() ?? '';
               if (input.isEmpty) return 'ใส่เวลา';
               if (int.tryParse(input) == null) return 'ตัวเลข';
-              
+
               if (int.tryParse(input) == null) return 'ตัวเลข';
               return null;
             },
@@ -1149,9 +1535,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 message: _isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มนัดหมาย',
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
-                  child: Image.asset(
-                    'assets/icons/save.png',
-                  ),
+                  child: Image.asset('assets/icons/save.png'),
                 ),
               ),
             ),

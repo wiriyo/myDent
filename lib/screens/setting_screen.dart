@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 // 💖 NEW: import หน้าตั้งค่าการพิมพ์ที่เราเพิ่งสร้างเข้ามา
 import '../features/printing/render/printer_settings_page.dart';
+import 'manual_webview_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -108,6 +109,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const PrinterSettingsPage()),
+                );
+              },
+            ),
+            _buildSettingCard(
+              context,
+              icon: Icons.menu_book_outlined,
+              title: "คู่มือการใช้งาน",
+              subtitle: "เปิดดูวิธีใช้งานระบบ MyDent",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ManualWebViewScreen(),
+                  ),
                 );
               },
             ),

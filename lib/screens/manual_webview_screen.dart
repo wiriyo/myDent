@@ -10,11 +10,14 @@ class ManualWebViewScreen extends StatefulWidget {
 
 class _ManualWebViewScreenState extends State<ManualWebViewScreen> {
   static const _manualUrl =
+      'https://wiriyo.github.io/mydentManual/';
+  static const _fallbackManualUrl =
       'https://knotty-willow-631.notion.site/MyDent-27b36a949fc480f7ab30f8c13fcd4a4a';
 
   late final WebViewController _controller;
   int _loadProgress = 0;
   String? _lastError;
+  bool _usingFallback = false;
 
   @override
   void initState() {
@@ -25,16 +28,10 @@ class _ManualWebViewScreenState extends State<ManualWebViewScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (progress) => setState(() => _loadProgress = progress),
+          onPageStarted: (_) => setState(() => _lastError = null),
+          onPageFinished: (_) => setState(() => _loadProgress = 100),
           onWebResourceError: (error) {
-            setState(() => _lastError = error.description);
-            final messenger = ScaffoldMessenger.maybeOf(context);
-            if (messenger != null) {
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text('ไม่สามารถโหลดคู่มือได้: ${error.description}'),
-                ),
-              );
-            }
+            _handleWebError(error);
           },
         ),
       )
@@ -42,8 +39,40 @@ class _ManualWebViewScreenState extends State<ManualWebViewScreen> {
   }
 
   void _handleRefresh() {
-    setState(() => _lastError = null);
-    _controller.reload();
+    setState(() {
+      _lastError = null;
+      _usingFallback = false;
+      _loadProgress = 0;
+    });
+    _controller.loadRequest(Uri.parse(_manualUrl));
+  }
+
+  void _handleWebError(WebResourceError error) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    if (!_usingFallback) {
+      setState(() {
+        _usingFallback = true;
+        _loadProgress = 0;
+        _lastError = null;
+      });
+      _controller.loadRequest(Uri.parse(_fallbackManualUrl));
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('กำลังเปิดคู่มือฉบับสำรอง เนื่องจากโหลด GitHub Pages ไม่สำเร็จ'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _lastError = error.description);
+    if (messenger != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('ไม่สามารถโหลดคู่มือสำรองได้: ${error.description}'),
+        ),
+      );
+    }
   }
 
   @override
@@ -73,6 +102,16 @@ class _ManualWebViewScreenState extends State<ManualWebViewScreen> {
                 minHeight: 4,
                 color: theme.primaryColor,
                 backgroundColor: const Color(0xFFFBEAFF),
+              ),
+            if (_usingFallback)
+              Container(
+                width: double.infinity,
+                color: const Color(0xFFFCF0FF),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                child: const Text(
+                  'โหลด GitHub Pages ไม่สำเร็จ – กำลังแสดงคู่มือจาก Notion แทน',
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
             if (_lastError != null)
               Padding(

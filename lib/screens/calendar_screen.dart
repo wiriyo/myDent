@@ -181,18 +181,16 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       
       filteredAppointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
-      if (allWorkingHours == null) {
-        allWorkingHours = await _workingHoursService.loadWorkingHours();
+      List<DayWorkingHours> allWorkingHours = _workingHoursCache ?? await _workingHoursService.loadWorkingHours();
+      if (_workingHoursCache == null) {
         _workingHoursCache = allWorkingHours;
       }
+
       DayWorkingHours? dayWorkingHours;
-      if (allWorkingHours != null) {
-        try {
-          dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
-        } catch (e) {
-          dayWorkingHours = null;
-        }
+      try {
+        dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
+      } catch (e) {
+        dayWorkingHours = null;
       }
 
       if (!mounted) return;

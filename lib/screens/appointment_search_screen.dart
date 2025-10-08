@@ -494,7 +494,7 @@ class _AppointmentSearchScreenState extends State<AppointmentSearchScreen> {
                   color: const Color(0xFFFCF5FF),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+                    side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.3)),
                   ),
                   child: SizedBox(
                     width: constraints.maxWidth,
@@ -664,7 +664,7 @@ class _AppointmentCard extends StatelessWidget {
         ),
       ),
       elevation: 2,
-      shadowColor: AppTheme.primary.withOpacity(0.1),
+      shadowColor: AppTheme.primary.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -700,7 +700,7 @@ class _AppointmentCard extends StatelessWidget {
               _buildInfoRow(
                 iconData: Icons.notes_outlined,
                 value: appointment.notes!,
-                iconColor: iconTintColor ?? textColor.withOpacity(0.7),
+                iconColor: iconTintColor ?? textColor.withValues(alpha: 0.7),
                 textColor: textColor,
               ),
             ],
@@ -730,14 +730,14 @@ class _AppointmentCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${_timeFormat.format(appointment.startTime)} - ${_timeFormat.format(appointment.endTime)} น. (${appointment.duration} นาที)',
-              style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.8)),
+              style: TextStyle(fontSize: 14, color: textColor.withValues(alpha: 0.8)),
             ),
           ],
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.15),
+            color: statusColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(

@@ -181,10 +181,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       
       filteredAppointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      List<DayWorkingHours> allWorkingHours = _workingHoursCache ?? await _workingHoursService.loadWorkingHours();
-      if (_workingHoursCache == null) {
-        _workingHoursCache = allWorkingHours;
-      }
+      _workingHoursCache ??= await _workingHoursService.loadWorkingHours();
+      final allWorkingHours = _workingHoursCache!;
 
       DayWorkingHours? dayWorkingHours;
       try {
@@ -285,11 +283,11 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
               icon: const Icon(Icons.developer_mode, color: AppTheme.textSecondary),
               tooltip: 'ออกจากโหมดข้ามล็อกอิน',
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove('skipLogin');
-                if (mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
-                }
+                if (!mounted) return;
+                navigator.pushReplacementNamed('/login');
               },
             ),
         ],
@@ -302,8 +300,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
               calendarFormat: _calendarFormat,
               onFormatChanged: (format) {
                 if (format == CalendarFormat.week) {
-                  Navigator.push(
-                    context,
+                  final navigator = Navigator.of(context);
+                  navigator.push(
                     MaterialPageRoute(
                       builder: (context) => WeeklyViewScreen(
                         focusedDate: _focusedDay,
@@ -311,7 +309,10 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                         receiptDraft: _receiptDraft,
                       ),
                     ),
-                  ).then((_) => _handleDataChange());
+                  ).then((_) {
+                    if (!mounted) return;
+                    _handleDataChange();
+                  });
                 } else {
                   if (_calendarFormat != format) {
                     setState(() { _calendarFormat = format; });
@@ -319,8 +320,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 }
               },
               onDailyViewTapped: () async {
-                final result = await Navigator.push(
-                  context,
+                final navigator = Navigator.of(context);
+                final result = await navigator.push(
                   MaterialPageRoute(builder: (context) => DailyCalendarScreen(
                     selectedDate: _selectedDay,
                     initialPatient: _chainedPatient,
@@ -330,8 +331,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
                 if (result is CalendarFormat && result == CalendarFormat.week) {
                   if (!mounted) return;
-                  await Navigator.push(
-                    context,
+                  await navigator.push(
                     MaterialPageRoute(
                       builder: (context) => WeeklyViewScreen(
                         focusedDate: _focusedDay,
@@ -341,6 +341,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                     ),
                   );
                 }
+                if (!mounted) return;
                 _handleDataChange();
               },
             ),
@@ -352,7 +353,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
               ),
               child: TableCalendar(
                 locale: 'th_TH',
@@ -401,7 +402,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   },
                 ),
                 calendarStyle: CalendarStyle(
-                  todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
+                  todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withValues(alpha: 0.5), shape: BoxShape.circle),
                   selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
                 ),
                 onDaySelected: (selectedDay, focusedDay) {

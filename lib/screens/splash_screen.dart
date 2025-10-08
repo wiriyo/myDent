@@ -116,28 +116,28 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                     size: size,
                     dx: 0.15 + 0.02 * sin(t * pi * 2),
                     dy: 0.2 + 0.02 * cos(t * pi * 2),
-                    color: const Color(0xFFBEE1FF).withOpacity(0.5),
+                    color: const Color(0xFFBEE1FF).withValues(alpha: 0.5),
                     radius: 80,
                   ),
                   _bubble(
                     size: size,
                     dx: 0.85 + 0.02 * cos(t * pi * 2),
                     dy: 0.25 + 0.02 * sin(t * pi * 2),
-                    color: const Color(0xFFF9D1FF).withOpacity(0.5),
+                    color: const Color(0xFFF9D1FF).withValues(alpha: 0.5),
                     radius: 70,
                   ),
                   _bubble(
                     size: size,
                     dx: 0.8 + 0.02 * sin(t * pi * 2),
                     dy: 0.85 + 0.02 * cos(t * pi * 2),
-                    color: const Color(0xFFC9F0E1).withOpacity(0.5),
+                    color: const Color(0xFFC9F0E1).withValues(alpha: 0.5),
                     radius: 90,
                   ),
                   _bubble(
                     size: size,
                     dx: 0.2 + 0.02 * cos(t * pi * 2),
                     dy: 0.8 + 0.02 * sin(t * pi * 2),
-                    color: const Color(0xFFFFE5C8).withOpacity(0.55),
+                    color: const Color(0xFFFFE5C8).withValues(alpha: 0.55),
                     radius: 60,
                   ),
                 ],
@@ -160,7 +160,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           )
@@ -209,7 +209,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           color: color,
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(color: color.withOpacity(0.4), blurRadius: 20, spreadRadius: 2),
+            BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 2),
           ],
         ),
       ),

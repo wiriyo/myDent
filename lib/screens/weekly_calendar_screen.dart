@@ -571,8 +571,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                         // 💖✨ START: NAVIGATION FIX v4.3 ✨💖
                         // เราจะรอ "คำตอบ" จากหน้าน้อง Daily ค่ะ
                         onDailyViewTapped: () async {
-                          final result = await Navigator.push(
-                            context,
+                          final navigator = Navigator.of(context);
+                          final result = await navigator.push(
                             MaterialPageRoute(
                               builder:
                                   (context) => DailyCalendarScreen(
@@ -587,7 +587,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                           if (result is CalendarFormat && result == CalendarFormat.month) {
                             if (!mounted) return;
                             // เราก็จะใช้ประตูย้อนกลับไปได้เลยค่ะ เพราะหน้ารายเดือนอยู่ข้างใต้เราพอดี
-                            Navigator.pop(context);
+                            navigator.pop();
                           } else {
                             // ถ้าไม่ใช่ ก็แค่รีเฟรชข้อมูลค่ะ
                             _fetchDataForWeek(_focusedDay);
@@ -661,7 +661,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -719,7 +719,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           ),
           calendarStyle: CalendarStyle(
             todayDecoration: BoxDecoration(
-              color: AppTheme.primaryLight.withOpacity(0.5),
+              color: AppTheme.primaryLight.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
             selectedDecoration: BoxDecoration(
@@ -781,7 +781,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
               decoration: BoxDecoration(
                 color:
                     isToday
-                        ? AppTheme.primaryLight.withOpacity(0.3)
+                        ? AppTheme.primaryLight.withValues(alpha: 0.3)
                         : Colors.transparent,
                 border: Border(
                   right: BorderSide(color: Colors.grey.shade200),

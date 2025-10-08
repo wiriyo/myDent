@@ -255,6 +255,9 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
     if (_busyCapture) return;
     setState(() => _busyCapture = true);
 
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       if (_lastPng == null) {
         if (widget.debugPngOverride != null) {
@@ -274,29 +277,26 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
           final fileName = 'MyDent-Appointment-${DateTime.now().millisecondsSinceEpoch}.png';
           final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
           if (!saved) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
-              );
-            }
+            if (!mounted) return;
+            messenger.showSnackBar(
+              const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+            );
             return;
           }
         }
 
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
+        if (!mounted) return;
         await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
+        if (!mounted) return;
+        navigator.pop();
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
     } finally {
       if (mounted) {
         setState(() => _busyCapture = false);

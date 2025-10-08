@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 // ----- FILE: lib/services/treatment_master.dart -----
 // เวอร์ชัน 1.1: ✨ อัปเกรด Service จัดการเมนูหัตถการ
 // ทำให้เมธอด addIfNotExist ฉลาดขึ้น สามารถคืนค่า ID กลับมาได้
@@ -66,12 +67,12 @@ class TreatmentMasterService {
         'price': price,
         'duration': 30, // ค่าเริ่มต้น
       });
-      print('🆕 เพิ่มเข้า treatment_master: $name และได้ ID: ${docRef.id}');
+      debugPrint('🆕 เพิ่มเข้า treatment_master: $name และได้ ID: ${docRef.id}');
       return docRef.id; // คืนค่า ID ของเอกสารที่สร้างใหม่
     } else {
       // ถ้ามีอยู่แล้ว
       final docId = snapshot.docs.first.id;
-      print('✅ ชื่อหัตถการนี้มีอยู่แล้วใน master ด้วย ID: $docId');
+      debugPrint('✅ ชื่อหัตถการนี้มีอยู่แล้วใน master ด้วย ID: $docId');
       return docId; // คืนค่า ID ของเอกสารที่มีอยู่
     }
   }

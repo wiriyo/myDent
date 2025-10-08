@@ -484,7 +484,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withOpacity(0.1),
+                              color: AppTheme.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(color: AppTheme.primaryLight),
                             ),
@@ -565,15 +565,18 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
 
                         if (confirm != true) return;
 
+                        final navigator = Navigator.of(context);
+
                         if (_editingPatient != null &&
                             _editingPatient!.patientId.isNotEmpty) {
+                          if (!mounted) return;
                           final success = await provider.deletePatient(
                             _editingPatient!.patientId,
                           );
 
                           if (success) {
                             _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
-                            Navigator.of(context).pushNamedAndRemoveUntil(
+                            navigator.pushNamedAndRemoveUntil(
                               '/patients',
                               (Route<dynamic> route) => false,
                             );
@@ -672,6 +675,8 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                   .toDouble(), // แปลงกลับเป็น double ตรงนี้ค่ะ
                         );
 
+                        final navigator = Navigator.of(context);
+                        if (!mounted) return;
                         final success = await provider.savePatient(
                           patient,
                           _isEditing,
@@ -679,7 +684,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
 
                         if (success) {
                           _showSnackBar('บันทึกข้อมูลสำเร็จแล้วค่ะ!');
-                          Navigator.pop(context, true);
+                          navigator.pop(true);
                         } else {
                           _showSnackBar(
                             provider.error ?? 'เกิดข้อผิดพลาดที่ไม่รู้จัก',

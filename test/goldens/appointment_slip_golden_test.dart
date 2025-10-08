@@ -20,7 +20,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(
       home: AppointmentSlipPreviewPage(
         useSampleData: true,
-        printSettingsService: const FakePrintSettingsService(),
+        printSettingsService: FakePrintSettingsService(),
       ),
     ));
     await tester.pump();

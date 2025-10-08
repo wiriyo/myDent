@@ -108,9 +108,9 @@ class AppointmentSlipRenderer {
       text: TextSpan(text: text, style: TextStyle(fontSize: size, fontWeight: bold ? FontWeight.w700 : FontWeight.w400, color: Colors.black, height: height)),
       textAlign: center ? TextAlign.center : TextAlign.left,
       textDirection: ui.TextDirection.ltr,
-      // 💖 FIX: บังคับ textScaleFactor = 1.0
+      // 💖 FIX: บังคับ textScaler = TextScaler.noScaling
       // เพื่อให้ TextPainter ไม่ปรับขนาดฟอนต์ตามการตั้งค่าของเครื่อง
-      textScaleFactor: 1.0, 
+      textScaler: TextScaler.noScaling,
     )..layout(maxWidth: widthPx.toDouble() - 16); // มี padding ซ้ายขวานิดหน่อย
 
     final dx = center ? (widthPx - tp.width) / 2 : 8.0;

@@ -43,7 +43,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('skipLogin');
     await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),

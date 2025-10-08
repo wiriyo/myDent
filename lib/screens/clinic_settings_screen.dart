@@ -178,7 +178,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
                                 image: _logoFile != null
                                     ? DecorationImage(image: FileImage(_logoFile!), fit: BoxFit.cover)
                                     : (_logoUrl != null && _logoUrl!.isNotEmpty)
@@ -199,6 +199,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                                   onTap: _saving
                                       ? null
                                       : () async {
+                                          final messenger = ScaffoldMessenger.of(context);
                                           if (_logoFile != null) {
                                             setState(() => _logoFile = null);
                                           } else if (_logoUrl != null && _logoUrl!.isNotEmpty) {
@@ -207,13 +208,11 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                                             try {
                                               await _service.deleteLogo(logoUrl: url);
                                               await LogoCacheService.clear();
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบโลโก้แล้ว')));
-                                              }
+                                              if (!mounted) return;
+                                              messenger.showSnackBar(const SnackBar(content: Text('ลบโลโก้แล้ว')));
                                             } catch (e) {
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ลบโลโก้ไม่สำเร็จ: $e')));
-                                              }
+                                              if (!mounted) return;
+                                              messenger.showSnackBar(SnackBar(content: Text('ลบโลโก้ไม่สำเร็จ: $e')));
                                             }
                                           }
                                         },

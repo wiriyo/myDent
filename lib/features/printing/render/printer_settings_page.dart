@@ -424,6 +424,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     if (_busyCapture) return;
     setState(() => _busyCapture = true);
 
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       // ถ้ายังไม่เคยแคปภาพ ให้แคปก่อน
       if (_lastPng == null) {
@@ -439,29 +441,28 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         final fileName = 'MyDent-PrinterSample-${DateTime.now().millisecondsSinceEpoch}.png';
         final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
         if (!saved) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ไม่สามารถบันทึกรูปภาพตัวอย่างได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
-            );
-          }
+          if (!mounted) return;
+          messenger.showSnackBar(
+            const SnackBar(content: Text('ไม่สามารถบันทึกรูปภาพตัวอย่างได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+          );
           return;
         }
 
+        if (!mounted) return;
         await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ส่งคำสั่งพิมพ์ตัวอย่างแล้ว')));
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(const SnackBar(content: Text('ส่งคำสั่งพิมพ์ตัวอย่างแล้ว')));
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
     } finally {
-      if (mounted) setState(() => _busyCapture = false);
+      if (mounted) {
+        setState(() => _busyCapture = false);
+      }
     }
   }
 

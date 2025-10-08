@@ -676,10 +676,10 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppTheme.primary.withOpacity(0.08)),
+                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.08)),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primary.withOpacity(0.08),
+                      color: AppTheme.primary.withValues(alpha: 0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 6),
                     ),
@@ -690,7 +690,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.12),
+                        color: AppTheme.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       padding: const EdgeInsets.all(10),
@@ -745,7 +745,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppTheme.primary.withOpacity(0.16),
+                      color: AppTheme.primary.withValues(alpha: 0.16),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -788,7 +788,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppTheme.primary.withOpacity(0.12),
+                          color: AppTheme.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: Row(
@@ -901,19 +901,19 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
         color: AppTheme.textSecondary,
       ),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.7),
+      fillColor: Colors.white.withValues(alpha: 0.7),
       contentPadding: const EdgeInsets.symmetric(
         vertical: 16.0,
         horizontal: 16.0,
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+        borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.3)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(
-          color: AppTheme.primary.withOpacity(0.5),
+          color: AppTheme.primary.withValues(alpha: 0.5),
           width: 1.5,
         ),
       ),
@@ -1062,7 +1062,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                 color: const Color(0xFFFCF5FF),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+                  side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.3)),
                 ),
                 child: SizedBox(
                   width: constraints.maxWidth,
@@ -1246,7 +1246,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                          color: AppTheme.primary.withOpacity(0.3),
+                          color: AppTheme.primary.withValues(alpha: 0.3),
                         ),
                       ),
                       child: SizedBox(
@@ -1372,7 +1372,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                          color: AppTheme.primary.withOpacity(0.3),
+                          color: AppTheme.primary.withValues(alpha: 0.3),
                         ),
                       ),
                       child: SizedBox(
@@ -1524,7 +1524,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
             borderRadius: BorderRadius.circular(21),
             clipBehavior: Clip.antiAlias,
             elevation: 4,
-            shadowColor: AppTheme.primary.withOpacity(0.3),
+            shadowColor: AppTheme.primary.withValues(alpha: 0.3),
             child: InkWell(
               onTap: _isInteractionLocked ? null : _saveAppointment,
               child: Tooltip(

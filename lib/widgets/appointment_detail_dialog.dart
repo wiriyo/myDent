@@ -266,60 +266,63 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         initialPrice = master?.price;
       }
 
-      if (mounted) {
-        final bool shouldShowSlip = _currentStatus == 'รอยืนยัน';
-        Navigator.pop(context);
-        if (shouldShowSlip) {
-          final slip = _buildSlipFromState();
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              // 💖 FIX: แก้ไขแค่จุดนี้จุดเดียวเลยค่ะ บอกน้องให้ใช้ข้อมูลจริง โดยไม่กระทบ UI เดิมเลยค่ะ
-              builder:
-                  (_) => AppointmentSlipPreviewPage(
-                    slip: slip,
-                    useSampleData: false,
-                  ),
-            ),
-          );
-        }
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+      final bool shouldShowSlip = _currentStatus == 'รอยืนยัน';
 
-        if (_currentStatus == 'เสร็จสิ้น') {
-          showTreatmentDialog(
-            context,
-            patientId: widget.patient.patientId,
-            patientName: widget.patient.name,
-            initialProcedure: widget.appointment.treatment,
-            initialDate: widget.appointment.startTime,
-            initialToothNumber: widget.appointment.teeth?.join(', '),
-            initialPrice: initialPrice,
-          );
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),
-            duration: Duration(seconds: 2),
+      navigator.pop();
+      if (shouldShowSlip) {
+        final slip = _buildSlipFromState();
+        await navigator.push(
+          MaterialPageRoute(
+            // 💖 FIX: แก้ไขแค่จุดนี้จุดเดียวเลยค่ะ บอกน้องให้ใช้ข้อมูลจริง โดยไม่กระทบ UI เดิมเลยค่ะ
+            builder:
+                (_) => AppointmentSlipPreviewPage(
+                  slip: slip,
+                  useSampleData: false,
+                ),
           ),
         );
-        widget.onDataChanged();
+        if (!mounted) return;
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาดในการบันทึก: $e')),
-        );
-        setState(() {
-          _isSaving = false;
-        });
-      }
-      return;
-    }
 
-    if (mounted) {
+      if (_currentStatus == 'เสร็จสิ้น') {
+        if (!mounted) return;
+        showTreatmentDialog(
+          context,
+          patientId: widget.patient.patientId,
+          patientName: widget.patient.name,
+          initialProcedure: widget.appointment.treatment,
+          initialDate: widget.appointment.startTime,
+          initialToothNumber: widget.appointment.teeth?.join(', '),
+          initialPrice: initialPrice,
+        );
+      }
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('บันทึกการเปลี่ยนแปลงเรียบร้อยแล้ว'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      widget.onDataChanged();
+    } catch (e) {
+      if (!mounted) return;
+      final messengerCatch = ScaffoldMessenger.of(context);
+      messengerCatch.showSnackBar(
+        SnackBar(content: Text('เกิดข้อผิดพลาดในการบันทึก: $e')),
+      );
       setState(() {
         _isSaving = false;
       });
+      return;
     }
+
+    if (!mounted) return;
+    setState(() {
+      _isSaving = false;
+    });
   }
 
   int _calculateAge(DateTime? birthDate) {
@@ -419,7 +422,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.purple.shade100),
               ),
@@ -608,7 +611,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
                   decoration: InputDecoration(
                     labelText: 'บันทึก / เหตุผลการเลื่อนนัด',
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.8),
+                    fillColor: Colors.white.withValues(alpha: 0.8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16.0),
                     ),

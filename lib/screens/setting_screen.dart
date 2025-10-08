@@ -45,7 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       // TODO: Handle logout error
-      print(e);
+      debugPrint('$e');
     }
   }
 

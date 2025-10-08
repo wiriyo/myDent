@@ -117,7 +117,7 @@ class _BuddhistDatePickerDialogState extends State<BuddhistDatePickerDialog> {
                       final int year = firstBuddhistYear + index;
                       final bool isSelected = year == initialBuddhistYear;
                       return Material(
-                        color: isSelected ? AppTheme.primaryLight.withOpacity(0.6) : Colors.transparent,
+                        color: isSelected ? AppTheme.primaryLight.withValues(alpha: 0.6) : Colors.transparent,
                         borderRadius: BorderRadius.circular(30),
                         child: InkWell(
                           onTap: () => Navigator.of(dialogContext).pop(year),
@@ -223,7 +223,7 @@ class _BuddhistDatePickerDialogState extends State<BuddhistDatePickerDialog> {
               ),
               calendarStyle: CalendarStyle(
                 selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
-                todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withOpacity(0.5), shape: BoxShape.circle),
+                todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withValues(alpha: 0.5), shape: BoxShape.circle),
                 outsideDaysVisible: false,
               ),
               calendarBuilders: CalendarBuilders(

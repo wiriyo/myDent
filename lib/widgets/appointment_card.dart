@@ -124,7 +124,7 @@ class AppointmentCard extends StatelessWidget {
                   Text(
                     '$treatment ${teeth.isNotEmpty ? '(#$teeth)' : ''}',
                     style: TextStyle(
-                        fontSize: 12, color: Colors.black.withOpacity(0.7)),
+                        fontSize: 12, color: Colors.black.withValues(alpha: 0.7)),
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
                   ),
@@ -194,7 +194,7 @@ class AppointmentCard extends StatelessWidget {
                             '${DateFormat.Hm().format(startTime)} - ${DateFormat.Hm().format(endTime)} ($durationInMinutes นาที)',
                         iconSize: iconSize,
                         textStyle: TextStyle(
-                            fontSize: detailSize, color: Colors.black.withOpacity(0.8)),
+                            fontSize: detailSize, color: Colors.black.withValues(alpha: 0.8)),
                       ),
                       const SizedBox(height: 4),
                     ],
@@ -203,7 +203,7 @@ class AppointmentCard extends StatelessWidget {
                       text: fullTreatmentText,
                       iconSize: iconSize,
                       textStyle: TextStyle(
-                          fontSize: detailSize, color: Colors.black.withOpacity(0.8)),
+                          fontSize: detailSize, color: Colors.black.withValues(alpha: 0.8)),
                       maxLines: useLargeLayout ? 2 : 1,
                     ),
                     if (isLongAppointment && notes.isNotEmpty) ...[
@@ -244,7 +244,7 @@ class AppointmentCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.grey.shade200),
               ),
@@ -281,7 +281,7 @@ class AppointmentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.6),
+        color: Colors.white.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -355,8 +355,9 @@ class AppointmentCard extends StatelessWidget {
 
   void _makeCall(
       BuildContext context, String? phoneNumber, String patientName) async {
+    final messenger = ScaffoldMessenger.of(context);
     if (phoneNumber == null || phoneNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('ไม่มีเบอร์โทรศัพท์สำหรับคุณ $patientName ค่ะ'),
           backgroundColor: Colors.orange.shade700,
@@ -372,7 +373,7 @@ class AppointmentCard extends StatelessWidget {
         throw 'ไม่สามารถเปิดแอปโทรศัพท์ได้';
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('เกิดข้อผิดพลาดในการโทรออกค่ะ: $e'),
           backgroundColor: Colors.red.shade600,

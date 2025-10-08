@@ -322,11 +322,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
     });
   }
 
-  void _showErrorSnackBar(BuildContext context, String message) {
+  void _showErrorSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: const TextStyle(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
+        backgroundColor: isError ? Colors.redAccent : Colors.redAccent,
       ),
     );
   }
@@ -361,21 +362,21 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   decoration: BoxDecoration(
                     color:
                         isSelected
-                            ? AppTheme.primary.withOpacity(0.12)
+                            ? AppTheme.primary.withValues(alpha: 0.12)
                             : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color:
                           isSelected
                               ? AppTheme.primary
-                              : AppTheme.primary.withOpacity(0.2),
+                              : AppTheme.primary.withValues(alpha: 0.2),
                       width: 1.5,
                     ),
                     boxShadow:
                         isSelected
                             ? [
                               BoxShadow(
-                                color: AppTheme.primary.withOpacity(0.18),
+                                color: AppTheme.primary.withValues(alpha: 0.18),
                                 offset: const Offset(0, 6),
                                 blurRadius: 14,
                               ),
@@ -387,7 +388,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppTheme.primary.withOpacity(0.15),
+                          color: AppTheme.primary.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(icon, color: AppTheme.primary),
@@ -587,7 +588,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     await _ensureReceiptInfo();
     if (_receiptNumber == null || _receiptIssuedAt == null) {
       if (mounted) {
-        _showErrorSnackBar(context, 'ไม่สามารถสร้างเลขที่ใบเสร็จได้');
+        _showErrorSnackBar('ไม่สามารถสร้างเลขที่ใบเสร็จได้', isError: true);
         setState(() => _isSaveButtonLocked = false);
       }
       return;
@@ -658,8 +659,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
         if (patientForScheduling == null) {
           if (mounted) {
             _showErrorSnackBar(
-              context,
               'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้',
+              isError: true,
             );
             setState(() => _isSaveButtonLocked = false);
           }
@@ -700,7 +701,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       }
       return;
     } else {
-      _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
+      _showErrorSnackBar(provider.error ?? 'มีบางอย่างผิดพลาดค่ะ', isError: true);
       setState(() => _isSaveButtonLocked = false);
     }
   }
@@ -746,7 +747,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         ),
       );
     } else if (!success && context.mounted) {
-      _showErrorSnackBar(context, provider.error ?? 'มีบางอย่างผิดพลาดค่ะ');
+      _showErrorSnackBar(provider.error ?? 'มีบางอย่างผิดพลาดค่ะ', isError: true);
     }
     _loadToothHistory();
   }
@@ -1000,7 +1001,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: AppTheme.primary.withOpacity(0.25),
+                                  color: AppTheme.primary.withValues(alpha: 0.25),
                                 ),
                               ),
                               child: SizedBox(
@@ -1141,8 +1142,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
                           Navigator.pop(context, true);
                         } else if (!success && context.mounted) {
                           _showErrorSnackBar(
-                            context,
                             treatmentProvider.error ?? 'มีบางอย่างผิดพลาดค่ะ',
+                            isError: true,
                           );
                         }
                       },
@@ -1197,7 +1198,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     spreadRadius: 1,
                     blurRadius: 3,
                     offset: const Offset(0, 2),
@@ -1284,7 +1285,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 onTap: onRemove,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.close, color: Colors.white, size: 18),

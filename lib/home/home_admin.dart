@@ -125,14 +125,14 @@ class _HomeAdminScreenState extends State<HomeAdminScreen> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: color.withOpacity(0.8),
+        backgroundColor: color.withValues(alpha: 0.8),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 20),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         elevation: 5,
-        shadowColor: color.withOpacity(0.5),
+        shadowColor: color.withValues(alpha: 0.5),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

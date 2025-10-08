@@ -309,7 +309,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryLight.withOpacity(0.6),
+                      color: AppTheme.primaryLight.withValues(alpha: 0.6),
                       blurRadius: 6,
                       offset: const Offset(0, 3),
                     ),
@@ -332,7 +332,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppTheme.primaryLight),
                           ),
@@ -426,7 +426,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.3),
+                            color: Colors.grey.withValues(alpha: 0.3),
                             spreadRadius: 1,
                             blurRadius: 3,
                             offset: const Offset(0, 2),
@@ -462,7 +462,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   }
 
                   final treatments = snapshot.data ?? [];
-                  final double totalCost = treatments.fold(0.0, (sum, item) => sum + item.price);
+                  final double totalCost = treatments.fold(0.0, (total, item) => total + item.price);
 
                   return Column(
                     children: [
@@ -474,7 +474,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withOpacity(0.1),
+                              color: AppTheme.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(

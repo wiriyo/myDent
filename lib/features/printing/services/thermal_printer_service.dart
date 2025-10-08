@@ -100,6 +100,7 @@ class ThermalPrinterService implements PrinterClient {
     }
 
     // แสดงคำอธิบายก่อนเพื่อให้ผู้ใช้เตรียมพร้อม แล้วค่อยยิง system prompt
+    if (!context.mounted) return false;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -117,6 +118,7 @@ class ThermalPrinterService implements PrinterClient {
     if (ok) return true;
 
     // ถ้ายังไม่ได้สิทธิ์ แนะนำให้เปิดหน้า Settings ของแอป
+    if (!context.mounted) return false;
     final open = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -193,21 +195,24 @@ class ThermalPrinterService implements PrinterClient {
   Future<bool> connectWithPicker(BuildContext context, {bool rememberSelection = true}) async {
     if (!Platform.isAndroid) { _toast(context, 'โหมดนี้รองรับ Android ก่อนนะคะ'); return false; }
 
+    if (!context.mounted) return false;
     final permissionsOk = await ensurePrintingPermissions(context);
+    if (!context.mounted) return false;
     if (!permissionsOk) {
-      if (mounted(context)) {
-        _toast(context, 'ต้องอนุญาตสิทธิ์การใช้งานก่อนเชื่อมต่อ');
-      }
+      if (!context.mounted) return false;
+      _toast(context, 'ต้องอนุญาตสิทธิ์การใช้งานก่อนเชื่อมต่อ');
       return false;
     }
 
+    if (!context.mounted) return false;
     final picked = await _showPickerDialog(context);
+    if (!context.mounted) return false;
     if (picked == null) return false;
 
     final ok = await connectByMac(picked.mac);
     if (ok && rememberSelection) await saveDefault(picked);
 
-    if (!mounted(context)) return ok;
+    if (!context.mounted) return ok;
     _toast(context, ok ? 'เชื่อมต่อเครื่องพิมพ์เรียบร้อย' : 'เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ');
     return ok;
   }
@@ -229,13 +234,22 @@ class ThermalPrinterService implements PrinterClient {
   Future<bool> ensureConnectedOrPick(BuildContext context) async {
     if (await isConnected()) return true;
 
+    if (!context.mounted) return false;
     final permissionsOk = await ensurePrintingPermissions(context);
-    if (!permissionsOk) { _toast(context, 'ต้องอนุญาตสิทธิ์การใช้งานก่อนพิมพ์'); return false; }
+    if (!context.mounted) return false;
+    if (!permissionsOk) {
+      if (!context.mounted) return false;
+      _toast(context, 'ต้องอนุญาตสิทธิ์การใช้งานก่อนพิมพ์');
+      return false;
+    }
     
     final saved = await loadDefault();
+    if (!context.mounted) return false;
     if (saved != null && await connectByMac(saved.mac)) return true;
     
+    if (!context.mounted) return false;
     final picked = await _showPickerDialog(context);
+    if (!context.mounted) return false;
     if (picked == null) return false;
     
     final ok = await connectByMac(picked.mac);
@@ -245,7 +259,7 @@ class ThermalPrinterService implements PrinterClient {
 
   Future<PrinterDevice?> _showPickerDialog(BuildContext context) async {
     final devices = await discoverPaired();
-    if (!mounted(context)) return null;
+    if (!context.mounted) return null;
 
     if (devices.isEmpty) {
       await showDialog<void>(
@@ -318,24 +332,23 @@ class ThermalPrinterService implements PrinterClient {
   Future<void> ensureConnectAndPrintPng(BuildContext context, Uint8List pngBytes, {int feed = 3, bool cut = true}) async {
     if (!Platform.isAndroid) { _toast(context, 'โหมดนี้รองรับ Android ก่อนนะคะ'); return; }
     final ok = await ensureConnectedOrPick(context);
-    if (!mounted(context)) return;
+    if (!context.mounted) return;
     if (!ok) { _toast(context, 'เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ'); return; }
-    try { await printPng(pngBytes, feed: feed, cut: cut); _toast(context, 'ส่งพิมพ์เรียบร้อย'); }
-    catch (e, st) { if (kDebugMode) debugPrint('print error: $e\n$st'); _toast(context, 'พิมพ์ไม่สำเร็จ: $e'); }
+    try {
+      await printPng(pngBytes, feed: feed, cut: cut);
+      if (!context.mounted) return;
+      _toast(context, 'ส่งพิมพ์เรียบร้อย');
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('print error: $e\n$st');
+      if (!context.mounted) return;
+      _toast(context, 'พิมพ์ไม่สำเร็จ: $e');
+    }
   }
 
   void _toast(BuildContext context, String msg) {
-    if (mounted(context)) {
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
-
-  bool mounted(BuildContext context) {
-    try {
-      // ignore: unnecessary_null_comparison
-      return context != null && context.findRenderObject() != null;
-    } catch (e) {
-      return false;
-    }
-  }
 }
+

@@ -3,6 +3,7 @@
 // Service สำหรับจัดการ Logic การล็อกอินของพนักงานค่ะ 💳
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/staff_model.dart';
 
 class StaffService {
@@ -27,7 +28,7 @@ class StaffService {
 
       // 2. ถ้าไม่เจอพนักงานเลย ให้ return null
       if (querySnapshot.docs.isEmpty) {
-        print('StaffService: ไม่พบ username นี้ในระบบ');
+        debugPrint('StaffService: ไม่พบ username นี้ในระบบ');
         return null;
       }
 
@@ -43,11 +44,11 @@ class StaffService {
         return Staff.fromFirestore(staffData, staffDoc.id);
       } else {
         // 5. ถ้ารหัสผ่านไม่ถูกต้อง
-        print('StaffService: รหัสผ่านไม่ถูกต้อง');
+        debugPrint('StaffService: รหัสผ่านไม่ถูกต้อง');
         return null;
       }
     } catch (e) {
-      print('StaffService Error: เกิดข้อผิดพลาดในการล็อกอินของพนักงาน - $e');
+      debugPrint('StaffService Error: เกิดข้อผิดพลาดในการล็อกอินของพนักงาน - $e');
       return null;
     }
   }

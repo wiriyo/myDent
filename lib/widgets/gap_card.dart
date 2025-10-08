@@ -34,7 +34,7 @@ class GapCard extends StatelessWidget {
             radius: 12,
           ),
           child: Container(
-            color: Colors.purple.shade50.withOpacity(0.4),
+            color: Colors.purple.shade50.withValues(alpha: 0.4),
             // 💖 [OVERFLOW-FIX v1.1.0] ใช้ LayoutBuilder เพื่อเช็คความสูงที่มี
             // แล้วปรับการแสดงผลให้เหมาะสมค่ะ
             child: LayoutBuilder(
@@ -43,7 +43,7 @@ class GapCard extends StatelessWidget {
                 if (constraints.maxHeight < 35) {
                   return Icon(
                     Icons.add,
-                    color: Colors.purple.shade400.withOpacity(0.8),
+                    color: Colors.purple.shade400.withValues(alpha: 0.8),
                     size: 20,
                   );
                 }

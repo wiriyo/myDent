@@ -79,6 +79,9 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
 
     if (confirm != true) return;
 
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       // ลบจาก Firebase Storage
       final ref = FirebaseStorage.instance.refFromURL(url);
@@ -109,13 +112,11 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
       });
 
       if (widget.images.isEmpty && mounted) {
-        Navigator.pop(context); // กลับถ้าไม่มีภาพแล้ว
+        navigator.pop(); // กลับถ้าไม่มีภาพแล้ว
       }
     } catch (e) {
-      print('❌ ลบภาพไม่สำเร็จ: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      debugPrint('❌ ลบภาพไม่สำเร็จ: $e');
+      messenger.showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
     }
   }
 

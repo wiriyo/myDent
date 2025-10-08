@@ -46,7 +46,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
         );
       }
     } catch (e) {
-      print('Error saving working hours to Firestore: $e');
+      debugPrint('Error saving working hours to Firestore: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('เกิดข้อผิดพลาดในการบันทึก: $e')),

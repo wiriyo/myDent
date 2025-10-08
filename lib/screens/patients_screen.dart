@@ -517,10 +517,10 @@ class _PatientCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   borderRadius: BorderRadius.circular(12),
                   border:
-                      Border.all(color: Colors.grey.shade200.withOpacity(0.5))),
+                      Border.all(color: Colors.grey.shade200.withValues(alpha: 0.5))),
               // ✨ [UPGRADED] เปลี่ยนมาเรียกใช้ _buildRatingStars ที่เราสร้างขึ้นมาใหม่ค่ะ!
               child: _buildRatingStars(rating),
             ),

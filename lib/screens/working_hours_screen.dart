@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/working_hours_service.dart';
 import '../models/working_hours_model.dart';
 import '../main.dart'; // Import the global key
+import '../widgets/custom_bottom_nav_bar.dart'; // Laila: Import new navbar
 
 
 class WorkingHoursScreen extends StatefulWidget {
@@ -18,25 +19,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
   List<DayWorkingHours>? _workingHours;
   final WorkingHoursService _workingHoursService = WorkingHoursService();
 
-  int _selectedIndex = 4; // ✨ เพิ่มตัวแปรสำหรับเก็บ index ที่เลือก
-
-  // ✨ เพิ่มฟังก์ชันสำหรับจัดการการกดปุ่มใน Bottom Navigation Bar
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/calendar');
-    } else if (index == 1) {
-      Navigator.pushReplacementNamed(context, '/patients');
-    } else if (index == 3) {
-      Navigator.pushReplacementNamed(context, '/reports');
-    } else if (index == 4) {
-      // ถ้ากดปุ่มตั้งค่า (index 4) ให้ย้อนกลับไปหน้าตั้งค่าหลัก
-      Navigator.pop(context);
-    }
-  }
+  // Laila: Removed _selectedIndex and _onItemTapped
 
   @override
   void initState() {
@@ -197,19 +180,15 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
             return const Center(child: Text('ไม่พบข้อมูลเวลาทำการ'));
           }
 
-          // Once data is loaded, assign it to the state variable to allow mutation.
-          // This check prevents it from being reassigned on every rebuild.
           _workingHours ??= snapshot.data;
 
-          // Use a local variable for null-safety promotion.
           final currentWorkingHours = _workingHours;
           if (currentWorkingHours == null) {
              return const Center(child: Text('เกิดข้อผิดพลาดในการแสดงผล'));
           }
 
           return ListView.builder(
-              // Main content list
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0), // Added bottom padding for FAB
+              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0), 
               itemCount: currentWorkingHours.length,
               itemBuilder: (context, index) {
                 final day = currentWorkingHours[index];
@@ -233,46 +212,44 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            // Replaced the old Row with Text and Switch
                             ElevatedButton(
                               onPressed: () {
                                 setState(() {
-                                  day.isClosed = !day.isClosed; // Toggle the state
+                                  day.isClosed = !day.isClosed; 
                                 });
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: day.isClosed
-                                    ? Colors.red.shade300 // Pastel red for "หยุด"
-                                    : const Color(0xFFE0BBFF), // Theme purple for "เปิด"
+                                    ? Colors.red.shade300 
+                                    : const Color(0xFFE0BBFF), 
                                 foregroundColor: day.isClosed
-                                    ? Colors.white // White text on red
-                                    : Colors.purple.shade900, // Dark purple text on light purple
+                                    ? Colors.white 
+                                    : Colors.purple.shade900, 
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   side: BorderSide(
                                     color: day.isClosed
-                                        ? Colors.red.shade500 // Darker red border
-                                        : Colors.purple.shade700, // Darker purple border
+                                        ? Colors.red.shade500 
+                                        : Colors.purple.shade700, 
                                     width: 1.5,
                                   ),
                                 ),
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                elevation: 2, // Add a slight elevation for button feel
+                                elevation: 2, 
                               ),
                               child: Text(
-                                day.isClosed ? 'หยุด' : 'เปิด', // Text changes based on state
+                                day.isClosed ? 'หยุด' : 'เปิด', 
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ],
                         ),
                         if (!day.isClosed) ...[
-                          // Display existing time slots
                           ...day.timeSlots.asMap().entries.map((entry) {
                             final int slotIndex = entry.key;
                             final TimeSlot slot = entry.value;
                             return Padding(
-                              padding: const EdgeInsets.only(top: 8.0), // Slightly less padding
+                              padding: const EdgeInsets.only(top: 8.0), 
                               child: Row(
                                 children: [
                                   Expanded(
@@ -281,7 +258,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                       () => _pickTime(context, day, slot, true, slotIndex),
                                     ),
                                   ),
-                                  const SizedBox(width: 8), // Smaller gap
+                                  const SizedBox(width: 8), 
                                   Expanded(
                                     child: _buildTimePickerButton(
                                       context, 'ปิด', slot.closeTime,
@@ -289,7 +266,7 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.red), // Use outline icon
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red), 
                                     onPressed: () {
                                       setState(() {
                                         day.timeSlots.removeAt(slotIndex);
@@ -302,9 +279,8 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                             );
                           }),
                           const SizedBox(height: 10),
-                          // Add new slot button
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.end, // Align to end
+                            mainAxisAlignment: MainAxisAlignment.end, 
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () {
@@ -312,7 +288,6 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                     openTime: const TimeOfDay(hour: 9, minute: 0),
                                     closeTime: const TimeOfDay(hour: 17, minute: 0),
                                   );
-                                  // Check for overlap with default new slot
                                   if (_hasOverlap(day.timeSlots, newSlot)) {
                                     scaffoldMessengerKey.currentState?.showSnackBar(
                                       const SnackBar(content: Text('ไม่สามารถเพิ่มช่วงเวลาได้ เนื่องจากมีช่วงเวลาทับซ้อนกัน')),
@@ -321,7 +296,6 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                   }
                                   setState(() {
                                     day.timeSlots.add(newSlot);
-                                    // Sort after adding to maintain order
                                     day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
                                   });
                                 },
@@ -330,11 +304,11 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.green.shade100,
                                   foregroundColor: Colors.green.shade800,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), // Consistent border radius
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), 
                                 ),
-                              ), // End of ElevatedButton.icon
+                              ), 
                             ],
-                          ), // End of Row
+                          ), 
                         ],
                       ],
                     ),
@@ -350,45 +324,9 @@ class _WorkingHoursScreenState extends State<WorkingHoursScreen> {
         foregroundColor: Colors.white,
         child: const Icon(Icons.save),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // ✨ ปรับตำแหน่งปุ่ม
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        color: const Color(0xFFFBEAFF),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.calendar_today, size: 30),
-                color: _selectedIndex == 0 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(0),
-                tooltip: 'ปฏิทิน',
-              ),
-              IconButton(
-                icon: const Icon(Icons.people_alt, size: 30),
-                color: _selectedIndex == 1 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(1),
-                tooltip: 'คนไข้',
-              ),
-              const SizedBox(width: 40), // ที่ว่างสำหรับ FloatingActionButton
-              IconButton(
-                icon: const Icon(Icons.bar_chart, size: 30),
-                color: _selectedIndex == 3 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(3),
-                tooltip: 'รายงาน',
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings, size: 30),
-                color: _selectedIndex == 4 ? Colors.purple : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(4),
-                tooltip: 'ตั้งค่า',
-              ),
-            ],
-          ),
-        ),
-      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // Laila: Replace with new navbar
+      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 4),
     );
   }
 }

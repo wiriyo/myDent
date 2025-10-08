@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/treatment_master.dart';
 import '../services/treatment_master_service.dart';
 import '../widgets/treatment_form_master.dart';
+import '../widgets/custom_bottom_nav_bar.dart'; // Laila: Import new navbar
 
 class TreatmentListScreen extends StatefulWidget {
   const TreatmentListScreen({super.key});
@@ -13,21 +14,7 @@ class TreatmentListScreen extends StatefulWidget {
 }
 
 class _TreatmentListScreenState extends State<TreatmentListScreen> {
-  int _selectedIndex = 4;
-
-  void _onItemTapped(int index) {
-    setState(() => _selectedIndex = index);
-
-    if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/calendar');
-    } else if (index == 1) {
-      Navigator.pushReplacementNamed(context, '/patients');
-    } else if (index == 3) {
-      Navigator.pushReplacementNamed(context, '/reports');
-    } else if (index == 4) {
-      Navigator.pushReplacementNamed(context, '/settings');
-    }
-  }
+  // Laila: Removed _selectedIndex and _onItemTapped
 
   void _showTreatmentForm({TreatmentMaster? treatment}) {
     showDialog(
@@ -200,52 +187,8 @@ class _TreatmentListScreenState extends State<TreatmentListScreen> {
         child: const Icon(Icons.add, size: 30, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        color: const Color(0xFFFBEAFF),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.calendar_today, size: 30),
-                color:
-                    _selectedIndex == 0
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(0),
-              ),
-              IconButton(
-                icon: const Icon(Icons.people_alt, size: 30),
-                color:
-                    _selectedIndex == 1
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(1),
-              ),
-              const SizedBox(width: 40),
-              IconButton(
-                icon: const Icon(Icons.bar_chart, size: 30),
-                color:
-                    _selectedIndex == 3
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(3),
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings, size: 30),
-                color:
-                    _selectedIndex == 4
-                        ? Colors.purple
-                        : Colors.purple.shade200,
-                onPressed: () => _onItemTapped(4),
-              ),
-            ],
-          ),
-        ),
-      ),
+      // Laila: Replace with new navbar
+      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 4),
     );
   }
 }

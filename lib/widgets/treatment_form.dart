@@ -322,9 +322,13 @@ class _TreatmentFormState extends State<TreatmentForm> {
     });
   }
 
-  void _showErrorSnackBar(String message, {bool isError = false}) {
+  void _showErrorSnackBar(
+    String message, {
+    bool isError = false,
+    ScaffoldMessengerState? messenger,
+  }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    (messenger ?? ScaffoldMessenger.of(context)).showSnackBar(
       SnackBar(
         content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: isError ? Colors.redAccent : Colors.redAccent,
@@ -1138,17 +1142,20 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
                         final success = await treatmentProvider.deleteTreatment(
                           widget.patientId,
                           widget.treatment!.id,
                         );
                         if (!mounted) return;
                         if (success) {
-                          Navigator.pop(context, true);
+                          navigator.pop(true);
                         } else {
                           _showErrorSnackBar(
                             treatmentProvider.error ?? 'มีบางอย่างผิดพลาดค่ะ',
                             isError: true,
+                            messenger: messenger,
                           );
                         }
                       },

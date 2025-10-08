@@ -565,15 +565,17 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
 
                         if (confirm != true) return;
 
+                        if (!mounted) return;
+
                         final navigator = Navigator.of(context);
 
                         if (_editingPatient != null &&
                             _editingPatient!.patientId.isNotEmpty) {
-                          if (!mounted) return;
                           final success = await provider.deletePatient(
                             _editingPatient!.patientId,
                           );
 
+                          if (!mounted) return;
                           if (success) {
                             _showSnackBar('ลบข้อมูลสำเร็จแล้วค่ะ!');
                             navigator.pushNamedAndRemoveUntil(
@@ -675,13 +677,14 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                                   .toDouble(), // แปลงกลับเป็น double ตรงนี้ค่ะ
                         );
 
-                        final navigator = Navigator.of(context);
                         if (!mounted) return;
+                        final navigator = Navigator.of(context);
                         final success = await provider.savePatient(
                           patient,
                           _isEditing,
                         );
 
+                        if (!mounted) return;
                         if (success) {
                           _showSnackBar('บันทึกข้อมูลสำเร็จแล้วค่ะ!');
                           navigator.pop(true);

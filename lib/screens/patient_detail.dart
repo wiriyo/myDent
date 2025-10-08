@@ -141,10 +141,12 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           'createdAt': Timestamp.now(),
         });
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('อัปโหลดรูปภาพสำเร็จแล้วค่ะ! 💜')),
         );
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('เกิดข้อผิดพลาดในการอัปโหลด: $e')),
         );

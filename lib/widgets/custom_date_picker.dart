@@ -61,12 +61,16 @@ class _BuddhistDatePickerDialogState extends State<BuddhistDatePickerDialog> {
     
     final pickedBuddhistYear = await _showYearPicker(context, initialBuddhistYear, firstBuddhistYear, lastBuddhistYear);
 
+    if (!mounted) return;
+
     // ถ้าผู้ใช้ไม่ได้เลือกปี (กด 'ยกเลิก') ก็ไม่ต้องทำอะไรต่อค่ะ
     if (pickedBuddhistYear == null) return;
 
     // --- ขั้นตอนที่ 2: เลือกเดือน ---
     // ถ้าเลือกปีสำเร็จ ให้แสดงตัวเลือกเดือนต่อทันที
     final pickedMonth = await _showMonthPicker(context, pickedBuddhistYear);
+
+    if (!mounted) return;
 
     // ถ้าผู้ใช้ไม่ได้เลือกเดือน ก็ไม่ต้องทำอะไรต่อค่ะ
     if (pickedMonth == null) return;

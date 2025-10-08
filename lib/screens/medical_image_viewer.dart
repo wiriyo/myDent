@@ -77,7 +77,7 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
           ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -102,6 +102,8 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
       }
       await docRef.delete();
 
+      if (!mounted) return;
+
       // ลบจาก UI
       setState(() {
         widget.images.removeAt(currentIndex);
@@ -116,6 +118,7 @@ class _MedicalImageViewerState extends State<MedicalImageViewer> {
       }
     } catch (e) {
       debugPrint('❌ ลบภาพไม่สำเร็จ: $e');
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
     }
   }

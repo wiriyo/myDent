@@ -629,22 +629,23 @@ class _TreatmentFormState extends State<TreatmentForm> {
         await _toothHistoryService.addEntries(newEntries);
         _loadToothHistory();
       }
-      final nav = Navigator.of(context);
+
+      if (!mounted) return;
 
       if (_isEditing) {
         debugPrint(
           "💖 Laila Debug: Editing treatment. Showing receipt preview.",
         );
         final receipt = await _buildReceiptFromForm();
-        await nav.push(
+        if (!mounted) return;
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
           ),
         );
 
-        if (mounted) {
-          nav.pop(true);
-        }
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
         return;
       }
 
@@ -668,6 +669,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         }
 
         final receipt = await _buildReceiptFromForm();
+        if (!mounted) return;
         debugPrint(
           "💖 Laila Debug: Replacing current route with CalendarScreen.",
         );
@@ -675,7 +677,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         // 💖✨ THE NEW FLOW FIX v2.4: ใช้ pushReplacementNamed เพื่อ "สลับหน้า"
         // วิธีนี้จะปิดหน้าฟอร์มปัจจุบันทิ้ง แล้วเอาหน้าปฏิทินเข้ามาแทนที่
         // ทำให้ Flow การทำงานถูกต้องและไม่เกิดข้อผิดพลาดค่ะ
-        nav.pushReplacementNamed(
+        Navigator.of(context).pushReplacementNamed(
           '/calendar',
           arguments: {
             'initialPatient': patientForScheduling,
@@ -687,7 +689,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
       debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
       final receipt = await _buildReceiptFromForm();
-      await nav.push(
+      if (!mounted) return;
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
         ),
@@ -696,9 +699,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
       debugPrint(
         "💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.",
       );
-      if (mounted) {
-        nav.pop(true);
-      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
       return;
     } else {
       _showErrorSnackBar(provider.error ?? 'มีบางอย่างผิดพลาดค่ะ', isError: true);
@@ -736,7 +738,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
       imageUrl: imageUrl,
     );
 
-    if (success && context.mounted) {
+    if (!context.mounted) return;
+
+    if (success) {
       setState(() {
         _existingImageUrls.remove(imageUrl);
       });
@@ -746,7 +750,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
           backgroundColor: Colors.green,
         ),
       );
-    } else if (!success && context.mounted) {
+    } else {
       _showErrorSnackBar(provider.error ?? 'มีบางอย่างผิดพลาดค่ะ', isError: true);
     }
     _loadToothHistory();

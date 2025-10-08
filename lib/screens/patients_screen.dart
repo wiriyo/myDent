@@ -225,6 +225,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   void _navigateToAdd() async {
     final result = await Navigator.pushNamed(context, '/add_patient');
+    if (!mounted) return;
     if (result == true) {
       await _fetchAllPatients();
     }
@@ -236,6 +237,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
       '/add_patient',
       arguments: patient,
     );
+    if (!mounted) return;
     if (result == true) {
       await _fetchAllPatients();
     }
@@ -257,6 +259,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('ไม่สามารถโทรออกได้ค่ะ',
               style: TextStyle(fontFamily: AppTheme.fontFamily))));
@@ -287,8 +290,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
       ),
     );
 
+    if (!mounted) return;
+
     if (confirm == true) {
       await _patientService.deletePatient(docId);
+      if (!mounted) return;
       await _fetchAllPatients();
     }
   }

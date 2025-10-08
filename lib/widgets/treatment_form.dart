@@ -971,7 +971,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
                                   width: 24,
                                 ),
                               ),
-                              hintText: '?,<?,?1^?,Y?,?,T',
+                              hintText: 'ซี่ฟัน',
                               filled: true,
                               fillColor: Colors.white,
                               border: OutlineInputBorder(

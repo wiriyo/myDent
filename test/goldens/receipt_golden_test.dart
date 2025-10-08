@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mydent_app/features/printing/render/receipt_renderer_mydent.dart';
 import 'package:mydent_app/features/printing/render/receipt_mapper.dart';
+import '../test_utils/fake_print_settings_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,13 @@ void main() {
       items: const [],
     );
 
-    await tester.pumpWidget(MaterialApp(home: ReceiptPreviewPage(receipt: receipt, useSampleData: false)));
+    await tester.pumpWidget(MaterialApp(
+      home: ReceiptPreviewPage(
+        receipt: receipt,
+        useSampleData: false,
+        printSettingsService: const FakePrintSettingsService(),
+      ),
+    ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 

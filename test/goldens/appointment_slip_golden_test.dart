@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mydent_app/features/printing/render/appointment_slip_preview_page.dart';
+import '../test_utils/fake_print_settings_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +17,12 @@ void main() {
   });
 
   testWidgets('Appointment slip golden', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: AppointmentSlipPreviewPage(useSampleData: true)));
+    await tester.pumpWidget(const MaterialApp(
+      home: AppointmentSlipPreviewPage(
+        useSampleData: true,
+        printSettingsService: const FakePrintSettingsService(),
+      ),
+    ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 

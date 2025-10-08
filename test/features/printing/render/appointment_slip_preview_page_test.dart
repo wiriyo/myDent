@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mydent_app/features/printing/render/appointment_slip_preview_page.dart';
 import 'package:mydent_app/config/clinic_defaults.dart';
+import '../../../test_utils/fake_print_settings_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,8 +19,11 @@ void main() {
 
   testWidgets('AppointmentSlipPreviewPage shows default clinic header and slip title', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: AppointmentSlipPreviewPage(useSampleData: true),
+      MaterialApp(
+        home: AppointmentSlipPreviewPage(
+          useSampleData: true,
+          printSettingsService: const FakePrintSettingsService(),
+        ),
       ),
     );
 

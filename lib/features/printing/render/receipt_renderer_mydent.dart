@@ -25,6 +25,7 @@ class ReceiptPreviewPage extends StatefulWidget {
   final bool showNextAppt;
   // Test-only: preset PNG to bypass capture in widget tests
   final Uint8List? debugPngOverride;
+  final PrintSettingsService? printSettingsService;
 
   const ReceiptPreviewPage({
     super.key,
@@ -33,6 +34,7 @@ class ReceiptPreviewPage extends StatefulWidget {
     this.useSampleData = false,
     this.showNextAppt = false,
     this.debugPngOverride,
+    this.printSettingsService,
   });
 
   @override
@@ -56,11 +58,12 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
-  final PrintSettingsService _printSettingsService = PrintSettingsService();
+  late final PrintSettingsService _printSettingsService;
 
   @override
   void initState() {
     super.initState();
+    _printSettingsService = widget.printSettingsService ?? PrintSettingsService();
     _prepare();
   }
 
@@ -192,15 +195,17 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       }
       
       if (_lastPng != null) {
-        final fileName = 'MyDent-Receipt-${DateTime.now().millisecondsSinceEpoch}.png';
-        final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
-        if (!saved) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบเสร็จได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
-            );
+        if (widget.debugPngOverride == null) {
+          final fileName = 'MyDent-Receipt-${DateTime.now().millisecondsSinceEpoch}.png';
+          final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
+          if (!saved) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบเสร็จได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+              );
+            }
+            return;
           }
-          return;
         }
 
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา

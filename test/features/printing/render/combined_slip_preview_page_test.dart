@@ -6,6 +6,7 @@ import 'package:mydent_app/features/printing/render/combined_slip_preview_page.d
 import 'package:mydent_app/features/printing/render/receipt_mapper.dart';
 import 'package:mydent_app/features/printing/domain/appointment_slip_model.dart';
 import 'package:mydent_app/config/clinic_defaults.dart';
+import '../../../test_utils/fake_print_settings_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +33,11 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: CombinedSlipPreviewPage(receipt: receipt, nextAppointment: appt),
+        home: CombinedSlipPreviewPage(
+          receipt: receipt,
+          nextAppointment: appt,
+          printSettingsService: const FakePrintSettingsService(),
+        ),
       ),
     );
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mydent_app/features/printing/render/appointment_slip_preview_page.dart';
 import 'package:mydent_app/features/printing/services/thermal_printer_service.dart';
+import '../../../test_utils/fake_print_settings_service.dart';
 
 class _FakePrinter implements PrinterClient {
   bool called = false;
@@ -36,7 +37,11 @@ void main() {
 
     final preset = Uint8List.fromList([9, 8, 7, 6]);
     await tester.pumpWidget(MaterialApp(
-      home: AppointmentSlipPreviewPage(useSampleData: true, debugPngOverride: preset),
+      home: AppointmentSlipPreviewPage(
+        useSampleData: true,
+        debugPngOverride: preset,
+        printSettingsService: const FakePrintSettingsService(),
+      ),
     ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));

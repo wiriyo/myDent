@@ -22,7 +22,8 @@ class AppointmentSlipPreviewPage extends StatefulWidget {
   final bool useSampleData;
   // Test-only: preset PNG เพื่อข้ามการ capture ใน widget tests
   final Uint8List? debugPngOverride;
-  const AppointmentSlipPreviewPage({super.key, this.slip, this.useSampleData = true, this.debugPngOverride});
+  final PrintSettingsService? printSettingsService;
+  const AppointmentSlipPreviewPage({super.key, this.slip, this.useSampleData = true, this.debugPngOverride, this.printSettingsService});
 
   @override
   State<AppointmentSlipPreviewPage> createState() => _AppointmentSlipPreviewPageState();
@@ -46,11 +47,12 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
-  final PrintSettingsService _printSettingsService = PrintSettingsService();
+  late final PrintSettingsService _printSettingsService;
 
   @override
   void initState() {
     super.initState();
+    _printSettingsService = widget.printSettingsService ?? PrintSettingsService();
     _prepare();
   }
 
@@ -268,15 +270,17 @@ class _AppointmentSlipPreviewPageState extends State<AppointmentSlipPreviewPage>
       }
       
       if (_lastPng != null) {
-        final fileName = 'MyDent-Appointment-${DateTime.now().millisecondsSinceEpoch}.png';
-        final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
-        if (!saved) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
-            );
+        if (widget.debugPngOverride == null) {
+          final fileName = 'MyDent-Appointment-${DateTime.now().millisecondsSinceEpoch}.png';
+          final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
+          if (!saved) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+              );
+            }
+            return;
           }
-          return;
         }
 
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา

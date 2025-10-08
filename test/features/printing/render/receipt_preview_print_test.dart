@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mydent_app/features/printing/render/receipt_renderer_mydent.dart';
 import 'package:mydent_app/features/printing/render/receipt_mapper.dart';
 import 'package:mydent_app/features/printing/services/thermal_printer_service.dart';
+import '../../../test_utils/fake_print_settings_service.dart';
 
 class _FakePrinter implements PrinterClient {
   bool called = false;
@@ -49,11 +50,14 @@ void main() {
 
     // Provide debugPngOverride to bypass capture in widget tests
     final preset = Uint8List.fromList([0, 1, 2, 3]);
-    await tester.pumpWidget(MaterialApp(home: ReceiptPreviewPage(
-      receipt: receipt,
-      useSampleData: false,
-      debugPngOverride: preset,
-    )));
+    await tester.pumpWidget(MaterialApp(
+      home: ReceiptPreviewPage(
+        receipt: receipt,
+        useSampleData: false,
+        debugPngOverride: preset,
+        printSettingsService: const FakePrintSettingsService(),
+      ),
+    ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 

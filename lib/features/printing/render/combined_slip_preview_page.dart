@@ -23,12 +23,14 @@ class CombinedSlipPreviewPage extends StatefulWidget {
   final AppointmentInfo nextAppointment;
   // Test-only: preset PNG to bypass capture in widget tests
   final Uint8List? debugPngOverride;
+  final PrintSettingsService? printSettingsService;
 
   const CombinedSlipPreviewPage({
     super.key,
     required this.receipt,
     required this.nextAppointment,
     this.debugPngOverride,
+    this.printSettingsService,
   });
 
   @override
@@ -51,11 +53,12 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
-  final PrintSettingsService _printSettingsService = PrintSettingsService();
+  late final PrintSettingsService _printSettingsService;
 
   @override
   void initState() {
     super.initState();
+    _printSettingsService = widget.printSettingsService ?? PrintSettingsService();
     _prepare();
   }
 
@@ -250,20 +253,24 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       }
       
       if (_lastPng != null) {
-        final fileName = 'MyDent-CombinedSlip-${DateTime.now().millisecondsSinceEpoch}.png';
-        final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
-        if (!saved) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบเสร็จ+ใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
-            );
+        if (widget.debugPngOverride == null) {
+          final fileName = 'MyDent-CombinedSlip-${DateTime.now().millisecondsSinceEpoch}.png';
+          final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
+          if (!saved) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('ไม่สามารถบันทึกภาพใบเสร็จ+ใบนัดได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+              );
+            }
+            return;
           }
-          return;
         }
 
         // 💖 NEW: ใช้ค่า postFeed ที่อ่านมา
         await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
-        if (mounted) Navigator.of(context).pop();
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));

@@ -7,6 +7,7 @@ import 'package:mydent_app/features/printing/render/combined_slip_preview_page.d
 import 'package:mydent_app/features/printing/render/receipt_mapper.dart';
 import 'package:mydent_app/features/printing/domain/appointment_slip_model.dart';
 import 'package:mydent_app/features/printing/services/thermal_printer_service.dart';
+import '../../../test_utils/fake_print_settings_service.dart';
 
 class _FakePrinter implements PrinterClient {
   bool called = false;
@@ -49,11 +50,14 @@ void main() {
     final appt = AppointmentInfo(startAt: DateTime(2025, 5, 1, 9, 0), note: 'ตรวจ');
 
     final preset = Uint8List.fromList([3, 2, 1, 0]);
-    await tester.pumpWidget(MaterialApp(home: CombinedSlipPreviewPage(
-      receipt: receipt,
-      nextAppointment: appt,
-      debugPngOverride: preset,
-    )));
+    await tester.pumpWidget(MaterialApp(
+      home: CombinedSlipPreviewPage(
+        receipt: receipt,
+        nextAppointment: appt,
+        debugPngOverride: preset,
+        printSettingsService: const FakePrintSettingsService(),
+      ),
+    ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 

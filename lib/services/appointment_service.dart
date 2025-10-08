@@ -160,6 +160,54 @@ class AppointmentService {
     }
   }
 
+  Future<Map<DateTime, int>> getDaysWithAppointments(
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      Query query = _primaryAppointments
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('startTime', isLessThan: Timestamp.fromDate(end));
+
+      final id = _effectiveClinicId;
+      if (!(FeatureFlags.useNestedCollections && id != null && id.isNotEmpty)) {
+        if (id != null && id.isNotEmpty) {
+          query = _rootAppointments
+              .where('clinicId', isEqualTo: id)
+              .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+              .where('startTime', isLessThan: Timestamp.fromDate(end));
+        }
+      }
+
+      var snapshot = await query.get();
+
+      if (FeatureFlags.dualReadFallbackEnabled && snapshot.docs.isEmpty) {
+        final fbQuery = _rootAppointments
+            .where('clinicId', isEqualTo: id)
+            .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('startTime', isLessThan: Timestamp.fromDate(end));
+        snapshot = await fbQuery.get();
+      }
+
+      final Map<DateTime, int> eventCounts = {};
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.containsKey('startTime')) {
+          final timestamp = data['startTime'] as Timestamp;
+          final dt = timestamp.toDate();
+          final dayKey = DateTime.utc(dt.year, dt.month, dt.day);
+          eventCounts.update(dayKey, (value) => value + 1, ifAbsent: () => 1);
+        }
+      }
+      
+      return eventCounts;
+
+    } catch (e) {
+      debugPrint("Error fetching days with appointments: $e");
+      return {};
+    }
+  }
+
   // Removed unused helper _isTimeSlotConflict (was not referenced)
 
   Stream<List<AppointmentModel>> getAppointmentsStreamByDate(DateTime selectedDate) {
@@ -210,4 +258,3 @@ class AppointmentService {
     }
   }
 }
-

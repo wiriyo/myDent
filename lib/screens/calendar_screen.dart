@@ -1,8 +1,9 @@
 // ----------------------------------------------------------------
-// 📁 lib/screens/calendar_screen.dart (v3.3 - 💖 Laila's Dev Preview Removal!)
+// 📁 lib/screens/calendar_screen.dart (v4.1 - 💖 Laila's Count Fix!)
 // ----------------------------------------------------------------
-// ไลลาได้นำปุ่ม 'Dev Preview' ที่ใช้สำหรับการดีบักออกไปแล้วนะคะ
-// เพื่อให้หน้าจอสะอาดตาและพร้อมสำหรับการใช้งานจริงค่ะ!
+// ไลลาปรับปรุงหน้าปฏิทินใหม่ทั้งหมด!
+// ตอนนี้เราจะโหลดข้อมูลเฉพาะวันที่เลือกเท่านั้น ทำให้เร็วขึ้นมากค่ะ
+// v4.1: นำตัวเลขจำนวนนัดกลับมาแสดงแล้วค่ะ!
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -51,9 +52,9 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   final Map<String, Patient> _patientCache = {};
   List<DayWorkingHours>? _workingHoursCache;
 
-  Map<DateTime, List<AppointmentModel>> _events = {};
+  // 💖 UPDATED: Store event counts
+  Map<DateTime, List<dynamic>> _events = {};
   List<AppointmentModel> _selectedAppointments = [];
-  List<Patient> _patientsForAppointments = [];
   DateTime _focusedDay = DateTime.now();
   late DateTime _selectedDay;
   DayWorkingHours? _selectedDayWorkingHours;
@@ -91,7 +92,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_isInitialLoad) {
-      // ✅ เตรียม AppointmentService ด้วย clinicId จาก Provider
       final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
       final clinicId = authProvider.verifiedClinicId;
       if (clinicId != null && clinicId.isNotEmpty) {
@@ -108,178 +108,109 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         _receiptDraft = widget.receiptDraft;
       }
       
-      _loadDataForMonth(_focusedDay);
+      _loadInitialData();
       _isInitialLoad = false;
     }
+  }
+
+  Future<void> _loadInitialData() async {
+    await _loadEventMarkersForMonth(_focusedDay);
+    await _loadAppointmentsForDay(_selectedDay);
   }
 
   Future<void> _handleDataChange() {
     _patientCache.clear();
     _workingHoursCache = null;
-    return _loadDataForMonth(_focusedDay);
+    return _loadInitialData();
   }
 
-  Future<void> _loadDataForMonth(DateTime month) async {
+  // 💖 UPDATED: Load event counts for the visible month
+  Future<void> _loadEventMarkersForMonth(DateTime month) async {
+    if (_appointmentService == null) return;
     if (!mounted) return;
-    setState(() { _isLoading = true; });
 
+    final startOfMonth = DateTime(month.year, month.month, 1);
+    final endOfMonth = DateTime(month.year, month.month + 1, 0);
+
+    try {
+      final eventCounts = await _appointmentService!.getDaysWithAppointments(startOfMonth, endOfMonth);
+      final Map<DateTime, List<dynamic>> events = {};
+      
+      eventCounts.forEach((day, count) {
+        final dayKey = DateTime.utc(day.year, day.month, day.day);
+        events[dayKey] = [count]; // Store the count
+      });
+
+      if (!mounted) return;
+      setState(() {
+        _events = events;
+      });
+    } catch (e) {
+      debugPrint('Error loading event markers: $e');
+    }
+  }
+
+  Future<void> _loadAppointmentsForDay(DateTime day) async {
     if (_appointmentService == null) {
-      // หากยังไม่มี clinicId ให้หยุดและแจ้งเตือนสั้นๆ
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ไม่พบรหัสคลินิก กรุณาเข้าสู่ระบบใหม่')),
         );
       }
-      setState(() { _isLoading = false; });
       return;
     }
-
-    final startOfMonth = DateTime(month.year, month.month, 1);
-    final endOfMonth = DateTime(month.year, month.month + 1, 1);
+    if (!mounted) return;
+    setState(() { _isLoading = true; });
 
     try {
-      var appointments =
-          await _appointmentService!.getAppointmentsInRange(startOfMonth, endOfMonth);
-
-      final initialCount = appointments.length;
-      appointments =
-          appointments.where((appt) => appt.patientId.isNotEmpty).toList();
-      final removedMissingIds = initialCount - appointments.length;
-      if (removedMissingIds > 0) {
-        debugPrint(
-            'Removed $removedMissingIds appointments without patient references.');
-      }
-
-      final patientIds = appointments.map((appt) => appt.patientId).toSet();
-
+      final appointments = await _appointmentService!.getAppointmentsByDate(day);
+      
+      final patientIds = appointments.map((appt) => appt.patientId).where((id) => id.isNotEmpty).toSet();
       if (patientIds.isNotEmpty) {
-        final missingIds =
-            patientIds.where((id) => !_patientCache.containsKey(id)).toList();
+        final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
         if (missingIds.isNotEmpty) {
-          final fetchedPatients =
-              await _patientService.fetchPatientsByIds(missingIds);
+          final fetchedPatients = await _patientService.fetchPatientsByIds(missingIds);
           for (final patient in fetchedPatients) {
             _patientCache[patient.patientId] = patient;
           }
         }
       }
+      final validPatients = patientIds.map((id) => _patientCache[id]).whereType<Patient>().toList();
+      final validPatientIds = validPatients.map((p) => p.patientId).toSet();
+      final filteredAppointments = appointments.where((appt) => validPatientIds.contains(appt.patientId)).toList();
+      
+      filteredAppointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      final orphanedPatientIds = patientIds
-          .where((id) => !_patientCache.containsKey(id))
-          .toSet();
-      if (orphanedPatientIds.isNotEmpty) {
-        final beforeFilterCount = appointments.length;
-        appointments = appointments
-            .where((appt) => !orphanedPatientIds.contains(appt.patientId))
-            .toList();
-        final removedOrphans = beforeFilterCount - appointments.length;
-        if (removedOrphans > 0) {
-          debugPrint(
-              'Removed $removedOrphans orphaned appointments with missing patients.');
+      List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
+      if (allWorkingHours == null) {
+        allWorkingHours = await _workingHoursService.loadWorkingHours();
+        _workingHoursCache = allWorkingHours;
+      }
+      DayWorkingHours? dayWorkingHours;
+      if (allWorkingHours != null) {
+        try {
+          dayWorkingHours = allWorkingHours.firstWhere((d) => d.dayName == _getThaiDayName(day.weekday));
+        } catch (e) {
+          dayWorkingHours = null;
         }
       }
 
-      final Map<DateTime, List<AppointmentModel>> events = {};
-      for (final appointment in appointments) {
-        final dayKey = DateTime.utc(
-          appointment.startTime.year,
-          appointment.startTime.month,
-          appointment.startTime.day,
-        );
-        (events[dayKey] ??= []).add(appointment);
-      }
-
       if (!mounted) return;
-
       setState(() {
-        _events = events;
+        _selectedAppointments = filteredAppointments;
+        _selectedDayWorkingHours = dayWorkingHours;
+        _isLoading = false;
       });
 
-      await _populateTimelineForDay(_selectedDay);
     } catch (e) {
-      debugPrint('Error loading monthly appointments: $e');
+      debugPrint('Error loading appointments for day: $e');
       if (!mounted) return;
       setState(() {
-        _events = {};
         _selectedAppointments = [];
-        _patientsForAppointments = [];
         _selectedDayWorkingHours = null;
         _isLoading = false;
       });
     }
-  }
-
-  Future<void> _populateTimelineForDay(DateTime day) async {
-    final dayKey = DateTime.utc(day.year, day.month, day.day);
-    final appointments = List<AppointmentModel>.from(_events[dayKey] ?? []);
-
-    appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
-
-    final patientIds = appointments
-        .map((appt) => appt.patientId)
-        .where((id) => id.isNotEmpty)
-        .toSet();
-
-    if (patientIds.isNotEmpty) {
-      final missingIds = patientIds.where((id) => !_patientCache.containsKey(id)).toList();
-      if (missingIds.isNotEmpty) {
-        final fetchedPatients =
-            await _patientService.fetchPatientsByIds(missingIds);
-        for (final patient in fetchedPatients) {
-          _patientCache[patient.patientId] = patient;
-        }
-      }
-    }
-
-    final patients = patientIds
-        .map((id) => _patientCache[id])
-        .whereType<Patient>()
-        .toList();
-
-    final validPatientIds = patients.map((p) => p.patientId).toSet();
-    final filteredAppointments = appointments
-        .where((appt) => validPatientIds.contains(appt.patientId))
-        .toList();
-    final removedCount = appointments.length - filteredAppointments.length;
-    if (removedCount > 0) {
-      debugPrint(
-          'Skipped $removedCount orphaned appointments on ${day.toIso8601String()}');
-    }
-
-    List<DayWorkingHours>? allWorkingHours = _workingHoursCache;
-    if (allWorkingHours == null) {
-      try {
-        allWorkingHours = await _workingHoursService.loadWorkingHours();
-        _workingHoursCache = allWorkingHours;
-      } catch (e) {
-        allWorkingHours = null;
-      }
-    }
-
-    DayWorkingHours? dayWorkingHours;
-    if (allWorkingHours != null) {
-      try {
-        dayWorkingHours = allWorkingHours.firstWhere(
-          (d) => d.dayName == _getThaiDayName(day.weekday),
-        );
-      } catch (e) {
-        dayWorkingHours = null;
-      }
-    }
-
-    if (!mounted) return;
-    setState(() {
-      if (removedCount > 0) {
-        _events = {
-          ..._events,
-          dayKey: filteredAppointments,
-        };
-      }
-      _selectedAppointments = filteredAppointments;
-      _patientsForAppointments = patients;
-      _selectedDayWorkingHours = dayWorkingHours;
-      _isLoading = false;
-    });
   }
 
   String _getThaiDayName(int weekday) {
@@ -335,7 +266,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
       timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
     } else if (!_isLoading && _selectedAppointments.isNotEmpty) {
-      // Fallback height when clinic is closed but there are appointments
       final earliest = _selectedAppointments.map((a) => a.startTime).reduce((a, b) => a.isBefore(b) ? a : b);
       final latest = _selectedAppointments.map((a) => a.endTime).reduce((a, b) => a.isAfter(b) ? a : b);
       const double hourHeight = 120.0;
@@ -364,7 +294,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 }
               },
             ),
-          // 💖 ไลลาเอาปุ่ม Dev Preview ออกแล้วนะคะ!
         ],
       ),
       body: ListView(
@@ -391,8 +320,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   }
                 }
               },
-              // 💖✨ START: NAVIGATION FIX v3.2 ✨💖
-              // เราจะรอ "คำตอบ" จากหน้าน้อง Daily ค่ะ
               onDailyViewTapped: () async {
                 final result = await Navigator.push(
                   context,
@@ -403,10 +330,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   )),
                 );
 
-                // ถ้าคำตอบคือ "อยากไปหน้ารายสัปดาห์"
                 if (result is CalendarFormat && result == CalendarFormat.week) {
                   if (!mounted) return;
-                  // เราก็จะเปิดประตูมิติไปหน้ารายสัปดาห์ให้เลยค่ะ!
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -418,10 +343,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                     ),
                   );
                 }
-                // ไม่ว่าจะเกิดอะไรขึ้น เราจะรีเฟรชข้อมูลเสมอค่ะ
                 _handleDataChange();
               },
-              // 💖✨ END: NAVIGATION FIX v3.2 ✨💖
             ),
           ),
           Padding(
@@ -456,6 +379,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                     final month = DateFormat.MMMM('th_TH').format(date);
                     return Center(child: Text('$month $year', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)));
                   },
+                  // 💖 UPDATED: Marker builder now shows the count!
                   markerBuilder: (context, day, events) {
                     if (events.isNotEmpty) {
                       return Positioned(
@@ -465,7 +389,13 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                           padding: const EdgeInsets.all(1.0),
                           decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
                           constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Center(child: Text('${events.length}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily))),
+                          child: Center(
+                            child: Text(
+                              '${events.first}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
+                            ),
+                          ),
                         ),
                       );
                     }
@@ -480,18 +410,20 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   if (!isSameDay(_selectedDay, selectedDay)) {
                     setState(() {
                       _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
-                      _isLoading = true;
+                      _focusedDay = focusedDay; // Keep focused day in sync
                     });
-                    _populateTimelineForDay(selectedDay);
+                    _loadAppointmentsForDay(selectedDay);
                   }
                 },
                 onPageChanged: (focusedDay) {
-                  setState(() {
-                    _focusedDay = focusedDay;
-                    _selectedDay = focusedDay;
-                  });
-                  _loadDataForMonth(focusedDay);
+                  _focusedDay = focusedDay;
+                  if (!isSameDay(_selectedDay, focusedDay)) {
+                     setState(() {
+                       _selectedDay = focusedDay;
+                     });
+                  }
+                  _loadEventMarkersForMonth(focusedDay);
+                  _loadAppointmentsForDay(focusedDay); // Load data for the first visible day
                 },
               ),
             ),
@@ -504,7 +436,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 : TimelineView(
                     selectedDate: _selectedDay,
                     appointments: _selectedAppointments,
-                    patients: _patientsForAppointments,
+                    patients: _selectedAppointments.map((appt) => _patientCache[appt.patientId]).whereType<Patient>().toList(),
                     workingHours: _selectedDayWorkingHours ?? DayWorkingHours(dayName: _getThaiDayName(_selectedDay.weekday), isClosed: true, timeSlots: []),
                     onDataChanged: _handleDataChange,
                     initialPatient: _chainedPatient,

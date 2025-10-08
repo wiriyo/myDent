@@ -150,10 +150,42 @@ class ThermalPrinterService implements PrinterClient {
     try { return await PrintBluetoothThermal.connectionStatus; } catch (_) { return false; }
   }
 
-  Future<bool> connectByMac(String mac) async {
+  Future<bool> connectByMac(String mac, {int maxRetries = 2, Duration retryDelay = const Duration(milliseconds: 600)}) async {
+    final trimmedMac = mac.trim();
+    if (trimmedMac.isEmpty) return false;
+
     final permissionsOk = await _requestAll();
     if (!permissionsOk) return false;
-    return await PrintBluetoothThermal.connect(macPrinterAddress: mac);
+
+    // Always start from a clean state; some printers refuse a new socket while the
+    // previous channel is still marked as connected on Android.
+    try {
+      if (await PrintBluetoothThermal.connectionStatus) {
+        await PrintBluetoothThermal.disconnect;
+      }
+    } catch (_) {}
+
+    bool connected = false;
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(retryDelay);
+      }
+
+      try {
+        connected = await PrintBluetoothThermal.connect(macPrinterAddress: trimmedMac);
+      } catch (e, st) {
+        if (kDebugMode) debugPrint('ThermalPrinterService.connectByMac failure (attempt ${attempt + 1}): $e\n$st');
+        connected = false;
+      }
+
+      if (connected) {
+        return true;
+      }
+
+      // Ensure the underlying plugin socket is torn down before retrying.
+      try { await PrintBluetoothThermal.disconnect; } catch (_) {}
+    }
+    return false;
   }
 
   Future<void> disconnect() async { try { await PrintBluetoothThermal.disconnect; } catch (_) {} }

@@ -323,7 +323,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
   }
 
   void _showErrorSnackBar(String message, {bool isError = false}) {
-    if (!context.mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: const TextStyle(color: Colors.white)),
@@ -573,7 +573,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
     final decision = await _showSaveConfirmationDialog();
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     if (decision?.confirmed != true) {
       setState(() => _isSaveButtonLocked = false);
@@ -616,7 +616,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
     );
     debugPrint("💖 Laila Debug: Treatment saved successfully: $success");
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     if (success) {
       final newEntries =
@@ -630,21 +630,21 @@ class _TreatmentFormState extends State<TreatmentForm> {
         _loadToothHistory();
       }
 
-      if (!context.mounted) return;
+      if (!mounted) return;
 
       if (_isEditing) {
         debugPrint(
           "💖 Laila Debug: Editing treatment. Showing receipt preview.",
         );
         final receipt = await _buildReceiptFromForm();
-        if (!context.mounted) return;
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
           ),
         );
 
-        if (!context.mounted) return;
+        if (!mounted) return;
         Navigator.of(context).pop(true);
         return;
       }
@@ -653,7 +653,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         "💖 Laila Debug: Should schedule after save: $shouldScheduleAfterSave",
       );
 
-      if (!context.mounted) return;
+      if (!mounted) return;
 
       if (shouldScheduleAfterSave) {
         final patientForScheduling = await _getPatientForScheduling();
@@ -669,7 +669,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         }
 
         final receipt = await _buildReceiptFromForm();
-        if (!context.mounted) return;
+        if (!mounted) return;
         debugPrint(
           "💖 Laila Debug: Replacing current route with CalendarScreen.",
         );
@@ -689,7 +689,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
       debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
       final receipt = await _buildReceiptFromForm();
-      if (!context.mounted) return;
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
@@ -699,7 +699,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       debugPrint(
         "💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.",
       );
-      if (!context.mounted) return;
+      if (!mounted) return;
       Navigator.of(context).pop(true);
       return;
     } else {
@@ -738,7 +738,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       imageUrl: imageUrl,
     );
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     if (success) {
       setState(() {
@@ -1142,9 +1142,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
                           widget.patientId,
                           widget.treatment!.id,
                         );
-                        if (success && context.mounted) {
+                        if (!mounted) return;
+                        if (success) {
                           Navigator.pop(context, true);
-                        } else if (!success && context.mounted) {
+                        } else {
                           _showErrorSnackBar(
                             treatmentProvider.error ?? 'มีบางอย่างผิดพลาดค่ะ',
                             isError: true,

@@ -23,6 +23,9 @@ import 'daily_calendar_screen.dart';
 
 // 💖✨ Imports for Magic Spell
 import '../features/printing/domain/receipt_model.dart' as receipt;
+import '../features/printing/render/combined_slip_preview_page.dart';
+import '../features/printing/render/receipt_mapper.dart'
+    show mapCalendarResultToApptInfo;
 import '../services/appointment_flow_service.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
@@ -226,6 +229,48 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       chainedPatient: _chainedPatient,
       receiptDraft: _receiptDraft,
     );
+  }
+
+  Future<void> _handleExistingAppointmentSelection(
+    AppointmentModel appointment,
+    Patient patient,
+  ) async {
+    if (_receiptDraft == null) {
+      return;
+    }
+
+    if (_chainedPatient == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลคนไข้จากการรักษาค่ะ')),
+        );
+      }
+      return;
+    }
+
+    if (_chainedPatient!.patientId != patient.patientId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('นัดหมายนี้เป็นของคนไข้คนละคนกับการรักษาค่ะ')),
+        );
+      }
+      return;
+    }
+
+    final apptInfo = mapCalendarResultToApptInfo(appointment);
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CombinedSlipPreviewPage(
+          receipt: _receiptDraft!,
+          nextAppointment: apptInfo,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    _onAppointmentFlowComplete(clearPatient: true);
   }
 
   void _calculateAndSetWeekHourRange() {
@@ -991,16 +1036,35 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                   patient: patientModel,
                   isCompact: layoutInfo.maxOverlaps > 1,
                   isShort: height < 60,
-                  onTap:
-                      () => showDialog(
-                        context: context,
-                        builder:
-                            (_) => AppointmentDetailDialog(
-                              appointment: appointmentModel,
-                              patient: patientModel,
-                              onDataChanged: _handleDataChange,
-                            ),
-                      ),
+                  onTap: () async {
+                    final allowSelection =
+                        _receiptDraft != null && _chainedPatient != null;
+                    final result = await showDialog<Map<String, dynamic>>(
+                      context: context,
+                      builder:
+                          (_) => AppointmentDetailDialog(
+                            appointment: appointmentModel,
+                            patient: patientModel,
+                            onDataChanged: _handleDataChange,
+                            enableChainedSelection: allowSelection,
+                            chainedPatient: _chainedPatient,
+                          ),
+                    );
+
+                    if (allowSelection &&
+                        result is Map<String, dynamic> &&
+                        result['useChainedFlow'] == true) {
+                      final selectedAppointment =
+                          result['appointment'] as AppointmentModel? ??
+                              appointmentModel;
+                      final selectedPatient =
+                          result['patient'] as Patient? ?? patientModel;
+                      await _handleExistingAppointmentSelection(
+                        selectedAppointment,
+                        selectedPatient,
+                      );
+                    }
+                  },
                 ),
               );
             }

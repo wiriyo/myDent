@@ -42,6 +42,10 @@ class TimelineView extends StatelessWidget {
   // เพิ่ม callback ตัวใหม่สำหรับรับ "คำสั่ง" จาก GapCard ค่ะ
   final Function(DateTime startTime)? onGapAddTapped;
   // 💖✨ END: THE CENTRALIZED LOGIC FIX v2.9 ✨💖
+  final bool enableChainedSelection;
+  final Patient? chainedPatient;
+  final Future<void> Function(AppointmentModel appointment, Patient patient)?
+      onExistingAppointmentSelected;
 
   const TimelineView({
     super.key,
@@ -53,6 +57,9 @@ class TimelineView extends StatelessWidget {
     this.hourHeight = 120.0,
     this.initialPatient,
     this.onGapAddTapped, // เพิ่มใน constructor ด้วยนะคะ
+    this.enableChainedSelection = false,
+    this.chainedPatient,
+    this.onExistingAppointmentSelected,
   });
   
   DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
@@ -291,12 +298,34 @@ class TimelineView extends StatelessWidget {
           child: AppointmentCard(
             appointment: appointmentModel, 
             patient: patientModel,
-            onTap: () {
-              showDialog(context: context, builder: (_) => AppointmentDetailDialog(
-                  appointment: appointmentModel,
-                  patient: patientModel,
-                  onDataChanged: onDataChanged
-              ));
+            onTap: () async {
+              final allowSelection =
+                  enableChainedSelection && onExistingAppointmentSelected != null;
+              final result = await showDialog<Map<String, dynamic>>(
+                context: context,
+                builder:
+                    (_) => AppointmentDetailDialog(
+                      appointment: appointmentModel,
+                      patient: patientModel,
+                      onDataChanged: onDataChanged,
+                      enableChainedSelection: allowSelection,
+                      chainedPatient: chainedPatient,
+                    ),
+              );
+
+              if (allowSelection &&
+                  result is Map<String, dynamic> &&
+                  result['useChainedFlow'] == true) {
+                final selectedAppointment =
+                    result['appointment'] as AppointmentModel? ??
+                        appointmentModel;
+                final selectedPatient =
+                    result['patient'] as Patient? ?? patientModel;
+                await onExistingAppointmentSelected!(
+                  selectedAppointment,
+                  selectedPatient,
+                );
+              }
             }, 
             isCompact: layoutInfo.maxOverlaps > 1, 
             isShort: isShortAppointment

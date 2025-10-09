@@ -21,6 +21,9 @@ import '../styles/app_theme.dart';
 // เราจะ import ผู้ช่วยคนใหม่และสิ่งที่จำเป็นเข้ามาค่ะ
 import '../services/appointment_flow_service.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
+import '../features/printing/render/combined_slip_preview_page.dart';
+import '../features/printing/render/receipt_mapper.dart'
+    show mapCalendarResultToApptInfo;
 // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
 import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
@@ -155,6 +158,48 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     );
   }
   // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
+
+  Future<void> _handleExistingAppointmentSelection(
+    AppointmentModel appointment,
+    Patient patient,
+  ) async {
+    if (_receiptDraft == null) {
+      return;
+    }
+
+    if (_chainedPatient == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลคนไข้จากการรักษาค่ะ')),
+        );
+      }
+      return;
+    }
+
+    if (_chainedPatient!.patientId != patient.patientId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('นัดหมายนี้เป็นของคนไข้คนละคนกับการรักษาค่ะ')),
+        );
+      }
+      return;
+    }
+
+    final apptInfo = mapCalendarResultToApptInfo(appointment);
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CombinedSlipPreviewPage(
+          receipt: _receiptDraft!,
+          nextAppointment: apptInfo,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    _onAppointmentFlowComplete(clearPatient: true);
+  }
 
   Future<void> _fetchDataForSelectedDay(DateTime selectedDay) async {
     if (!mounted) return;
@@ -318,6 +363,12 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                       onDataChanged: _handleDataChange,
                       initialPatient: _chainedPatient,
                       onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
+                      enableChainedSelection: _receiptDraft != null && _chainedPatient != null,
+                      chainedPatient: _chainedPatient,
+                      onExistingAppointmentSelected:
+                          (_receiptDraft != null && _chainedPatient != null)
+                              ? _handleExistingAppointmentSelection
+                              : null,
                     ),
                   ),
           ),

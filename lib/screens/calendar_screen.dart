@@ -23,6 +23,9 @@ import '../styles/app_theme.dart';
 import 'daily_calendar_screen.dart';
 import 'weekly_calendar_screen.dart';
 import '../features/printing/domain/receipt_model.dart' as receipt;
+import '../features/printing/render/combined_slip_preview_page.dart';
+import '../features/printing/render/receipt_mapper.dart'
+    show mapCalendarResultToApptInfo;
 import '../services/appointment_flow_service.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
@@ -239,6 +242,48 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     );
   }
 
+  Future<void> _handleExistingAppointmentSelection(
+    AppointmentModel appointment,
+    Patient patient,
+  ) async {
+    if (_receiptDraft == null) {
+      return;
+    }
+
+    if (_chainedPatient == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลคนไข้จากการรักษาค่ะ')),
+        );
+      }
+      return;
+    }
+
+    if (_chainedPatient!.patientId != patient.patientId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('นัดหมายนี้เป็นของคนไข้คนละคนกับการรักษาค่ะ')),
+        );
+      }
+      return;
+    }
+
+    final apptInfo = mapCalendarResultToApptInfo(appointment);
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CombinedSlipPreviewPage(
+          receipt: _receiptDraft!,
+          nextAppointment: apptInfo,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    _onAppointmentFlowComplete(clearPatient: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     double timelineHeight = 200;
@@ -440,6 +485,12 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                     onDataChanged: _handleDataChange,
                     initialPatient: _chainedPatient,
                     onGapAddTapped: (startTime) => _handleAddAppointment(initialStartTime: startTime),
+                    enableChainedSelection: _receiptDraft != null && _chainedPatient != null,
+                    chainedPatient: _chainedPatient,
+                    onExistingAppointmentSelected:
+                        (_receiptDraft != null && _chainedPatient != null)
+                            ? _handleExistingAppointmentSelection
+                            : null,
                   ),
           ),
         ],

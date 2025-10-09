@@ -346,7 +346,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         return StatefulBuilder(
           builder: (context, setState) {
             final textTheme = Theme.of(context).textTheme;
-            final bool disableConfirm = !_isEditing && selection == null;
+            final bool disableConfirm = selection == null;
 
             Widget buildOption({
               required bool value,
@@ -492,36 +492,34 @@ class _TreatmentFormState extends State<TreatmentForm> {
                       color: AppTheme.textSecondary,
                     ),
                   ),
-                  if (!_isEditing) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      'เลือกขั้นตอนถัดไป',
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'เลือกขั้นตอนถัดไป',
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
                     ),
-                    const SizedBox(height: 12),
-                    buildOption(
-                      value: true,
-                      icon: Icons.event_available_rounded,
-                      title: 'นัดหมายครั้งต่อไป',
-                      subtitle: 'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
+                  ),
+                  const SizedBox(height: 12),
+                  buildOption(
+                    value: true,
+                    icon: Icons.event_available_rounded,
+                    title: 'นัดหมายครั้งต่อไป',
+                    subtitle: 'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
+                  ),
+                  buildOption(
+                    value: false,
+                    icon: Icons.insert_drive_file_rounded,
+                    title: 'ไม่มีนัดหมาย',
+                    subtitle: 'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '* เลือกได้เพียง 1 ตัวเลือกก่อนกดยืนยัน',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textDisabled,
                     ),
-                    buildOption(
-                      value: false,
-                      icon: Icons.insert_drive_file_rounded,
-                      title: 'ไม่มีนัดหมาย',
-                      subtitle: 'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '* เลือกได้เพียง 1 ตัวเลือกก่อนกดยืนยัน',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textDisabled,
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
               actions: [
@@ -584,8 +582,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       return;
     }
 
-    final bool shouldScheduleAfterSave =
-        !_isEditing && decision!.shouldSchedule;
+    final bool shouldScheduleAfterSave = decision?.shouldSchedule ?? false;
 
     final provider = context.read<TreatmentProvider>();
 
@@ -636,27 +633,11 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
       if (!mounted) return;
 
-      if (_isEditing) {
-        debugPrint(
-          "💖 Laila Debug: Editing treatment. Showing receipt preview.",
-        );
-        final receipt = await _buildReceiptFromForm();
-        if (!mounted) return;
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
-          ),
-        );
-
-        if (!mounted) return;
-        Navigator.of(context).pop(true);
-        return;
-      }
-
       debugPrint(
-        "💖 Laila Debug: Should schedule after save: $shouldScheduleAfterSave",
+        "💖 Laila Debug: Should schedule after save: $shouldScheduleAfterSave (isEditing=$_isEditing)",
       );
 
+      final receipt = await _buildReceiptFromForm();
       if (!mounted) return;
 
       if (shouldScheduleAfterSave) {
@@ -672,8 +653,10 @@ class _TreatmentFormState extends State<TreatmentForm> {
           return;
         }
 
-        final receipt = await _buildReceiptFromForm();
-        if (!mounted) return;
+        if (mounted) {
+          setState(() => _isSaveButtonLocked = false);
+        }
+
         debugPrint(
           "💖 Laila Debug: Replacing current route with CalendarScreen.",
         );
@@ -691,9 +674,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         return;
       }
 
-      debugPrint("💖 Laila Debug: No scheduling needed. Showing receipt only.");
-      final receipt = await _buildReceiptFromForm();
-      if (!mounted) return;
+      debugPrint("💖 Laila Debug: Showing receipt preview.");
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),

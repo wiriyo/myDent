@@ -24,12 +24,16 @@ class AppointmentDetailDialog extends StatefulWidget {
   final AppointmentModel appointment;
   final Patient patient;
   final VoidCallback onDataChanged;
+  final Patient? chainedPatient;
+  final bool enableChainedSelection;
 
   const AppointmentDetailDialog({
     super.key,
     required this.appointment,
     required this.patient,
     required this.onDataChanged,
+    this.chainedPatient,
+    this.enableChainedSelection = false,
   });
 
   @override
@@ -43,6 +47,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
   late String _currentStatus;
   late TextEditingController _reasonController;
   bool _isSaving = false;
+  bool _isProcessingSelection = false;
   final List<String> statusOptions = const [
     'รอยืนยัน',
     'ยืนยันแล้ว',
@@ -322,6 +327,35 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     if (!mounted) return;
     setState(() {
       _isSaving = false;
+    });
+  }
+
+  void _handleSelectForChainedFlow() {
+    if (_isProcessingSelection || !widget.enableChainedSelection) {
+      return;
+    }
+
+    final targetPatient = widget.chainedPatient;
+    if (targetPatient == null) {
+      return;
+    }
+
+    if (targetPatient.patientId != widget.patient.patientId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('นัดหมายนี้เป็นของคนไข้คนละคนกับการรักษานะคะ'),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isProcessingSelection = true);
+    Navigator.of(context).pop({
+      'useChainedFlow': true,
+      'appointment': widget.appointment,
+      'patient': widget.patient,
     });
   }
 
@@ -623,9 +657,19 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
         ),
       ),
       actions: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          runSpacing: 8,
           children: [
+            if (widget.enableChainedSelection)
+              _buildIconActionButton(
+                iconPath: 'assets/icons/printer.png',
+                backgroundColor: const Color.fromARGB(255, 176, 219, 234),
+                tooltip: 'พิมพ์ใบนัด + ใบเสร็จ',
+                onPressed: _handleSelectForChainedFlow,
+                isEnabled: !_isProcessingSelection,
+              ),
             _buildIconActionButton(
               iconPath: 'assets/icons/save.png',
               backgroundColor: AppTheme.buttonCallBg,
@@ -633,14 +677,12 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
               onPressed: _saveChanges,
               isEnabled: !_isSaving,
             ),
-            const SizedBox(width: 8),
             _buildIconActionButton(
               iconPath: 'assets/icons/edit.png',
               backgroundColor: AppTheme.buttonEditBg,
               tooltip: 'แก้ไขนัดหมาย',
               onPressed: _editAppointment,
             ),
-            const SizedBox(width: 8),
             _buildIconActionButton(
               iconPath: 'assets/icons/delete.png',
               backgroundColor: AppTheme.buttonDeleteBg,

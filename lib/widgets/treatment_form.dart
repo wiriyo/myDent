@@ -619,6 +619,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
     if (!mounted) return;
 
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     if (success) {
       final newEntries =
           _toothNumberController.text
@@ -642,20 +645,18 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
       if (shouldScheduleAfterSave) {
         final patientForScheduling = await _getPatientForScheduling();
+        if (!mounted) return;
         if (patientForScheduling == null) {
-          if (mounted) {
-            _showErrorSnackBar(
-              'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้',
-              isError: true,
-            );
-            setState(() => _isSaveButtonLocked = false);
-          }
+          _showErrorSnackBar(
+            'ไม่สามารถดึงข้อมูลคนไข้เพื่อนัดหมายได้',
+            isError: true,
+            messenger: messenger,
+          );
+          setState(() => _isSaveButtonLocked = false);
           return;
         }
 
-        if (mounted) {
-          setState(() => _isSaveButtonLocked = false);
-        }
+        setState(() => _isSaveButtonLocked = false);
 
         debugPrint(
           "💖 Laila Debug: Replacing current route with CalendarScreen.",
@@ -664,7 +665,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
         // 💖✨ THE NEW FLOW FIX v2.4: ใช้ pushReplacementNamed เพื่อ "สลับหน้า"
         // วิธีนี้จะปิดหน้าฟอร์มปัจจุบันทิ้ง แล้วเอาหน้าปฏิทินเข้ามาแทนที่
         // ทำให้ Flow การทำงานถูกต้องและไม่เกิดข้อผิดพลาดค่ะ
-        Navigator.of(context).pushReplacementNamed(
+        navigator.pushReplacementNamed(
           '/calendar',
           arguments: {
             'initialPatient': patientForScheduling,
@@ -675,7 +676,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       }
 
       debugPrint("💖 Laila Debug: Showing receipt preview.");
-      await Navigator.of(context).push(
+      await navigator.push(
         MaterialPageRoute(
           builder: (_) => pv.ReceiptPreviewPage(receipt: receipt),
         ),
@@ -685,10 +686,19 @@ class _TreatmentFormState extends State<TreatmentForm> {
         "💖 Laila Debug: Receipt preview finished. Closing TreatmentForm.",
       );
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      navigator.pop(true);
       return;
     } else {
-      _showErrorSnackBar(provider.error ?? 'มีบางอย่างผิดพลาดค่ะ', isError: true);
+      _showErrorSnackBar(
+
+        'มีบางอย่างผิดพลาดค่ะ',
+
+        isError: true,
+
+        messenger: messenger,
+
+      );
+
       setState(() => _isSaveButtonLocked = false);
     }
   }
@@ -715,7 +725,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
           ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
 
     final success = await provider.deleteTreatmentImage(
       patientId: widget.patientId,
@@ -729,14 +741,18 @@ class _TreatmentFormState extends State<TreatmentForm> {
       setState(() {
         _existingImageUrls.remove(imageUrl);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('ลบรูปภาพสำเร็จแล้วค่ะ'),
           backgroundColor: Colors.green,
         ),
       );
     } else {
-      _showErrorSnackBar(provider.error ?? 'มีบางอย่างผิดพลาดค่ะ', isError: true);
+      _showErrorSnackBar(
+        provider.error ?? 'มีบางอย่างผิดพลาดค่ะ',
+        isError: true,
+        messenger: messenger,
+      );
     }
     _loadToothHistory();
   }
@@ -1125,6 +1141,37 @@ class _TreatmentFormState extends State<TreatmentForm> {
                       onPressed: () async {
                         final navigator = Navigator.of(context);
                         final messenger = ScaffoldMessenger.of(context);
+                        final shouldDelete = await showDialog<bool>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                title: const Text('ยืนยันการลบ'),
+                                content: const Text(
+                                  'คุณต้องการลบประวัติการรักษานี้หรือไม่?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(dialogContext).pop(false),
+                                    child: const Text('ยกเลิก'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                    onPressed: () =>
+                                        Navigator.of(dialogContext).pop(true),
+                                    child: const Text('ลบ'),
+                                  ),
+                                ],
+                              ),
+                            ) ??
+                            false;
+                        if (shouldDelete != true) {
+                          return;
+                        }
+                        if (!mounted) {
+                          return;
+                        }
                         final success = await treatmentProvider.deleteTreatment(
                           widget.patientId,
                           widget.treatment!.id,

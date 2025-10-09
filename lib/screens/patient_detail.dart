@@ -85,6 +85,17 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     }
   }
 
+  String _formatBuddhistShortDate(DateTime date) {
+    final dayMonth = DateFormat('dd/MM', 'th_TH').format(date);
+    final buddhistYear = (date.year + 543) % 100;
+    return '$dayMonth/${buddhistYear.toString().padLeft(2, '0')}';
+  }
+
+  String _formatBuddhistShortDateTime(DateTime date) {
+    final timePart = DateFormat('HH:mm', 'th_TH').format(date);
+    return '${_formatBuddhistShortDate(date)} $timePart';
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -583,7 +594,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                                 children: [
                                                   Image.asset(AppTheme.iconPathCalendar, width: 16, height: 16),
                                                   const SizedBox(width: 4),
-                                                  Text(DateFormat('dd/MM/yy').format(treatment.date)),
+                                                  Text(_formatBuddhistShortDate(treatment.date)),
                                                 ],
                                               ),
                                               if (treatment.receiptNumber != null && treatment.receiptNumber!.isNotEmpty) ...[
@@ -602,7 +613,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                                   children: [
                                                     Image.asset(AppTheme.iconPathClock, width: 16, height: 16),
                                                     const SizedBox(width: 4),
-                                                    Text('บันทึก: ${DateFormat('dd/MM/yy HH:mm').format(treatment.receiptIssuedAt!)} น.'),
+                                                    Text('บันทึก: ${_formatBuddhistShortDateTime(treatment.receiptIssuedAt!)} น.'),
                                                   ],
                                                 ),
                                               ],

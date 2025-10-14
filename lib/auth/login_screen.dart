@@ -3,6 +3,8 @@
 // ไลลาได้ลบการประกาศตัวแปร const bool kDebugMode ออกไป
 // เพื่อแก้ไขปัญหาชื่อซ้ำ (ambiguous import) ค่ะ 💖
 
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,7 +18,6 @@ import '../styles/app_theme.dart';
 import 'signup_screen.dart';
 
 // --- ✨💖 ไลลาลบบรรทัด 'const bool kDebugMode = true;' ออกจากตรงนี้แล้วนะคะ 💖✨ ---
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,6 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String errorMessage = '';
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+
+  bool get _isFirebaseUnsupportedDesktop => !kIsWeb && Platform.isWindows;
 
   @override
   void initState() {
@@ -60,6 +63,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() async {
+    if (_isFirebaseUnsupportedDesktop) {
+      setState(() {
+        errorMessage =
+            'การล็อกอินด้วย Firebase ยังไม่รองรับบน Windows build. กรุณาทดสอบบน Android/iOS หรือ Web.';
+      });
+      _showSnackbar(errorMessage);
+      return;
+    }
+
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
         errorMessage = 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วนนะคะ 😊';
@@ -178,7 +190,8 @@ class _LoginScreenState extends State<LoginScreen> {
         _showSnackbar('ไลลาไม่พบอีเมลนี้ในระบบเลยค่ะ ลองตรวจสอบอีกครั้งน้า 💌');
       } else {
         _showSnackbar(
-            'อุ๊ย...ระบบแอบงอแงนิดหน่อย ลองใหม่อีกครั้งหรือบอกทีมไลลาให้ช่วยได้เลยนะคะ 💜');
+          'อุ๊ย...ระบบแอบงอแงนิดหน่อย ลองใหม่อีกครั้งหรือบอกทีมไลลาให้ช่วยได้เลยนะคะ 💜',
+        );
       }
     }
   }

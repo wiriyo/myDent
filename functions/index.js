@@ -354,7 +354,7 @@ exports.rejectClinicRequest = functions.https.onRequest(async (req, res) => {
   }
 });
 
-exports.setClinicClaim = functions.https.onCall(async (data, context) => {
+exports.setClinicClaim = functions.https.onCall(async (_data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
@@ -362,12 +362,14 @@ exports.setClinicClaim = functions.https.onCall(async (data, context) => {
   const uid = context.auth.uid;
 
   let clinicId;
+  let role;
   try {
     const userDoc = await admin.firestore().doc(`users/${uid}`).get();
     if (!userDoc.exists) {
       throw new functions.https.HttpsError('failed-precondition', 'User profile not found.');
     }
     clinicId = userDoc.get('clinicId');
+    role = userDoc.get('role');
   } catch (error) {
     console.error('Failed to load user profile for claims', error);
     if (error instanceof functions.https.HttpsError) {
@@ -381,14 +383,23 @@ exports.setClinicClaim = functions.https.onCall(async (data, context) => {
   }
 
   const sanitizedClinicId = clinicId.trim();
+  const normalizedRole = typeof role === 'string' && role.length > 0 ? role : null;
 
   try {
     const currentClaims = (await admin.auth().getUser(uid)).customClaims || {};
-    if (currentClaims.clinicId !== sanitizedClinicId) {
-      await admin.auth().setCustomUserClaims(uid, {
-        ...currentClaims,
-        clinicId: sanitizedClinicId,
-      });
+    const nextClaims = { ...currentClaims, clinicId: sanitizedClinicId };
+    if (normalizedRole) {
+      nextClaims.role = normalizedRole;
+    } else {
+      delete nextClaims.role;
+    }
+
+    const claimsChanged =
+      currentClaims.clinicId !== sanitizedClinicId ||
+      (normalizedRole ?? null) !== (currentClaims.role ?? null);
+
+    if (claimsChanged) {
+      await admin.auth().setCustomUserClaims(uid, nextClaims);
     }
 
     await admin.firestore().doc(`users/${uid}`).set({
@@ -400,6 +411,35 @@ exports.setClinicClaim = functions.https.onCall(async (data, context) => {
   }
 
   return { clinicId: sanitizedClinicId };
+});
+
+exports.getUserProfileForLogin = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+
+  const uid = context.auth.uid;
+  try {
+    const snapshot = await admin.firestore().doc(`users/${uid}`).get();
+    if (!snapshot.exists) {
+      throw new functions.https.HttpsError('not-found', 'User profile not found.');
+    }
+
+    const data = snapshot.data() || {};
+    return {
+      role: data.role || null,
+      status: data.status || null,
+      clinicId: data.clinicId || null,
+      name: data.name || null,
+      displayName: data.displayName || null,
+    };
+  } catch (error) {
+    console.error('Failed to fetch user profile for login', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError('unknown', 'Unable to load user profile.');
+  }
 });
 
 exports.revokeClinicAccess = functions.https.onCall(async (data, context) => {

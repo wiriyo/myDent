@@ -1,7 +1,12 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:mydent_app/config/feature_flags.dart';
 
 class SignInResult {
@@ -16,6 +21,155 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
+
+  Future<Map<String, dynamic>?> _loadUserProfile(String uid) async {
+    Map<String, dynamic>? nestedData;
+    try {
+      final snapshot = await _firestore.collection('users').doc(uid).get();
+      if (snapshot.exists) {
+        final data = snapshot.data();
+        return data == null ? null : Map<String, dynamic>.from(data);
+      }
+
+      nestedData = await _loadProfileFromNestedCollections(uid);
+      if (nestedData != null) {
+        return nestedData;
+      }
+
+      return null;
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        nestedData ??= await _loadProfileFromNestedCollections(uid);
+        if (nestedData != null) {
+          return nestedData;
+        }
+
+        debugPrint(
+          'Direct profile read denied, using callable fallback: ${error.message}',
+        );
+
+        try {
+          return await _loadProfileViaHttpsCallable(uid);
+        } on MissingPluginException catch (missingPluginError, stackTrace) {
+          debugPrint(
+            'Firebase Functions not available on this platform: '
+            '$missingPluginError',
+          );
+          debugPrint('$stackTrace');
+          return null;
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _loadProfileFromNestedCollections(
+    String uid,
+  ) async {
+    if (!FeatureFlags.useNestedCollections &&
+        !FeatureFlags.dualReadFallbackEnabled) {
+      return null;
+    }
+
+    try {
+      final nestedUserQuery =
+          await _firestore
+              .collectionGroup('users')
+              .where(FieldPath.documentId, isEqualTo: uid)
+              .limit(1)
+              .get();
+
+      if (nestedUserQuery.docs.isNotEmpty) {
+        final doc = nestedUserQuery.docs.first;
+        final data = Map<String, dynamic>.from(doc.data());
+        data.putIfAbsent('clinicId', () => doc.reference.parent.parent?.id);
+        data.putIfAbsent('status', () => 'approved');
+        return data;
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Nested users lookup failed: $error');
+      debugPrint('$stackTrace');
+    }
+
+    try {
+      final nestedMembersQuery =
+          await _firestore
+              .collectionGroup('members')
+              .where(FieldPath.documentId, isEqualTo: uid)
+              .limit(1)
+              .get();
+
+      if (nestedMembersQuery.docs.isNotEmpty) {
+        final doc = nestedMembersQuery.docs.first;
+        final data = Map<String, dynamic>.from(doc.data());
+        data.putIfAbsent('clinicId', () => doc.reference.parent.parent?.id);
+        data.putIfAbsent('status', () => 'approved');
+        return data;
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Nested members lookup failed: $error');
+      debugPrint('$stackTrace');
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _loadProfileViaHttpsCallable(String uid) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return null;
+    }
+
+    final FirebaseApp app = _auth.app;
+    final String projectId = app.options.projectId ?? '';
+    if (projectId.isEmpty) {
+      debugPrint('Unable to resolve Firebase projectId for callable fallback.');
+      return null;
+    }
+
+    const String region = 'us-central1';
+    final Uri url = Uri.https(
+      '$region-$projectId.cloudfunctions.net',
+      'getUserProfileForLogin',
+    );
+
+    final String? idToken = await user.getIdToken();
+    if (idToken == null || idToken.isEmpty) {
+      return null;
+    }
+
+    try {
+      final http.Response response = await http.post(
+        url,
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: jsonEncode(<String, dynamic>{'data': <String, dynamic>{}}),
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final dynamic resultPayload = decoded['result'];
+          if (resultPayload is Map<String, dynamic>) {
+            return Map<String, dynamic>.from(resultPayload);
+          }
+        }
+      } else {
+        debugPrint(
+          'Callable HTTPS fallback failed: ${response.statusCode} ${response.body}',
+        );
+      }
+    } on MissingPluginException {
+      rethrow;
+    } catch (callError, stackTrace) {
+      debugPrint('Callable HTTPS fallback error: $callError');
+      debugPrint('$stackTrace');
+    }
+
+    return null;
+  }
 
   Future<void> _ensureClinicMembership({
     required String clinicId,
@@ -43,6 +197,12 @@ class AuthService {
     try {
       final callable = _functions.httpsCallable('setClinicClaim');
       await callable.call(<String, dynamic>{'clinicId': clinicId});
+    } on MissingPluginException catch (error, stackTrace) {
+      debugPrint(
+        'Firebase Functions setClinicClaim not available on this platform: '
+        '$error',
+      );
+      debugPrint('$stackTrace');
     } on FirebaseFunctionsException catch (error) {
       debugPrint('Failed to sync clinic claim: ${error.code}');
     }
@@ -54,13 +214,21 @@ class AuthService {
     required String userName,
     required String userEmail,
   }) async {
-    final callable = _functions.httpsCallable('requestClinicApproval');
-    await callable.call(<String, dynamic>{
-      'clinicId': clinicId,
-      'clinicName': clinicName,
-      'userName': userName,
-      'userEmail': userEmail,
-    });
+    try {
+      final callable = _functions.httpsCallable('requestClinicApproval');
+      await callable.call(<String, dynamic>{
+        'clinicId': clinicId,
+        'clinicName': clinicName,
+        'userName': userName,
+        'userEmail': userEmail,
+      });
+    } on MissingPluginException catch (error, stackTrace) {
+      debugPrint(
+        'Firebase Functions requestClinicApproval not available on this '
+        'platform: $error',
+      );
+      debugPrint('$stackTrace');
+    }
   }
 
   Future<void> _rollbackClinicSetup(
@@ -232,13 +400,8 @@ class AuthService {
         return null;
       }
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!userDoc.exists) {
-        return null;
-      }
-
-      final data = userDoc.data();
-      if (data == null) {
+      final Map<String, dynamic>? data = await _loadUserProfile(user.uid);
+      if (data == null || data.isEmpty) {
         return null;
       }
 
@@ -278,13 +441,20 @@ class AuthService {
       }
 
       if (clinicId != null && clinicId.isNotEmpty) {
-        await _ensureClinicMembership(
-          clinicId: clinicId,
-          uid: user.uid,
-          role: role,
-        );
-
         await _syncClinicClaim(clinicId);
+        await _auth.currentUser?.getIdToken(true);
+        try {
+          await _ensureClinicMembership(
+            clinicId: clinicId,
+            uid: user.uid,
+            role: role,
+          );
+        } on FirebaseException catch (firebaseError) {
+          if (firebaseError.code != 'permission-denied') {
+            rethrow;
+          }
+          debugPrint('Membership sync skipped: ${firebaseError.message}');
+        }
       }
 
       return SignInResult(

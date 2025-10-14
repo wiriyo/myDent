@@ -2,6 +2,9 @@
 // v1.0.0 - Laila's Staff Login UI
 // หน้าจอสำหรับให้พนักงานล็อกอินด้วย Username & Password ค่ะ 💳
 
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_provider.dart';
@@ -23,16 +26,24 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
   String errorMessage = '';
   bool _isLoading = false;
 
+  bool get _isFirebaseUnsupportedDesktop => !kIsWeb && Platform.isWindows;
+
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.primary,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppTheme.primary),
     );
   }
 
   void _loginStaff() async {
+    if (_isFirebaseUnsupportedDesktop) {
+      setState(() {
+        errorMessage =
+            'การล็อกอินบุคลากรยังไม่รองรับบน Windows build. กรุณาทดสอบบน Android/iOS หรือ Web.';
+      });
+      _showSnackbar(errorMessage);
+      return;
+    }
+
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
         errorMessage = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่านนะคะ 😊';
@@ -84,7 +95,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
       });
       _showSnackbar(errorMessage);
     } finally {
-      if(mounted) {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -108,7 +119,10 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
               const SizedBox(height: 24),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 64,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFBEAFF),
                   borderRadius: BorderRadius.circular(32),
@@ -132,36 +146,53 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _buildTextField('ชื่อผู้ใช้ (Username)', _usernameController),
+                    _buildTextField(
+                      'ชื่อผู้ใช้ (Username)',
+                      _usernameController,
+                    ),
                     const SizedBox(height: 16),
-                    _buildTextField('รหัสผ่าน (Password)', _passwordController, obscure: true),
+                    _buildTextField(
+                      'รหัสผ่าน (Password)',
+                      _passwordController,
+                      obscure: true,
+                    ),
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _loginStaff,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFF47FA1),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 100,
+                          vertical: 14,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(32),
                         ),
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text('เข้าสู่ระบบ'),
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Text('เข้าสู่ระบบ'),
                     ),
-                     if (errorMessage.isNotEmpty)
+                    if (errorMessage.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Text(errorMessage, style: const TextStyle(color: Colors.red)),
+                        child: Text(
+                          errorMessage,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ),
                   ],
                 ),
@@ -173,17 +204,27 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool obscure = false}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    bool obscure = false,
+  }) {
     return TextField(
       controller: controller,
       obscureText: obscure,
       style: const TextStyle(fontFamily: 'Poppins'),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF6A4DBA), fontWeight: FontWeight.bold),
+        labelStyle: const TextStyle(
+          color: Color(0xFF6A4DBA),
+          fontWeight: FontWeight.bold,
+        ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF6A4DBA)),

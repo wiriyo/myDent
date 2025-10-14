@@ -36,10 +36,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -59,4 +56,14 @@ class DefaultFirebaseOptions {
     projectId: 'mydentv1',
     storageBucket: 'mydentv1.firebasestorage.app',
   );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCW4tWvs_SerUM6y2fQh9I8HmUN2jQxwxY',
+    appId: '1:1060356216356:web:50916f9a75508b28786ab1',
+    messagingSenderId: '1060356216356',
+    projectId: 'mydentv1',
+    authDomain: 'mydentv1.firebaseapp.com',
+    storageBucket: 'mydentv1.firebasestorage.app',
+  );
+
 }

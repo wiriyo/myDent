@@ -108,7 +108,34 @@ class _HomeAdminScreenState extends State<HomeAdminScreen> {
               ),
               const SizedBox(height: 16),
               
-              // TODO: Add more admin-specific widgets here
+              // Reports Button
+              _buildFeatureButton(
+                context,
+                icon: Icons.bar_chart,
+                label: 'Reports',
+                onPressed: () => Navigator.pushNamed(context, '/reports'),
+                color: AppTheme.buttonDeleteFg, 
+              ),
+              const SizedBox(height: 16),
+
+              // Working Hours Button
+              _buildFeatureButton(
+                context,
+                icon: Icons.schedule,
+                label: 'Working Hours',
+                onPressed: () => Navigator.pushNamed(context, '/working_hours'),
+                color: AppTheme.primary, 
+              ),
+              const SizedBox(height: 16),
+
+              // Clinic Settings Button
+              _buildFeatureButton(
+                context,
+                icon: Icons.local_hospital,
+                label: 'Clinic Settings',
+                onPressed: () => Navigator.pushNamed(context, '/clinic_settings'),
+                color: AppTheme.iconFemaleColor, 
+              ),
             ],
           ),
         ),

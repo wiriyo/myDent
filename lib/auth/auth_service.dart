@@ -121,7 +121,7 @@ class AuthService {
     }
 
     final FirebaseApp app = _auth.app;
-    final String projectId = app.options.projectId ?? '';
+    final String projectId = app.options.projectId;
     if (projectId.isEmpty) {
       debugPrint('Unable to resolve Firebase projectId for callable fallback.');
       return null;

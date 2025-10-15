@@ -2,7 +2,6 @@
 // 📁 lib/widgets/treatment_form.dart (v2.4 - 💖 Laila's New Flow Fix!)
 // ----------------------------------------------------------------
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +13,7 @@ import '../services/treatment_master_service.dart';
 import '../services/patient_service.dart';
 import '../services/tooth_history_service.dart';
 import '../styles/app_theme.dart';
+import '../utils/upload_image_payload.dart';
 
 import '../features/printing/render/receipt_mapper.dart'
     show ReceiptLineInput, buildReceiptModel;
@@ -66,7 +66,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
   String? _receiptNumber;
   DateTime? _receiptIssuedAt;
 
-  final List<File> _newImages = [];
+  final List<UploadImagePayload> _newImages = [];
   List<String> _existingImageUrls = [];
   bool get _isEditing => widget.treatment != null;
   bool _isSaveButtonLocked = false;
@@ -255,11 +255,12 @@ class _TreatmentFormState extends State<TreatmentForm> {
       imageQuality: 80,
       maxWidth: 1080,
     );
-    if (pickedFile != null) {
-      setState(() {
-        _newImages.add(File(pickedFile.path));
-      });
-    }
+    if (pickedFile == null) return;
+    final payload = await UploadImagePayload.fromXFile(pickedFile);
+    if (payload == null) return;
+    setState(() {
+      _newImages.add(payload);
+    });
   }
 
   void _showImageSourcePicker(BuildContext context) {
@@ -348,6 +349,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
             final textTheme = Theme.of(context).textTheme;
             final bool disableConfirm = selection == null;
 
+            void updateSelection(bool? newValue) => setState(() => selection = newValue);
+
             Widget buildOption({
               required bool value,
               required IconData icon,
@@ -356,7 +359,14 @@ class _TreatmentFormState extends State<TreatmentForm> {
             }) {
               final bool isSelected = selection == value;
               return InkWell(
-                onTap: () => setState(() => selection = value),
+                onTap: () {
+                  final radioGroup = RadioGroup.maybeOf<bool>(context);
+                  if (radioGroup != null) {
+                    radioGroup.onChanged(value);
+                  } else {
+                    updateSelection(value);
+                  }
+                },
                 borderRadius: BorderRadius.circular(16),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -421,8 +431,6 @@ class _TreatmentFormState extends State<TreatmentForm> {
                       ),
                       Radio<bool>(
                         value: value,
-                        groupValue: selection,
-                        onChanged: (val) => setState(() => selection = val),
                         activeColor: AppTheme.primary,
                       ),
                     ],
@@ -501,17 +509,25 @@ class _TreatmentFormState extends State<TreatmentForm> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  buildOption(
-                    value: true,
-                    icon: Icons.event_available_rounded,
-                    title: 'นัดหมายครั้งต่อไป',
-                    subtitle: 'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
-                  ),
-                  buildOption(
-                    value: false,
-                    icon: Icons.insert_drive_file_rounded,
-                    title: 'ไม่มีนัดหมาย',
-                    subtitle: 'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
+                  RadioGroup<bool>(
+                    groupValue: selection,
+                    onChanged: updateSelection,
+                    child: Column(
+                      children: [
+                        buildOption(
+                          value: true,
+                          icon: Icons.event_available_rounded,
+                          title: 'นัดหมายครั้งต่อไป',
+                          subtitle: 'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
+                        ),
+                        buildOption(
+                          value: false,
+                          icon: Icons.insert_drive_file_rounded,
+                          title: 'ไม่มีนัดหมาย',
+                          subtitle: 'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -1281,9 +1297,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   );
                 } else {
                   final imageIndex = index - _existingImageUrls.length;
-                  final imageFile = _newImages[imageIndex];
+                  final imagePayload = _newImages[imageIndex];
                   return _buildImageThumbnail(
-                    imageProvider: FileImage(imageFile),
+                    imageProvider: MemoryImage(imagePayload.bytes),
                     onRemove:
                         () => setState(() => _newImages.removeAt(imageIndex)),
                   );

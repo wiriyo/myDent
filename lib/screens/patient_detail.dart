@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
 import '../models/patient.dart';
 import '../models/treatment.dart';
@@ -17,6 +16,7 @@ import '../config/feature_flags.dart';
 import '../config/clinic_context.dart';
 import '../providers/treatment_provider.dart';
 import '../utils/thai_number_formatter.dart';
+import '../utils/upload_image_payload.dart';
 
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../widgets/treatment_form.dart';
@@ -127,41 +127,46 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       maxWidth: 1080,
     );
 
-    if (pickedFile != null && mounted) {
-      try {
-        final downloadUrl = await _medicalImageService.uploadImageAndGetUrl(
-          file: File(pickedFile.path),
-          patientId: patientId,
-        );
+    if (pickedFile == null || !mounted) {
+      return;
+    }
 
-        // Write image record to nested or root based on flags
-        final clinicId = ClinicContext.activeClinicId;
-        CollectionReference imagesRef;
-        if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
-          imagesRef = FirebaseFirestore.instance
-              .collection('clinics').doc(clinicId)
-              .collection('patients').doc(patientId)
-              .collection('medical_images');
-        } else {
-          imagesRef = FirebaseFirestore.instance
-              .collection('patients').doc(patientId)
-              .collection('medical_images');
-        }
-        await imagesRef.add({
-          'url': downloadUrl,
-          'createdAt': Timestamp.now(),
-        });
+    final payload = await UploadImagePayload.fromXFile(pickedFile);
+    if (payload == null) return;
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปโหลดรูปภาพสำเร็จแล้วค่ะ! 💜')),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาดในการอัปโหลด: $e')),
-        );
+    try {
+      final downloadUrl = await _medicalImageService.uploadImageAndGetUrl(
+        image: payload,
+        patientId: patientId,
+      );
+
+      // Write image record to nested or root based on flags
+      final clinicId = ClinicContext.activeClinicId;
+      CollectionReference imagesRef;
+      if (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty) {
+        imagesRef = FirebaseFirestore.instance
+            .collection('clinics').doc(clinicId)
+            .collection('patients').doc(patientId)
+            .collection('medical_images');
+      } else {
+        imagesRef = FirebaseFirestore.instance
+            .collection('patients').doc(patientId)
+            .collection('medical_images');
       }
+      await imagesRef.add({
+        'url': downloadUrl,
+        'createdAt': Timestamp.now(),
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image uploaded successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to upload image: $e')),
+      );
     }
   }
 

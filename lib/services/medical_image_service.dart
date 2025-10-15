@@ -1,40 +1,43 @@
-// ================================================================
-// 📁 2. lib/services/medical_image_service.dart
-// v1.2.0 - ✨ เพิ่มเครื่องมือสำหรับจัดการรูปภาพของการรักษาโดยเฉพาะ
-// ================================================================
-import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
-import '../config/feature_flags.dart';
+import 'package:uuid/uuid.dart';
+
 import '../config/clinic_context.dart';
+import '../config/feature_flags.dart';
+import '../utils/upload_image_payload.dart';
 
 class MedicalImageService {
-  final _storage = FirebaseStorage.instance;
-  final _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<String> uploadImageAndGetUrl({
-    required File file,
+    required UploadImagePayload image,
     required String patientId,
   }) async {
     try {
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
       }
-      final fileName = const Uuid().v4();
+      final fileName = _resolveFileName(image);
       final clinicId = ClinicContext.activeClinicId;
       final path = (FeatureFlags.useNestedCollections && clinicId != null && clinicId.isNotEmpty)
-          ? 'medical_images/$clinicId/$patientId/$fileName.jpg'
-          : 'medical_images/$patientId/$fileName.jpg';
+          ? 'medical_images/$clinicId/$patientId/$fileName'
+          : 'medical_images/$patientId/$fileName';
       final ref = _storage.ref().child(path);
-      final uploadTask = await ref.putFile(file);
+      final uploadTask = await ref.putData(
+        image.bytes,
+        SettableMetadata(
+          contentType: image.contentType ?? 'image/jpeg',
+          cacheControl: 'public,max-age=31536000',
+        ),
+      );
       final downloadUrl = await uploadTask.ref.getDownloadURL();
-      debugPrint("✅ Image uploaded. URL: $downloadUrl");
+      debugPrint('Uploaded medical image. URL: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      debugPrint("❌ Image upload failed: $e");
+      debugPrint('Image upload failed: $e');
       rethrow;
     }
   }
@@ -44,9 +47,9 @@ class MedicalImageService {
     try {
       final ref = _storage.refFromURL(imageUrl);
       await ref.delete();
-      debugPrint('🗑️ Deleted image from Storage: $imageUrl');
+      debugPrint('Deleted image from Storage: $imageUrl');
     } catch (e) {
-      debugPrint('❌ Error deleting image from Storage by URL: $e');
+      debugPrint('Error deleting image from Storage by URL: $e');
     }
   }
 
@@ -76,7 +79,6 @@ class MedicalImageService {
   Future<void> deleteAllPatientImages(String patientId) async {
     if (patientId.isEmpty) return;
     try {
-      // Try delete both legacy and nested folder
       final clinicId = ClinicContext.activeClinicId;
       final legacyRef = _storage.ref('medical_images/$patientId');
       try {
@@ -97,8 +99,62 @@ class MedicalImageService {
       }
     } on FirebaseException catch (e) {
       if (e.code != 'object-not-found') {
-         debugPrint('❌ Error deleting patient images from Storage: $e');
+         debugPrint('Error deleting patient images from Storage: $e');
       }
     }
+  }
+
+  String _resolveFileName(UploadImagePayload image) {
+    final providedName = image.fileName?.trim();
+    final baseWithoutExt = providedName != null && providedName.isNotEmpty
+        ? _sanitizeFileName(_stripExtension(providedName))
+        : '';
+    final base = baseWithoutExt.isEmpty ? const Uuid().v4() : baseWithoutExt;
+    final extension = _extensionFromFileName(image.fileName) ??
+        _extensionFromContentType(image.contentType) ??
+        'jpg';
+    return '$base.$extension';
+  }
+
+  String _stripExtension(String fileName) {
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex <= 0) return fileName;
+    return fileName.substring(0, dotIndex);
+  }
+
+  String _sanitizeFileName(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9_\-]+'), '_');
+    final collapsed = sanitized.replaceAll(RegExp(r'_+'), '_');
+    return collapsed.replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  String? _extensionFromFileName(String? fileName) {
+    if (fileName == null || fileName.isEmpty) return null;
+    final dot = fileName.lastIndexOf('.');
+    if (dot == -1 || dot == fileName.length - 1) return null;
+    final ext = fileName.substring(dot + 1).toLowerCase();
+    if (ext.isEmpty) return null;
+    return ext;
+  }
+
+  String? _extensionFromContentType(String? contentType) {
+    switch (contentType) {
+      case 'image/png':
+        return 'png';
+      case 'image/gif':
+        return 'gif';
+      case 'image/webp':
+        return 'webp';
+      case 'image/heic':
+        return 'heic';
+      case 'image/heif':
+        return 'heif';
+      case 'image/bmp':
+        return 'bmp';
+      case 'image/jpeg':
+      case 'image/jpg':
+        return 'jpg';
+    }
+    return null;
   }
 }

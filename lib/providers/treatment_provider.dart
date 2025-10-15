@@ -1,10 +1,10 @@
 // v1.3.0 - 📝 อัปเกรดให้รองรับการจัดการ Treatment Notes
 // v1.2.0 - 🖼️ อัปเกรดให้รองรับการบันทึกรูปภาพ
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/treatment.dart';
 import '../services/treatment_service.dart';
 import '../services/treatment_master_service.dart';
+import '../utils/upload_image_payload.dart';
 
 class TreatmentProvider with ChangeNotifier {
   final TreatmentService _treatmentService = TreatmentService();
@@ -31,7 +31,7 @@ class TreatmentProvider with ChangeNotifier {
     required String patientId,
     required Treatment treatment,
     bool isEditing = false,
-    List<File>? images,
+    List<UploadImagePayload>? images,
   }) async {
     _setLoading(true);
     _setError(null);

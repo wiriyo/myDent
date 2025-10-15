@@ -596,7 +596,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _currentStatus,
+              initialValue: _currentStatus,
               items:
                   statusOptions
                       .map(

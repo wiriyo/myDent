@@ -89,7 +89,7 @@ class AppTheme {
         ),
         iconTheme: IconThemeData(color: textPrimary),
       ),
-      bottomAppBarTheme: const BottomAppBarTheme(
+      bottomAppBarTheme: const BottomAppBarThemeData(
         color: bottomNav,
         shape: CircularNotchedRectangle(),
         elevation: 8.0,

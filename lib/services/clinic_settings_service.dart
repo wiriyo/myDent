@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../config/clinic_context.dart';
 import '../config/feature_flags.dart';
+import '../utils/upload_image_payload.dart';
 
 class ClinicSettingsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -47,12 +46,16 @@ class ClinicSettingsService {
     await _doc(id).set({'logoUrl': null, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
   }
 
-  Future<String?> uploadLogo(File file, {String? clinicId}) async {
+  Future<String?> uploadLogo(UploadImagePayload image, {String? clinicId}) async {
     final id = _effectiveClinicId(clinicId);
     if (id.isEmpty) return null;
 
-    final ref = _storage.ref().child('clinic_logos/$id/logo_${DateTime.now().millisecondsSinceEpoch}.png');
-    final task = await ref.putFile(file);
+    final fileName = _resolveFileName(image);
+    final ref = _storage.ref().child('clinic_logos/$id/$fileName');
+    final task = await ref.putData(
+      image.bytes,
+      SettableMetadata(contentType: image.contentType ?? 'image/png'),
+    );
     return await task.ref.getDownloadURL();
   }
 
@@ -83,6 +86,55 @@ class ClinicSettingsService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await _doc(id).set(payload, SetOptions(merge: true));
+  }
+
+  String _resolveFileName(UploadImagePayload image) {
+    final providedName = image.fileName?.trim();
+    final baseWithoutExt = providedName != null && providedName.isNotEmpty
+        ? _sanitizeFileName(_stripExtension(providedName))
+        : 'logo_${DateTime.now().millisecondsSinceEpoch}';
+    final extension = _extensionFromFileName(image.fileName) ??
+        _extensionFromContentType(image.contentType) ??
+        'png';
+    return '$baseWithoutExt.$extension';
+  }
+
+  String _stripExtension(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot <= 0) return fileName;
+    return fileName.substring(0, dot);
+  }
+
+  String _sanitizeFileName(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9_\-]+'), '_');
+    final collapsed = sanitized.replaceAll(RegExp(r'_+'), '_');
+    final trimmed = collapsed.replaceAll(RegExp(r'^_|_$'), '');
+    return trimmed.isEmpty ? 'logo_${DateTime.now().millisecondsSinceEpoch}' : trimmed;
+  }
+
+  String? _extensionFromFileName(String? name) {
+    if (name == null || name.isEmpty) return null;
+    final dot = name.lastIndexOf('.');
+    if (dot == -1 || dot == name.length - 1) return null;
+    final ext = name.substring(dot + 1).toLowerCase();
+    return ext.isEmpty ? null : ext;
+  }
+
+  String? _extensionFromContentType(String? contentType) {
+    switch (contentType) {
+      case 'image/png':
+        return 'png';
+      case 'image/jpeg':
+      case 'image/jpg':
+        return 'jpg';
+      case 'image/webp':
+        return 'webp';
+      case 'image/svg+xml':
+        return 'svg';
+      case 'image/gif':
+        return 'gif';
+    }
+    return null;
   }
 }
 

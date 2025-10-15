@@ -184,7 +184,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
-          value: _selectedRating,
+          initialValue: _selectedRating,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,

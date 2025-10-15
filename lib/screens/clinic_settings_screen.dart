@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +10,7 @@ import '../styles/app_theme.dart';
 import '../services/logo_cache_service.dart';
 import '../config/clinic_defaults.dart';
 import '../config/feature_flags.dart';
+import '../utils/upload_image_payload.dart';
 
 class ClinicSettingsScreen extends StatefulWidget {
   const ClinicSettingsScreen({super.key});
@@ -32,7 +31,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
   bool _welcomeScreenEnabled = FeatureFlags.showInAppSplash;
 
   String? _logoUrl;
-  File? _logoFile;
+  UploadImagePayload? _logoImage;
   bool _loading = true;
   bool _saving = false;
 
@@ -73,8 +72,9 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
   Future<void> _pickLogo() async {
     final picker = ImagePicker();
     final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1024);
-    if (x != null) {
-      setState(() => _logoFile = File(x.path));
+    final payload = await UploadImagePayload.fromXFile(x);
+    if (payload != null) {
+      setState(() => _logoImage = payload);
     }
   }
 
@@ -84,11 +84,10 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
     try {
       final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
       String? logoUrl = _logoUrl;
-      if (_logoFile != null) {
-        logoUrl = await _service.uploadLogo(_logoFile!, clinicId: clinicId);
+      if (_logoImage != null) {
+        logoUrl = await _service.uploadLogo(_logoImage!, clinicId: clinicId);
         try {
-          final Uint8List bytes = await _logoFile!.readAsBytes();
-          await LogoCacheService.save(bytes);
+          await LogoCacheService.save(_logoImage!.bytes);
         } catch (_) {}
       }
       final nameVal = _nameCtrl.text.trim();
@@ -179,8 +178,8 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                             color: Colors.white,
                             shape: BoxShape.circle,
                             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-                                image: _logoFile != null
-                                    ? DecorationImage(image: FileImage(_logoFile!), fit: BoxFit.cover)
+                              image: _logoImage != null
+                                  ? DecorationImage(image: MemoryImage(_logoImage!.bytes), fit: BoxFit.cover)
                                     : (_logoUrl != null && _logoUrl!.isNotEmpty)
                                         ? DecorationImage(image: NetworkImage(_logoUrl!), fit: BoxFit.cover)
                                         : const DecorationImage(image: AssetImage(ClinicDefaults.defaultLogoAsset), fit: BoxFit.cover),
@@ -189,7 +188,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                               child: null,
                           ),
                           ),
-                          if (_logoFile != null || (_logoUrl != null && _logoUrl!.isNotEmpty))
+                          if (_logoImage != null || (_logoUrl != null && _logoUrl!.isNotEmpty))
                             Positioned(
                               top: -6,
                               right: -6,
@@ -200,8 +199,8 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                                       ? null
                                       : () async {
                                           final messenger = ScaffoldMessenger.of(context);
-                                          if (_logoFile != null) {
-                                            setState(() => _logoFile = null);
+                                          if (_logoImage != null) {
+                                            setState(() => _logoImage = null);
                                           } else if (_logoUrl != null && _logoUrl!.isNotEmpty) {
                                             final url = _logoUrl!;
                                             setState(() => _logoUrl = null);

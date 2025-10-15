@@ -1,12 +1,12 @@
 // v1.4.0 - 🗑️ เพิ่มฟังก์ชันสำหรับลบรูปภาพเดี่ยวๆ ของการรักษา
 // v1.3.0 - ✨ อัปเกรดให้บันทึกรูปภาพลงแกลเลอรีรวมโดยอัตโนมัติ
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/treatment.dart';
 import 'medical_image_service.dart';
 import '../config/feature_flags.dart';
 import '../config/clinic_context.dart';
+import '../utils/upload_image_payload.dart';
 
 class TreatmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -77,13 +77,13 @@ class TreatmentService {
   }
 
   /// [UPGRADED v1.3.0] เพิ่มการรักษาใหม่ พร้อมบันทึกรูปภาพลงแกลเลอรีรวม
-  Future<void> addTreatment(String patientId, Treatment treatment, {List<File>? images}) async {
+  Future<void> addTreatment(String patientId, Treatment treatment, {List<UploadImagePayload>? images}) async {
     try {
-      List<String> imageUrls = [];
+      final imageUrls = <String>[];
       if (images != null && images.isNotEmpty) {
-        for (var imageFile in images) {
+        for (final image in images) {
           final imageUrl = await _medicalImageService.uploadImageAndGetUrl(
-            file: imageFile,
+            image: image,
             patientId: patientId,
           );
           imageUrls.add(imageUrl);
@@ -100,13 +100,13 @@ class TreatmentService {
   }
 
   /// [UPGRADED v1.3.0] อัปเดตการรักษาเดิม พร้อมบันทึกรูปภาพใหม่ลงแกลเลอรีรวม
-  Future<void> updateTreatment(String patientId, Treatment treatment, {List<File>? newImages}) async {
+  Future<void> updateTreatment(String patientId, Treatment treatment, {List<UploadImagePayload>? newImages}) async {
     try {
-      List<String> updatedImageUrls = List.from(treatment.imageUrls);
+      final updatedImageUrls = List<String>.from(treatment.imageUrls);
       if (newImages != null && newImages.isNotEmpty) {
-        for (var imageFile in newImages) {
+        for (final image in newImages) {
           final imageUrl = await _medicalImageService.uploadImageAndGetUrl(
-            file: imageFile,
+            image: image,
             patientId: patientId,
           );
           updatedImageUrls.add(imageUrl);

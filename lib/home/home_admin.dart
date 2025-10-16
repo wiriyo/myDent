@@ -67,48 +67,47 @@ class _HomeAdminScreenState extends State<HomeAdminScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Appointment Button
               _buildFeatureButton(
                 context,
                 icon: Icons.calendar_month,
                 label: 'นัดหมาย',
                 onPressed: () => Navigator.pushNamed(context, '/calendar'),
-                color: AppTheme.buttonCallFg, 
+                color: AppTheme.buttonCallFg,
               ),
               const SizedBox(height: 16),
-              
+
               // Patients Button
               _buildFeatureButton(
                 context,
                 icon: Icons.groups,
                 label: 'คนไข้',
                 onPressed: () => Navigator.pushNamed(context, '/patients'),
-                color: AppTheme.buttonEditFg, 
+                color: AppTheme.buttonEditFg,
               ),
               const SizedBox(height: 16),
-              
+
               // Appointment Search Button
               _buildFeatureButton(
                 context,
                 icon: Icons.search,
                 label: 'ค้นหานัดหมาย',
-                onPressed: () => Navigator.pushNamed(context, '/appointment_search'),
-                color: AppTheme.iconMaleColor, 
+                onPressed:
+                    () => Navigator.pushNamed(context, '/appointment_search'),
+                color: AppTheme.iconMaleColor,
               ),
               const SizedBox(height: 16),
-              
+
               // Settings Button
               _buildFeatureButton(
                 context,
                 icon: Icons.settings,
                 label: 'ตั้งค่า',
                 onPressed: () => Navigator.pushNamed(context, '/settings'),
-                color: AppTheme.primaryLight, 
+                color: AppTheme.primaryLight,
               ),
               const SizedBox(height: 16),
-              
-              // TODO: Add more admin-specific widgets here
             ],
           ),
         ),
@@ -116,7 +115,8 @@ class _HomeAdminScreenState extends State<HomeAdminScreen> {
     );
   }
 
-  Widget _buildFeatureButton(BuildContext context, {
+  Widget _buildFeatureButton(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required VoidCallback onPressed,
@@ -128,9 +128,7 @@ class _HomeAdminScreenState extends State<HomeAdminScreen> {
         backgroundColor: color.withValues(alpha: 0.8),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 20),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 5,
         shadowColor: color.withValues(alpha: 0.5),
       ),

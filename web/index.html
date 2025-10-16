@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <!--
@@ -33,6 +33,967 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+
+  <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"></script>
+  <!-- NOTE: Changes in this file require a full restart (e.g. stop flutter run -d chrome and start again).
+       Hot reload does not reload index.html. -->
+  <script>
+    (function () {
+      'use strict';
+
+      const LOG_PREFIX = '[MyDent|QZ]';
+      const DEV_CERTIFICATE = `-----BEGIN CERTIFICATE-----
+MIIE9TCCAt2gAwIBAgIQNzkyMDI0MTIyMDE5MDI0NDANBgkqhkiG9w0BAQsFADCB
+mDELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAk5ZMRswGQYDVQQKDBJRWiBJbmR1c3Ry
+aWVzLCBMTEMxGzAZBgNVBAsMElFaIEluZHVzdHJpZXMsIExMQzEZMBcGA1UEAwwQ
+cXppbmR1c3RyaWVzLmNvbTEnMCUGCSqGSIb3DQEJARYYc3VwcG9ydEBxemluZHVz
+dHJpZXMuY29tMB4XDTI0MTIyMDE5MDI0NFoXDTI5MTIyMDE4NTMxOVowga4xFjAU
+BgNVBAYMDVVuaXRlZCBTdGF0ZXMxCzAJBgNVBAgMAk5ZMRIwEAYDVQQHDAlDYW5h
+c3RvdGExGzAZBgNVBAoMElFaIEluZHVzdHJpZXMsIExMQzEbMBkGA1UECwwSUVog
+SW5kdXN0cmllcywgTExDMRswGQYDVQQDDBJRWiBJbmR1c3RyaWVzLCBMTEMxHDAa
+BgkqhkiG9w0BCQEMDXN1cHBvcnRAcXouaW8wggEiMA0GCSqGSIb3DQEBAQUAA4IB
+DwAwggEKAoIBAQC+j6ewVhtLHbY3uBNgqNB5DSz+QX9Pz5Dm46bI9vt/Q1Q6BL8I
+dhaxT2PA1AY0fqQgkzlSrwqNCjWZcrNZRw/e54FGM8zf3azbHrQif6d7Wo1JK5oN
+kI3jdB54YVwHIAt6i3BcLIvyOHsPnrKjlpROz72Kx1kK5g0gLDuH5RYVM9KFK+HR
+fBc3JSfeg8nUkTqYJVzlT5AGRWPXeDWloqQqSyuB1t8DihNBReWyJHQ7a4yerLOI
+J6N0jAlLDx9yt9UznAxnoO+7tKBfxCbNJerGfePMOwRKq0gx+r8M/FTrAoj+yc+T
+SOYtuY/VZ79HCTP/vLgm1pGyrta1we24fVezAgMBAAGjIzAhMB8GA1UdIwQYMBaA
+FJCmULeE1LnqX/IFhBN4ReipdVRcMA0GCSqGSIb3DQEBCwUAA4ICAQAMvfp931Zt
+PgfqGXSrsM+GAVBxcRVm14MyldWfRr+MVaFZ6cH7c+fSs8hUt2qNPwHrnpK9eev5
+MPUL27hjfiTPwv1ojLJ180aMO0ZAfPfnKeLO8uTzY7GiPQeGK7Qh39kX9XxEOidG
+rMwfllZ6jJReS0ZGaX8LUXhh9RHGSYJhxgyUV7clB/dJch8Bbcd+DOxwc1POUHx1
+wWExKkoWzHCCYNvqxLC9p1eO2Elz9J9ynDjXtCBl7lssnoSUKtahBCKgN5tYmZZK
+NErKPQpbYk5yTEK1gybxhup8i2sGEJXZ9HRJLAl0UxB+eCu1ExWv7eGbcbIZJbeh
+bwRf03fatsqzCQbGboLWtMQfcxHrEu+5MdZwOFx8i+c0c2WYad2MkkzGYHBVHPtY
+o+PR61uIwJC2mNkPpX94CIFxSHyZumttyVKF4AhIPm9IMGTHaIr5M39zesQpVc7N
+VIgxmMuePBrLyh6vKvuqD7W3S2HWA/8IUX703tdhoXhv5lNo1j0oywSrrUkCvUvJ
+FjPS8+VUtVZNl7SVetQTexdcUwoADj6c1UwL9QWItskJ5Myesco3ZY0O+3QbgCuQ
+SRqN5D0qdaLNMdEwh1YekUp4i1jm0jzPzia+WvJrW1k1ZafV6ep+YkMBkC1SFYFw
+1Mdy+fYGyXlSn/Mvou//SSb0fUMIpXE9NA==
+-----END CERTIFICATE-----
+--START INTERMEDIATE CERT--
+-----BEGIN CERTIFICATE-----
+MIIFEjCCA/qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgawxCzAJBgNVBAYTAlVT
+MQswCQYDVQQIDAJOWTESMBAGA1UEBwwJQ2FuYXN0b3RhMRswGQYDVQQKDBJRWiBJ
+bmR1c3RyaWVzLCBMTEMxGzAZBgNVBAsMElFaIEluZHVzdHJpZXMsIExMQzEZMBcG
+A1UEAwwQcXppbmR1c3RyaWVzLmNvbTEnMCUGCSqGSIb3DQEJARYYc3VwcG9ydEBx
+emluZHVzdHJpZXMuY29tMB4XDTE1MDMwMjAwNTAxOFoXDTM1MDMwMjAwNTAxOFow
+gZgxCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJOWTEbMBkGA1UECgwSUVogSW5kdXN0
+cmllcywgTExDMRswGQYDVQQLDBJRWiBJbmR1c3RyaWVzLCBMTEMxGTAXBgNVBAMM
+EHF6aW5kdXN0cmllcy5jb20xJzAlBgkqhkiG9w0BCQEWGHN1cHBvcnRAcXppbmR1
+c3RyaWVzLmNvbTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANTDgNLU
+iohl/rQoZ2bTMHVEk1mA020LYhgfWjO0+GsLlbg5SvWVFWkv4ZgffuVRXLHrwz1H
+YpMyo+Zh8ksJF9ssJWCwQGO5ciM6dmoryyB0VZHGY1blewdMuxieXP7Kr6XD3GRM
+GAhEwTxjUzI3ksuRunX4IcnRXKYkg5pjs4nLEhXtIZWDLiXPUsyUAEq1U1qdL1AH
+EtdK/L3zLATnhPB6ZiM+HzNG4aAPynSA38fpeeZ4R0tINMpFThwNgGUsxYKsP9kh
+0gxGl8YHL6ZzC7BC8FXIB/0Wteng0+XLAVto56Pyxt7BdxtNVuVNNXgkCi9tMqVX
+xOk3oIvODDt0UoQUZ/umUuoMuOLekYUpZVk4utCqXXlB4mVfS5/zWB6nVxFX8Io1
+9FOiDLTwZVtBmzmeikzb6o1QLp9F2TAvlf8+DIGDOo0DpPQUtOUyLPCh5hBaDGFE
+ZhE56qPCBiQIc4T2klWX/80C5NZnd/tJNxjyUyk7bjdDzhzT10CGRAsqxAnsjvMD
+2KcMf3oXN4PNgyfpbfq2ipxJ1u777Gpbzyf0xoKwH9FYigmqfRH2N2pEdiYawKrX
+6pyXzGM4cvQ5X1Yxf2x/+xdTLdVaLnZgwrdqwFYmDejGAldXlYDl3jbBHVM1v+uY
+5ItGTjk+3vLrxmvGy5XFVG+8fF/xaVfo5TW5AgMBAAGjUDBOMB0GA1UdDgQWBBSQ
+plC3hNS56l/yBYQTeEXoqXVUXDAfBgNVHSMEGDAWgBQDRcZNwPqOqQvagw9BpW0S
+BkOpXjAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQAJIO8SiNr9jpLQ
+eUsFUmbueoxyI5L+P5eV92ceVOJ2tAlBA13vzF1NWlpSlrMmQcVUE/K4D01qtr0k
+gDs6LUHvj2XXLpyEogitbBgipkQpwCTJVfC9bWYBwEotC7Y8mVjjEV7uXAT71GKT
+x8XlB9maf+BTZGgyoulA5pTYJ++7s/xX9gzSWCa+eXGcjguBtYYXaAjjAqFGRAvu
+pz1yrDWcA6H94HeErJKUXBakS0Jm/V33JDuVXY+aZ8EQi2kV82aZbNdXll/R6iGw
+2ur4rDErnHsiphBgZB71C5FD4cdfSONTsYxmPmyUb5T+KLUouxZ9B0Wh28ucc1Lp
+rbO7BnjW
+-----END CERTIFICATE-----`;
+      const DEV_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC0z9FeMynsC8+u
+dvX+LciZxnh5uRj4C9S6tNeeAlIGCfQYk0zUcNFCoCkTknNQd/YEiawDLNbxBqut
+bMDZ1aarys1a0lYmUeVLCIqvzBkPJTSQsCopQQ9V8WuT252zzNzs68dVGNdCJd5J
+NRQykpwexmnjPPv0mvj7i8XgG379TyW6P+WWV5okeUkXJ9eJS2ouDYdR2SM9BoVW
++FgxDu6BmXhozW5EfsnajFp7HL8kQClI0QOc79yuKl3492rH6bzFsFn2lfwWy9ic
+7cP8EpCTeFp1tFaD+vxBhPZkeTQ1HKx6hQ5zeHIB5ySJJZ7af2W8r4eTGYzbdRW2
+4DDHCPhZAgMBAAECggEATvofR3gtrY8TLe+ET3wMDS8l3HU/NMlmKA9pxvjYfw7F
+8h4VBw4oOWPfzU7A07syWJUR72kckbcKMfw42G18GbnBrRQG0UIgV3/ppBQQNg9Y
+QILSR6bFXhLPnIvm/GxVa58pOEBbdec4it2Gbvie/MpJ4hn3K8atTqKk0djwxQ+b
+QNBWtVgTkyIqMpUTFDi5ECiVXaGWZ5AOVK2TzlLRNQ5Y7US8lmGxVWzt0GONjXSE
+iO/eBk8A7wI3zknMx5o1uZa/hFCPQH33uKeuqU5rmphi3zS0BY7iGY9EoKu/o+BO
+HPwLQJ3wCDA3O9APZ3gmmbHFPMFPr/mVGeAeGP/BAQKBgQDaPELRriUaanWrZpgT
+VnKKrRSqPED3anAVgmDfzTQwuR/3oD506F3AMBzloAo3y9BXmDfe8qLn6kgdZQKy
+SFNLz888at96oi+2mEKPpvssqiwE6F3OtEM6yv4DP9KJHaHmXaWv+/sjwjzpFNjs
+wGThBxFvrTWRJqBYsM1XNJJ2EQKBgQDUGbTSwHKqRCYWhQ1GPCZKE98l5UtMKvUb
+hyWWOXoyoeYbJEMfG1ynX4JeXIkl6YtBjYCqszv9PjHa1rowTZaAPJ0V70zyhTcF
+t581ii9LpiejIGrELHvJnW87QmjjStkjwGIqgKLp7Qe6CDjHI9HP1NM0uav/IQLW
+pB6wyEz1yQKBgQCuxPut+Ax2rzM05KB9PAnWzO1zt3U/rtm8IAF8uVVGf7r+EDJ0
+ZXJO6zj5G8WTEYHz5E86GI4ltBW0lKQoKouqdu27sMrv5trXG/CSImOcTVubQot9
+chc1CkOKTp5IeJajafO6j817wZ4N+0gNsbYYEBUCnm/7ojdfT5ficpOoQQKBgQDB
+PgKPmaNfGeQR1Ht5qEfCakR/RF/ML79Nq15FdmytQPBjfjBhYQ6Tt+MRkgGqtxOX
+UBMQc2iOnGHT3puYcrhScec1GufidhjhbqDxqMrag7HNYDWmMlk+IeA7/4+Mtp8L
+gbZuvvCvbLQDfIYueaYpUuBzQ08/jZYGdVU4/+WOcQKBgAGUN0kIB6EM1K/iZ0TN
+jlt8P5UEV3ZCyATWFiGZRhhE2WAh8gv1jx4J26pcUs1n8sd2a1h6ZuBSqsyIlNSp
+xtKsm3bqQFDHRrPcsBX4nanrw9DzkpH1k/I3WMSdGqkDAR3DtL7yXTJXJo2Sbrp5
+EjzSn7DcDE1tL2En/tSVXeUY
+-----END PRIVATE KEY-----`;
+      // TODO: Production ให้เปลี่ยนเป็นใบรับรอง/ลายเซ็นจริง
+      const DEFAULT_QZ_PORT = 8181;
+      const createEndpoint = (host, secure, port = DEFAULT_QZ_PORT) => {
+        const normalizedHost = String(host || '').trim() || 'localhost';
+        const normalizedPort = Number.isNaN(Number.parseInt(port, 10))
+          ? DEFAULT_QZ_PORT
+          : Number.parseInt(port, 10);
+        return {
+          host: normalizedHost,
+          port: normalizedPort,
+          secure: !!secure,
+          url: `${secure ? 'wss' : 'ws'}://${normalizedHost}:${normalizedPort}`,
+        };
+      };
+      const DEFAULT_ENDPOINTS = [
+        createEndpoint('127.0.0.1', true),
+        createEndpoint('localhost', true),
+        createEndpoint('127.0.0.1', false),
+        createEndpoint('localhost', false),
+      ];
+      const CONNECT_TIMEOUT_MS = 1800;
+      const CONNECT_BACKOFF_MS = [0, 800, 1600, 2400];
+      const LAUNCH_DELAY_MIN_MS = 2000;
+      const LAUNCH_DELAY_MAX_MS = 3000;
+      const SELF_TEST_TIMEOUT_MS = 2200;
+      const QZ_LOAD_TIMEOUT_MS = 3000;
+      const QZ_LOAD_POLL_INTERVAL_MS = 100;
+      const CUT_CMD_FULL_HEX = '1d5600'; // ESC/POS full cut (GS V 0). TODO: รองรับ half cut (1d5645) ภายหลัง
+
+      let ensureLoadedPromise = null;
+      let connectPromise = null;
+      let securityConfigured = false;
+      let demoSignatureWarned = false;
+      let handlersAttached = false;
+      let connectionState = 'inactive';
+      let launchIframe = null;
+      let lastConnectionReport = {
+        success: false,
+        endpoint: null,
+        triedEndpoints: [],
+        lastError: null,
+        timestamp: null,
+      };
+
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+      const log = (level, message, error) => {
+        const payload = `${LOG_PREFIX} ${message}`;
+        if (level === 'error') {
+          console.error(payload, error || '');
+        } else if (level === 'warn') {
+          console.warn(payload, error || '');
+        } else {
+          console.log(payload, error || '');
+        }
+      };
+
+      const createError = (code, message, original) => {
+        const err = new Error(message || code);
+        err.code = code;
+        if (original) {
+          err.original = original;
+          if (original.message && !err.message) {
+            err.message = original.message;
+          }
+        }
+        return err;
+      };
+
+      const hexToBase64 = (hex) => {
+        if (typeof hextob64 === 'function') {
+          return hextob64(hex);
+        }
+        if (KJUR?.crypto?.Util?.hex2b64) {
+          return KJUR.crypto.Util.hex2b64(hex);
+        }
+        const bytes = hex.match(/.{1,2}/g)?.map((pair) => String.fromCharCode(parseInt(pair, 16))).join('') || '';
+        return btoa(bytes);
+      };
+
+      const isDevHost = () => {
+        const host = window.location.hostname;
+        return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+      };
+
+      const isSecureOrigin = () => window.location.protocol === 'https:';
+
+
+      const warnIfInsecureOrigin = () => {
+        const protocol = window.location.protocol;
+        if (protocol !== 'https:' && !isDevHost()) {
+          console.warn(
+            `${LOG_PREFIX} คำเตือน: QZ Tray รองรับเต็มที่บน origin แบบ HTTPS เท่านั้น (ยกเว้น http://localhost สำหรับงานพัฒนา) — origin ปัจจุบันคือ ${window.location.origin}`,
+          );
+        }
+      };
+
+      const updateState = (state) => {
+        connectionState = state;
+      };
+
+      const getStatus = () => {
+        if (window.qz && qz.websocket && typeof qz.websocket.isActive === 'function' && qz.websocket.isActive()) {
+          return 'active';
+        }
+        return connectionState;
+      };
+
+      const ensureQzAvailable = () => {
+        if (!window.qz || !qz.websocket) {
+          log('error', 'QZ Tray library "window.qz" is missing. Confirm qz-tray.js is loaded before flutter_bootstrap.js.');
+          throw createError('qz_bridge_missing', 'ไม่พบไลบรารี QZ Tray (ตรวจลำดับการโหลดสคริปต์)');
+        }
+      };
+
+      const attachWebsocketHandlers = () => {
+        if (handlersAttached || !window.qz || !qz.websocket) {
+          return;
+        }
+        const websocket = qz.websocket;
+        const openedHandler = () => updateState('active');
+        const closedHandler = () => updateState('inactive');
+        const errorHandler = (event) => {
+          log('warn', 'QZ Tray websocket error callback', event);
+          updateState('inactive');
+        };
+
+        if (typeof websocket.setOpenedHandlers === 'function') {
+          websocket.setOpenedHandlers([openedHandler]);
+        } else if (typeof websocket.setOpenedCallbacks === 'function') {
+          websocket.setOpenedCallbacks([openedHandler]);
+        }
+
+        if (typeof websocket.setClosedHandlers === 'function') {
+          websocket.setClosedHandlers([closedHandler]);
+        } else if (typeof websocket.setClosedCallbacks === 'function') {
+          websocket.setClosedCallbacks([closedHandler]);
+        }
+
+        if (typeof websocket.setErrorHandlers === 'function') {
+          websocket.setErrorHandlers([errorHandler]);
+        } else if (typeof websocket.setErrorCallbacks === 'function') {
+          websocket.setErrorCallbacks([errorHandler]);
+        }
+
+        handlersAttached = true;
+      };
+
+      const ensureLoaded = () => {
+        if (window.qz && qz.websocket) {
+          ensureQzAvailable();
+          attachWebsocketHandlers();
+          return Promise.resolve();
+        }
+
+        if (ensureLoadedPromise) {
+          return ensureLoadedPromise;
+        }
+
+        ensureLoadedPromise = new Promise((resolve, reject) => {
+          const start = Date.now();
+
+          const check = () => {
+            if (window.qz && qz.websocket) {
+              ensureLoadedPromise = null;
+              ensureQzAvailable();
+              attachWebsocketHandlers();
+              log('info', 'QZ Tray bridge ready');
+              resolve();
+              return;
+            }
+
+            if (Date.now() - start >= QZ_LOAD_TIMEOUT_MS) {
+              ensureLoadedPromise = null;
+              const err = createError(
+                'qz_bridge_missing',
+                'ไม่พบสคริปต์ qz-tray.js (ต้องโหลดก่อน flutter_bootstrap.js)'
+              );
+              log('error', 'Failed to detect qz-tray.js. Fix web/index.html and perform a full restart.', err);
+              reject(err);
+              return;
+            }
+
+            setTimeout(check, QZ_LOAD_POLL_INTERVAL_MS);
+          };
+
+          check();
+        });
+
+        return ensureLoadedPromise;
+      };
+
+      const configureSecurityIfNeeded = () => {
+        if (securityConfigured) {
+          return;
+        }
+
+        ensureQzAvailable();
+
+        if (!window.qz.security) {
+          throw createError('qz_security_error', 'ไม่สามารถตั้งค่า security สำหรับ QZ Tray');
+        }
+
+        if (typeof KJUR === 'undefined' || typeof KEYUTIL === 'undefined') {
+          throw createError('qz_security_error', 'ไม่พบ jsrsasign สำหรับลงนามข้อความ demo');
+        }
+
+        qz.security.setSignatureAlgorithm('SHA512');
+        qz.security.setCertificatePromise((resolve) => {
+          log('warn', 'กำลังใช้ demo certificate ของ QZ Tray (dev mode เท่านั้น)');
+          console.warn(`${LOG_PREFIX} ใช้ DEMO certificate/signature (dev mode) – TODO: Production ให้เปลี่ยนเป็นใบรับรอง/ลายเซ็นจริง`);
+          resolve(DEV_CERTIFICATE);
+        });
+
+        qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
+          try {
+            if (!demoSignatureWarned) {
+              demoSignatureWarned = true;
+              log('warn', 'กำลังใช้ demo signature ของ QZ Tray (dev mode เท่านั้น)');
+              console.warn(`${LOG_PREFIX} ใช้ DEMO signature (dev mode) – TODO: Production ให้เปลี่ยนเป็นใบรับรอง/ลายเซ็นจริง`);
+            }
+            const pk = KEYUTIL.getKey(DEV_PRIVATE_KEY);
+            const signature = new KJUR.crypto.Signature({ alg: 'SHA512withRSA' });
+            signature.init(pk);
+            signature.updateString(toSign);
+            const hex = signature.sign();
+            const b64 = hexToBase64(hex);
+            resolve(b64);
+          } catch (err) {
+            reject(createError('qz_security_error', 'ลงนามข้อความ demo ไม่สำเร็จ (ตรวจ DEV key)', err));
+          }
+        });
+
+        securityConfigured = true;
+      };
+
+      const buildEndpointUrl = (endpoint) => `${endpoint.secure ? 'wss' : 'ws'}://${endpoint.host}:${endpoint.port}`;
+
+      const parseEndpoint = (candidate, fallbackPort = DEFAULT_QZ_PORT) => {
+        if (!candidate) {
+          return null;
+        }
+
+        const make = (host, secure, portValue) => createEndpoint(
+          host,
+          secure,
+          Number.isNaN(Number.parseInt(portValue, 10)) ? fallbackPort : Number.parseInt(portValue, 10),
+        );
+
+        if (typeof candidate === 'string') {
+          const value = candidate.trim();
+          if (!value) {
+            return null;
+          }
+
+          try {
+            if (!value.includes('://')) {
+              return make(value, true, fallbackPort);
+            }
+
+            const parsed = new URL(value);
+            if (parsed.protocol !== 'wss:' && parsed.protocol !== 'ws:') {
+              return null;
+            }
+
+            const secure = parsed.protocol === 'wss:';
+            const port = parsed.port ? Number.parseInt(parsed.port, 10) : fallbackPort;
+            return make(parsed.hostname, secure, port);
+          } catch (err) {
+            log('warn', `ไม่สามารถตีความ endpoint override: ${value}`, err);
+            return null;
+          }
+        }
+
+        if (typeof candidate === 'object') {
+          const host = String(candidate.host || '').trim();
+          if (!host) {
+            return null;
+          }
+          const secure = candidate.secure === undefined ? true : Boolean(candidate.secure);
+          const portValue = candidate.port === undefined ? fallbackPort : candidate.port;
+          return make(host, secure, portValue);
+        }
+
+        return null;
+      };
+
+      const readConnectionOverrides = () => {
+        const overrides = window.mydentQzConfig || {};
+        const fallbackPort = Number.isNaN(Number.parseInt(overrides.port, 10))
+          ? DEFAULT_QZ_PORT
+          : Number.parseInt(overrides.port, 10);
+        const parsedEndpoints = [];
+
+        if (Array.isArray(overrides.endpoints)) {
+          overrides.endpoints.forEach((endpoint) => {
+            const parsed = parseEndpoint(endpoint, fallbackPort);
+            if (parsed) {
+              parsedEndpoints.push(parsed);
+            }
+          });
+        }
+
+        const hostOverride = typeof overrides.host === 'string' ? overrides.host.trim() : '';
+        if (hostOverride) {
+          const secureEndpoint = parseEndpoint({ host: hostOverride, port: fallbackPort, secure: true }, fallbackPort);
+          const insecureEndpoint = parseEndpoint({ host: hostOverride, port: fallbackPort, secure: false }, fallbackPort);
+          if (secureEndpoint) {
+            parsedEndpoints.push(secureEndpoint);
+          }
+          if (insecureEndpoint) {
+            parsedEndpoints.push(insecureEndpoint);
+          }
+        }
+
+        const keepAlive = typeof overrides.keepAlive === 'number' ? overrides.keepAlive : undefined;
+        const retries = typeof overrides.retries === 'number' ? overrides.retries : undefined;
+        const delayMs = typeof overrides.delay === 'number' ? overrides.delay : undefined;
+
+        return {
+          endpoints: parsedEndpoints,
+          keepAlive,
+          retries,
+          delay: delayMs,
+        };
+      };
+
+      const buildEndpointList = (overrides) => {
+        const seen = new Set();
+        const combined = [...overrides.endpoints, ...DEFAULT_ENDPOINTS];
+        return combined.reduce((acc, endpoint) => {
+          if (!endpoint) {
+            return acc;
+          }
+          const url = endpoint.url || buildEndpointUrl(endpoint);
+          if (seen.has(url)) {
+            return acc;
+          }
+          seen.add(url);
+          acc.push({ ...endpoint, url });
+          return acc;
+        }, []);
+      };
+
+      const createConnectConfig = (endpoint, overrides) => {
+        const usingSecure = !!endpoint.secure;
+        const config = {
+          host: [endpoint.host],
+          hostIndex: 0,
+          usingSecure,
+          port: {
+            secure: usingSecure ? [endpoint.port] : [],
+            insecure: usingSecure ? [] : [endpoint.port],
+            portIndex: 0,
+          },
+          retries: 0,
+          delay: 0,
+        };
+
+        if (typeof overrides.keepAlive === 'number') {
+          config.keepAlive = overrides.keepAlive;
+        }
+        if (typeof overrides.retries === 'number') {
+          config.retries = overrides.retries;
+        }
+      if (typeof overrides.delay === 'number') {
+        config.delay = overrides.delay;
+      }
+
+      return config;
+      };
+
+      const toSerializableError = (error) => (error ? { code: error.code, message: error.message } : null);
+
+      const CONNECTION_ERROR_MESSAGES = {
+        qz_not_running: 'กรุณาเปิด QZ Tray ก่อนใช้งาน หรือคลิก \"เปิด QZ Tray\" แล้วลองใหม่',
+        qz_security_error: 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins',
+        qz_ws_refused: 'ไม่สามารถเชื่อมต่อพอร์ต 8181 ได้ อาจถูก Firewall หรือ Antivirus บล็อกไว้',
+        qz_ws_timeout: 'หมดเวลารอการตอบสนองจาก QZ Tray กรุณาตรวจสอบว่าโปรแกรมเปิดอยู่และพอร์ต 8181 ถูกอนุญาต',
+        qz_mixed_content: 'หน้าเว็บนี้ทำงานผ่าน HTTPS จำเป็นต้องใช้ wss:// เชื่อมต่อ QZ Tray เท่านั้น',
+        qz_connect_failed: 'เชื่อมต่อ QZ Tray ไม่สำเร็จ',
+      };
+
+      const mapConnectionError = (error) => {
+        const toError = (code, fallback) => createError(code, CONNECTION_ERROR_MESSAGES[code] || fallback, error);
+
+        if (error && typeof error.code === 'string') {
+          const normalized = error.code.toLowerCase();
+          if (CONNECTION_ERROR_MESSAGES[normalized]) {
+            return toError(normalized, error.message || CONNECTION_ERROR_MESSAGES[normalized]);
+          }
+        }
+
+        const message = String(error?.message || error || '').toLowerCase();
+
+        if (message.includes('mixed content') || message.includes('insecure websocket')) {
+          return toError('qz_mixed_content', 'ไม่สามารถเชื่อมต่อผ่าน ws:// จากหน้า https://');
+        }
+
+        if (
+          message.includes('security')
+          || message.includes('certificate')
+          || message.includes('signature')
+          || message.includes('trust')
+          || message.includes('whitelist')
+        ) {
+          return toError('qz_security_error', CONNECTION_ERROR_MESSAGES.qz_security_error);
+        }
+
+        if (
+          message.includes('refused')
+          || message.includes('blocked')
+          || message.includes('denied')
+          || message.includes('forbidden')
+          || message.includes('ecconnrefused')
+        ) {
+          return toError('qz_ws_refused', CONNECTION_ERROR_MESSAGES.qz_ws_refused);
+        }
+
+        if (message.includes('timeout') || message.includes('timed out')) {
+          return toError('qz_ws_timeout', CONNECTION_ERROR_MESSAGES.qz_ws_timeout);
+        }
+
+        if (
+          message.includes('launch')
+          || message.includes('not running')
+          || message.includes('not started')
+          || message.includes('unavailable')
+        ) {
+          return toError('qz_not_running', CONNECTION_ERROR_MESSAGES.qz_not_running);
+        }
+
+        return toError('qz_connect_failed', CONNECTION_ERROR_MESSAGES.qz_connect_failed);
+      };
+
+      const ensureLaunchIframe = () => {
+        if (!launchIframe) {
+          launchIframe = document.createElement('iframe');
+          launchIframe.style.display = 'none';
+          launchIframe.width = '0';
+          launchIframe.height = '0';
+          launchIframe.title = 'mydent-qz-launch';
+          document.body.appendChild(launchIframe);
+        }
+        return launchIframe;
+      };
+
+      const tryLaunchQz = async () => {
+        try {
+          const frame = ensureLaunchIframe();
+          frame.src = 'qz:launch';
+          log('info', 'เรียก qz:launch ผ่าน iframe เพื่อเปิด QZ Tray');
+        } catch (error) {
+          log('warn', 'เรียก qz:launch ผ่าน iframe ไม่สำเร็จ', error);
+        }
+      };
+
+      const connectOnce = async (config, timeoutMs) => {
+        if (qz.websocket.isActive()) {
+          return;
+        }
+
+        let timeoutHandle = null;
+
+        try {
+          const connectPromiseLocal = qz.websocket.connect(config);
+
+          if (timeoutMs && timeoutMs > 0) {
+            const timeoutPromise = new Promise((_, reject) => {
+              timeoutHandle = setTimeout(() => {
+                reject(createError('qz_ws_timeout', CONNECTION_ERROR_MESSAGES.qz_ws_timeout));
+              }, timeoutMs);
+            });
+
+            await Promise.race([connectPromiseLocal, timeoutPromise]);
+          } else {
+            await connectPromiseLocal;
+          }
+        } catch (error) {
+          if (error && error.code === 'qz_ws_timeout') {
+            try {
+              await qz.websocket.disconnect();
+            } catch (disconnectErr) {
+              log('warn', 'ยกเลิกการเชื่อมต่อหลัง timeout ไม่สำเร็จ', disconnectErr);
+            }
+          }
+          throw error;
+        } finally {
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+        }
+      };
+
+      const performConnection = async (options = {}) => {
+        await ensureLoaded();
+        configureSecurityIfNeeded();
+        ensureQzAvailable();
+        attachWebsocketHandlers();
+
+        if (qz.websocket.isActive()) {
+          updateState('active');
+          const report = {
+            success: true,
+            endpoint: null,
+            triedEndpoints: lastConnectionReport.triedEndpoints || [],
+            lastError: null,
+            timestamp: Date.now(),
+          };
+          lastConnectionReport = report;
+          return report;
+        }
+
+        const secureOrigin = isSecureOrigin();
+        const allowInsecure = options.allowInsecure === undefined ? !secureOrigin : !!options.allowInsecure;
+        const autoLaunch = options.autoLaunch === undefined ? true : !!options.autoLaunch;
+        const timeoutMs = options.timeoutMs || CONNECT_TIMEOUT_MS;
+
+        const overrides = readConnectionOverrides();
+        const endpoints = buildEndpointList(overrides);
+
+        const triedEndpoints = [];
+        let lastError = null;
+        let successEndpoint = null;
+        let launchTriggered = false;
+        let delayBeforeNext = 0;
+
+        for (let attempt = 0; attempt < endpoints.length; attempt += 1) {
+          const endpoint = endpoints[attempt];
+
+          if (!endpoint.secure && secureOrigin && !allowInsecure) {
+            triedEndpoints.push({
+              url: endpoint.url,
+              host: endpoint.host,
+              port: endpoint.port,
+              secure: endpoint.secure,
+              skipped: true,
+              reason: 'https_only',
+            });
+            continue;
+          }
+
+          if (attempt > 0 || delayBeforeNext > 0) {
+            const backoff = CONNECT_BACKOFF_MS[Math.min(attempt, CONNECT_BACKOFF_MS.length - 1)];
+            const waitMs = Math.max(backoff, delayBeforeNext);
+            if (waitMs > 0) {
+              await delay(waitMs);
+            }
+            delayBeforeNext = 0;
+          }
+
+          updateState('connecting');
+
+          try {
+            await connectOnce(createConnectConfig(endpoint, overrides), timeoutMs);
+            if (qz.websocket.isActive()) {
+              updateState('active');
+              successEndpoint = endpoint;
+              triedEndpoints.push({
+                url: endpoint.url,
+                host: endpoint.host,
+                port: endpoint.port,
+                secure: endpoint.secure,
+                success: true,
+              });
+              break;
+            }
+          } catch (err) {
+            const mapped = mapConnectionError(err);
+            lastError = mapped;
+            updateState('inactive');
+            triedEndpoints.push({
+              url: endpoint.url,
+              host: endpoint.host,
+              port: endpoint.port,
+              secure: endpoint.secure,
+              success: false,
+              error: mapped.code,
+              message: mapped.message,
+            });
+            log('warn', `เชื่อมต่อ QZ Tray ล้มเหลวที่ ${endpoint.url}`, mapped);
+
+            if (!launchTriggered && autoLaunch) {
+              launchTriggered = true;
+              await tryLaunchQz();
+              delayBeforeNext = randomBetween(LAUNCH_DELAY_MIN_MS, LAUNCH_DELAY_MAX_MS);
+            }
+          }
+        }
+
+        if (successEndpoint) {
+          const report = {
+            success: true,
+            endpoint: successEndpoint,
+            triedEndpoints,
+            lastError: null,
+            timestamp: Date.now(),
+          };
+          lastConnectionReport = report;
+          return report;
+        }
+
+        if (!lastError && secureOrigin && triedEndpoints.every((item) => item.skipped)) {
+          lastError = createError('qz_mixed_content', CONNECTION_ERROR_MESSAGES.qz_mixed_content);
+        } else if (!lastError) {
+          lastError = createError('qz_connect_failed', CONNECTION_ERROR_MESSAGES.qz_connect_failed);
+        }
+
+        updateState('inactive');
+
+        const report = {
+          success: false,
+          endpoint: null,
+          triedEndpoints,
+          lastError: toSerializableError(lastError),
+          timestamp: Date.now(),
+        };
+        lastConnectionReport = report;
+        log('error', 'เชื่อมต่อ QZ Tray ไม่สำเร็จหลังลองทุก endpoint', lastError);
+
+        throw lastError;
+      };
+
+      const ensureConnected = (options = {}) => {
+        if (qz.websocket.isActive()) {
+          updateState('active');
+          const report = {
+            success: true,
+            endpoint: null,
+            triedEndpoints: lastConnectionReport.triedEndpoints || [],
+            lastError: null,
+            timestamp: Date.now(),
+          };
+          lastConnectionReport = report;
+          return Promise.resolve(report);
+        }
+
+        if (connectPromise) {
+          return connectPromise;
+        }
+
+        connectPromise = performConnection(options)
+          .finally(() => {
+            connectPromise = null;
+          });
+
+        return connectPromise;
+      };
+
+      const mapPrinterLookupError = (printerName, error) => {
+        const trimmedName = typeof printerName === 'string' ? printerName.trim() : '';
+        const notFoundMessage = trimmedName
+          ? `ไม่พบเครื่องพิมพ์ใน QZ Tray: ${trimmedName}`
+          : 'ไม่พบเครื่องพิมพ์ที่ QZ Tray รายงาน';
+
+        if (!error) {
+          return createError('qz_printer_not_found', notFoundMessage);
+        }
+
+        const message = String(error.message || error).toLowerCase();
+        if (message.includes('not found') || message.includes('found no')) {
+          return createError('qz_printer_not_found', notFoundMessage);
+        }
+
+        if (message.includes('security')) {
+          return createError('qz_security_error', 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins', error);
+        }
+
+        return createError('qz_lookup_failed', 'ค้นหาเครื่องพิมพ์จาก QZ Tray ไม่สำเร็จ', error);
+      };
+
+      const resolvePrinterName = async (printerName) => {
+        if (!printerName) {
+          return null;
+        }
+
+        try {
+          const result = await qz.printers.find(printerName);
+          if (Array.isArray(result)) {
+            return result[0] || null;
+          }
+          return result || printerName;
+        } catch (error) {
+          throw mapPrinterLookupError(printerName, error);
+        }
+      };
+
+      const listPrinters = async () => {
+        await ensureConnected();
+
+        try {
+          const result = await qz.printers.find();
+          const printers = Array.isArray(result) ? result : (result ? [result] : []);
+          log('info', `QZ Tray รายงานเครื่องพิมพ์ทั้งหมด ${printers.length} เครื่อง`);
+          return printers;
+        } catch (error) {
+          throw mapPrinterLookupError(null, error);
+        }
+      };
+
+      const mapPrintError = (error) => {
+        if (!error) {
+          return createError('qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ', error);
+        }
+        const message = String(error.message || error).toLowerCase();
+        if (message.includes('security')) {
+          return createError('qz_security_error', 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins', error);
+        }
+        if (message.includes('printer not found')) {
+          return createError('qz_printer_not_found', 'ไม่พบเครื่องพิมพ์ที่เลือกใน QZ Tray', error);
+        }
+        return createError('qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ', error);
+      };
+
+      const printPng = async (base64Png, printerName) => {
+        if (!base64Png) {
+          throw createError('qz_invalid_payload', 'ข้อมูล PNG ไม่ถูกต้องหรือว่างเปล่า');
+        }
+
+        await ensureConnected();
+        const resolvedPrinter = await resolvePrinterName(printerName);
+
+        const config = qz.configs.create(resolvedPrinter, {
+          jobName: 'MyDent Thermal Slip',
+          copies: 1,
+          rasterize: true,
+          colorType: 'grayscale',
+          scaleContent: true,
+        });
+
+        const payload = [
+          {
+            type: 'raw',
+            format: 'image',
+            flavor: 'base64',
+            data: base64Png,
+          },
+          {
+            type: 'raw',
+            format: 'hex',
+            data: CUT_CMD_FULL_HEX,
+          },
+        ];
+
+        try {
+          await qz.print(config, payload);
+          log('info', `สั่งพิมพ์ผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`);
+          return { printer: resolvedPrinter };
+        } catch (error) {
+          throw mapPrintError(error);
+        }
+      };
+
+      const selfTest = async () => {
+        const summary = {
+          version: null,
+          isActive: false,
+          triedEndpoints: [],
+          lastError: null,
+          printersCount: null,
+        };
+
+        try {
+          if (connectPromise) {
+            try {
+              await connectPromise;
+            } catch (_) {
+              // ignore, จะจัดการด้านล่าง
+            }
+          }
+
+          await ensureLoaded();
+          configureSecurityIfNeeded();
+          ensureQzAvailable();
+          attachWebsocketHandlers();
+
+          let report = lastConnectionReport;
+
+          if (!qz.websocket.isActive()) {
+            try {
+              report = await performConnection({
+                autoLaunch: false,
+                timeoutMs: SELF_TEST_TIMEOUT_MS,
+                allowInsecure: !isSecureOrigin(),
+              });
+            } catch (error) {
+              const mapped = mapConnectionError(error);
+              summary.lastError = toSerializableError(mapped);
+              summary.triedEndpoints = (lastConnectionReport.triedEndpoints || []).map((item) => ({ ...item }));
+              return summary;
+            }
+          }
+
+          summary.triedEndpoints = (report?.triedEndpoints || []).map((item) => ({ ...item }));
+          summary.isActive = qz.websocket.isActive();
+
+          if (summary.isActive) {
+            try {
+              summary.version = await qz.api.getVersion();
+            } catch (error) {
+              log('warn', 'อ่านเวอร์ชัน QZ Tray ไม่สำเร็จระหว่าง self-test', error);
+            }
+
+            try {
+              const printers = await qz.printers.find();
+              if (Array.isArray(printers)) {
+                summary.printersCount = printers.length;
+              } else if (printers) {
+                summary.printersCount = 1;
+              } else {
+                summary.printersCount = 0;
+              }
+            } catch (error) {
+              log('warn', 'อ่านรายชื่อเครื่องพิมพ์ไม่สำเร็จระหว่าง self-test', error);
+            }
+          }
+
+          if (!summary.lastError && report?.lastError) {
+            summary.lastError = { ...report.lastError };
+          }
+
+          return summary;
+        } catch (error) {
+          const mapped = mapConnectionError(error);
+          summary.lastError = toSerializableError(mapped);
+          summary.triedEndpoints = (lastConnectionReport.triedEndpoints || []).map((item) => ({ ...item }));
+          return summary;
+        }
+      };
+
+      warnIfInsecureOrigin();
+
+      window.mydentQzLaunch = async () => {
+        await tryLaunchQz();
+        const waitMs = randomBetween(LAUNCH_DELAY_MIN_MS, LAUNCH_DELAY_MAX_MS);
+        await delay(waitMs);
+        return ensureConnected({ autoLaunch: false });
+      };
+
+      window.mydentQzEnsureLoaded = () => ensureLoaded();
+      window.mydentQzConnect = (options) => ensureConnected(options || {});
+      window.mydentQzListPrinters = () => listPrinters();
+      window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
+      window.mydentQzStatus = () => getStatus();
+      window.mydentQzSelfTest = () => selfTest();
+      window.mydentQzSecurityHint = (origin) => {
+        const currentOrigin = origin || window.location.origin;
+        return [
+          'เปิด QZ Tray → Settings → Security → Allowed Origins',
+          `เพิ่ม origin ปัจจุบัน: ${currentOrigin}`,
+          'เพิ่ม http://localhost (สำหรับงานพัฒนา) หากยังไม่มี',
+          'เพิ่มโดเมน production ของ MyDent (เช่น https://app.mydent.co.th)',
+          'ใช้ QZ Tray เวอร์ชัน 2.2.x ขึ้นไป และรีสตาร์ทโปรแกรมหลังปรับตั้งค่า',
+        ].join('\\n');
+      };
+      log('info', 'Registered MyDent QZ bridge functions on window');
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
+
+
+
 </body>
 </html>
+

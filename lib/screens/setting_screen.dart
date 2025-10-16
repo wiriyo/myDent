@@ -44,8 +44,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         (Route<dynamic> route) => false,
       );
     } catch (e) {
-      // TODO: Handle logout error
-      debugPrint('$e');
+      debugPrint('Logout failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถออกจากระบบได้ กรุณาลองอีกครั้ง'),
+        ),
+      );
     }
   }
 
@@ -108,7 +113,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ใช้ Navigator.push ธรรมดาเพื่อเปิดหน้าใหม่ขึ้นมาทับ
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const PrinterSettingsPage()),
+                  MaterialPageRoute(
+                    builder: (context) => const PrinterSettingsPage(),
+                  ),
                 );
               },
             ),
@@ -143,10 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: const Icon(Icons.logout),
                 label: const Text(
                   'ออกจากระบบ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -164,23 +168,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.calendar_today, size: 30),
-                color: _selectedIndex == 0 ? Colors.purple : Colors.purple.shade200,
+                color:
+                    _selectedIndex == 0
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(0),
               ),
               IconButton(
                 icon: const Icon(Icons.people_alt, size: 30),
-                color: _selectedIndex == 1 ? Colors.purple : Colors.purple.shade200,
+                color:
+                    _selectedIndex == 1
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(1),
               ),
               const SizedBox(width: 40),
               IconButton(
                 icon: const Icon(Icons.search_rounded, size: 30),
-                color: _selectedIndex == 3 ? Colors.purple : Colors.purple.shade200,
+                color:
+                    _selectedIndex == 3
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(3),
               ),
               IconButton(
                 icon: const Icon(Icons.settings, size: 30),
-                color: _selectedIndex == 4 ? Colors.purple : Colors.purple.shade200,
+                color:
+                    _selectedIndex == 4
+                        ? Colors.purple
+                        : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(4),
               ),
             ],

@@ -102,9 +102,7 @@ class QzPrintPlatform {
     final List<JSAny?>? jsArgs =
         args.isEmpty
             ? null
-            : args
-                .map<JSAny?>((dynamic value) => value.jsify())
-                .toList(growable: false);
+            : args.map<JSAny?>(_toJsArgument).toList(growable: false);
     final JSAny? result = windowObject.callMethodVarArgs(
       functionName.toJS,
       jsArgs,
@@ -122,6 +120,27 @@ class QzPrintPlatform {
       return await dartified;
     }
     return dartified;
+  }
+
+  JSAny? _toJsArgument(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is String) {
+      return value.toJS;
+    }
+    if (value is num) {
+      return value.toJS;
+    }
+    if (value is bool) {
+      return value.toJS;
+    }
+    if (value is Map || value is Iterable) {
+      return js_util.jsify(value) as JSAny?;
+    }
+    throw ArgumentError(
+      'Unsupported argument type for JS interop: ${value.runtimeType}',
+    );
   }
 
   bool _hasBridge(String name) {

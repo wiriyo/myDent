@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:js_util' as js_util;
 
 import 'package:web/web.dart' as web;
 
@@ -125,7 +126,7 @@ class QzPrintPlatform {
 
   bool _hasBridge(String name) {
     try {
-      return (web.window as JSObject).has(name);
+      return js_util.hasProperty(web.window, name);
     } catch (_) {
       return false;
     }

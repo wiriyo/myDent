@@ -593,7 +593,7 @@ class _AppointmentSlipPreviewPageState
                             ),
                           RadioListTile<String?>(
                             title: const Text(
-                              '?1??,??1% QZ Tray ?,-?,??,??,-?,,?,??,,?,??,?1%?,?',
+                              'ให้ QZ Tray ถามทุกครั้ง',
                             ),
                             value: null,
                           ),
@@ -739,17 +739,17 @@ class _AppointmentSlipPreviewPageState
       final String? errorCode = report.lastError?.code;
 
       if (errorCode == 'qz_bridge_missing') {
-        return '?1,?,??1^?,z?,s?1,?,??,s?,??,??,??,?';
+        return 'ไม่พบ JS bridge ของ QZ Tray';
       }
 
       if (errorCode != null) {
-        return '?1,?,??1^?1??,S?,??1^?,-?,??,?1^?,-';
+        return 'ไม่พร้อม (พบข้อผิดพลาด)';
       }
 
-      return '?,??,3?,??,?,?1??,S?,??1^?,-?,??,?1^?,-';
+      return 'ไม่ทำงาน';
     }
 
-    return '?,z?,??1%?,-?,??1??,S?1%?,?,??,T';
+    return 'พร้อมใช้งาน';
   }
 
   Future<void> _launchQzTray() async {

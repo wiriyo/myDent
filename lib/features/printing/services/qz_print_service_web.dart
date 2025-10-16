@@ -8,6 +8,25 @@ import 'package:web/web.dart' as web;
 import 'qz_models.dart';
 
 class QzPrintPlatform {
+  QzPrintPlatform() {
+    _setupStatusListener();
+    _primeInitialStatus();
+  }
+
+  static const String _statusEventName = 'mydent-qz-status';
+
+  final StreamController<QzStatusSnapshot> _statusController =
+      StreamController<QzStatusSnapshot>.broadcast();
+  JSFunction? _statusEventCallback;
+
+  Stream<QzStatusSnapshot> get statusStream => _statusController.stream;
+
+  Future<QzStatusSnapshot> readStatus() async {
+    final QzStatusSnapshot snapshot = await _readStatusSnapshot();
+    _statusController.add(snapshot);
+    return snapshot;
+  }
+
   Future<void> ensureReady() => _guard(() async {
     await _ensureLoaded();
     await _connectWithDiagnostics();
@@ -87,6 +106,49 @@ class QzPrintPlatform {
     }
   }
 
+  void _setupStatusListener() {
+    if (_statusEventCallback != null) {
+      return;
+    }
+    try {
+      _statusEventCallback = allowInterop((web.Event event) {
+        final QzStatusSnapshot snapshot = _snapshotFromEvent(event);
+        _statusController.add(snapshot);
+      });
+      web.window.addEventListener(_statusEventName, _statusEventCallback);
+    } catch (_) {
+      // ignore listener attachment errors
+    }
+  }
+
+  void _primeInitialStatus() {
+    Future<void>.microtask(() async {
+      final QzStatusSnapshot snapshot = await _readStatusSnapshot();
+      _statusController.add(snapshot);
+    });
+  }
+
+  Future<QzStatusSnapshot> _readStatusSnapshot() async {
+    if (!_hasBridge('mydentQzStatusDetail')) {
+      return const QzStatusSnapshot.inactive();
+    }
+    try {
+      final Object? result = await _invokePromise('mydentQzStatusDetail');
+      return _toStatusSnapshot(result);
+    } catch (_) {
+      return const QzStatusSnapshot.inactive();
+    }
+  }
+
+  QzStatusSnapshot _snapshotFromEvent(web.Event event) {
+    if (event is web.CustomEvent) {
+      final JSAny? detail = event.detail;
+      final Object? data = detail?.dartify();
+      return _toStatusSnapshot(data);
+    }
+    return const QzStatusSnapshot.inactive();
+  }
+
   Future<void> _guardBridge(String functionName) async {
     await _invokePromise(functionName);
   }
@@ -151,6 +213,22 @@ class QzPrintPlatform {
     }
   }
 
+  QzStatusSnapshot _toStatusSnapshot(Object? raw) {
+    final Map<String, Object?> data = _dartifyMap(raw);
+    final String stateRaw = data['status']?.toString() ?? '';
+    final QzConnectionState state = _parseStatusState(stateRaw);
+    final Map<String, Object?> lastError = _dartifyMap(data['lastError']);
+    final String? lastErrorCode = lastError['code']?.toString();
+    final String? lastErrorMessage = lastError['message']?.toString();
+    final DateTime? timestamp = _parseTimestamp(data['timestamp']);
+    return QzStatusSnapshot(
+      state: state,
+      lastErrorCode: lastErrorCode,
+      lastErrorMessage: lastErrorMessage,
+      timestamp: timestamp,
+    );
+  }
+
   QzSelfTestReport _toSelfTestReport(Object? raw) {
     final Map<String, Object?> data = _dartifyMap(raw);
     final Object? lastErrorRaw = data['lastError'];
@@ -198,6 +276,30 @@ class QzPrintPlatform {
           .toList(growable: false);
     }
     return const <QzEndpointAttempt>[];
+  }
+
+  QzConnectionState _parseStatusState(String raw) {
+    switch (raw.toLowerCase()) {
+      case 'active':
+        return QzConnectionState.active;
+      case 'connecting':
+        return QzConnectionState.connecting;
+      default:
+        return QzConnectionState.inactive;
+    }
+  }
+
+  DateTime? _parseTimestamp(Object? raw) {
+    if (raw is num) {
+      return DateTime.fromMillisecondsSinceEpoch(raw.toInt());
+    }
+    if (raw is String) {
+      final int? parsed = int.tryParse(raw);
+      if (parsed != null) {
+        return DateTime.fromMillisecondsSinceEpoch(parsed);
+      }
+    }
+    return null;
   }
 
   QzPrintException _decorateWithSelfTest(
@@ -273,6 +375,10 @@ class QzPrintPlatform {
     }
     final String? fromProperty = _readStringProperty(error, 'code');
     if (fromProperty != null && fromProperty.isNotEmpty) {
+      final String normalized = fromProperty.toLowerCase();
+      if (normalized.contains('invalid_signature') || normalized.contains('signature')) {
+        return 'qz_security_error';
+      }
       return fromProperty;
     }
     return null;
@@ -357,6 +463,7 @@ String _appendAdvice(String message) {
   final String origin = web.window.location.origin;
   final List<String> tips = <String>[
     'เปิดโปรแกรม QZ Tray แล้วอนุญาตการเชื่อมต่อเมื่อมีแจ้งเตือน',
+    'รีเฟรชหน้า MyDent หลังแก้ไขการตั้งค่าหรือกด Allow ใน QZ Tray',
     'ตรวจสอบ Firewall/Antivirus ให้อนุญาต QZ Tray ใช้งานพอร์ต 8181',
     'เพิ่ม $origin ใน QZ Tray → Settings → Security → Allowed Origins',
     'ใช้ QZ Tray เวอร์ชัน 2.2.x ขึ้นไป และรีสตาร์ทโปรแกรมหลังปรับตั้งค่า',
@@ -373,7 +480,7 @@ String _defaultMessageForCode(String code, String fallback) {
     case 'qz_bridge_missing':
       return _bridgeMissingMessage;
     case 'qz_security_error':
-      return 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins';
+      return 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)';
     case 'qz_ws_timeout':
       return 'หมดเวลารอการตอบสนองจาก QZ Tray กรุณาตรวจสอบว่าโปรแกรมเปิดอยู่และพอร์ต 8181 ไม่ถูกบล็อก';
     case 'qz_ws_refused':

@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,7 +19,19 @@ const String _bridgeMissingMessage =
     'ไม่พบ JS bridge สำหรับ QZ Tray (ลองหยุด dev server แล้วรัน flutter run -d chrome ใหม่)';
 
 class QzPrintService {
-  QzPrintService._();
+  QzPrintService._() {
+    _delegate.statusStream.listen(
+      (QzStatusSnapshot snapshot) {
+        statusNotifier.value = snapshot;
+      },
+      onError: (Object error) {
+        if (kDebugMode) {
+          debugPrint('QZ status stream error: $error');
+        }
+      },
+    );
+    scheduleMicrotask(_primeStatus);
+  }
 
   static final QzPrintService I = QzPrintService._();
 
@@ -26,18 +39,24 @@ class QzPrintService {
 
   final platform.QzPrintPlatform _delegate = platform.createQzPrintPlatform();
   final QzPrinterPreferences _preferences = QzPrinterPreferences.instance;
+  final ValueNotifier<QzStatusSnapshot> statusNotifier =
+      ValueNotifier<QzStatusSnapshot>(const QzStatusSnapshot.inactive());
 
   bool get isAvailableOnPlatform => kIsWeb;
+
+  QzStatusSnapshot get currentStatus => statusNotifier.value;
 
   bool get isEnabled =>
       isAvailableOnPlatform && _envQzEnabled && !_overrideDisabled;
 
   void disableForSession() {
     _overrideDisabled = true;
+    statusNotifier.value = const QzStatusSnapshot.inactive();
   }
 
   void enableForSession() {
     _overrideDisabled = false;
+    scheduleMicrotask(_primeStatus);
   }
 
   Future<void> ensureReady() async {
@@ -125,6 +144,18 @@ class QzPrintService {
 
   Future<void> savePrinter(String? printerName) =>
       _preferences.save(printerName);
+
+  Future<void> _primeStatus() async {
+    try {
+      final QzStatusSnapshot snapshot = await _delegate.readStatus();
+      statusNotifier.value = snapshot;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('QZ prime status error: $error');
+      }
+      statusNotifier.value = const QzStatusSnapshot.inactive();
+    }
+  }
 
   void _assertEnabled() {
     if (!isEnabled) {

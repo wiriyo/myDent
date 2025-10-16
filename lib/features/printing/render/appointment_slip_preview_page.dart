@@ -19,6 +19,7 @@ import '../../../services/logo_cache_service.dart';
 import '../services/print_settings_service.dart';
 import '../services/qz_print_service.dart';
 import '../services/web_print_service.dart';
+import 'qz_status_ui.dart';
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
   final AppointmentSlipModel? slip;
@@ -398,12 +399,21 @@ class _AppointmentSlipPreviewPageState
             mainAxisSize: MainAxisSize.min,
             children: [
               if (_qzService.isEnabled)
-                ListTile(
-                  leading: const Icon(Icons.print),
-                  title: const Text('พิมพ์ (QZ Tray)'),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _printWithQz();
+                ValueListenableBuilder<QzStatusSnapshot>(
+                  valueListenable: _qzService.statusNotifier,
+                  builder: (context, status, _) {
+                    return ListTile(
+                      leading: Text(
+                        qzStatusEmoji(status),
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                      title: const Text('พิมพ์ (QZ Tray)'),
+                      subtitle: Text(qzStatusMessage(status)),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _printWithQz();
+                      },
+                    );
                   },
                 ),
               ListTile(
@@ -421,6 +431,16 @@ class _AppointmentSlipPreviewPageState
                   onTap: () {
                     Navigator.of(ctx).pop();
                     _launchQzTray();
+                  },
+                ),
+              if (_qzService.isEnabled)
+                ListTile(
+                  leading: const Icon(Icons.fact_check_outlined),
+                  title: const Text('Self-test (QZ Tray)'),
+                  subtitle: const Text('ตรวจสอบสถานะ/เวอร์ชัน และแก้ไขปัญหา QZ Tray'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _runQzSelfTest();
                   },
                 ),
             ],

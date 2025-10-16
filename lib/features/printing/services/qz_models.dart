@@ -1,3 +1,32 @@
+enum QzConnectionState {
+  inactive,
+  connecting,
+  active,
+}
+
+class QzStatusSnapshot {
+  const QzStatusSnapshot({
+    required this.state,
+    this.lastErrorCode,
+    this.lastErrorMessage,
+    this.timestamp,
+  });
+
+  const QzStatusSnapshot.inactive()
+      : state = QzConnectionState.inactive,
+        lastErrorCode = null,
+        lastErrorMessage = null,
+        timestamp = null;
+
+  final QzConnectionState state;
+  final String? lastErrorCode;
+  final String? lastErrorMessage;
+  final DateTime? timestamp;
+
+  bool get isReady =>
+      state == QzConnectionState.active && (lastErrorCode == null || lastErrorCode!.isEmpty);
+}
+
 class QzPrintResult {
   const QzPrintResult({this.printerName});
 

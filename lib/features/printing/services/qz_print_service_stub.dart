@@ -3,6 +3,12 @@ import 'dart:async';
 import 'qz_models.dart';
 
 class QzPrintPlatform {
+  Stream<QzStatusSnapshot> get statusStream =>
+      Stream<QzStatusSnapshot>.value(const QzStatusSnapshot.inactive());
+
+  Future<QzStatusSnapshot> readStatus() =>
+      Future<QzStatusSnapshot>.value(const QzStatusSnapshot.inactive());
+
   Future<void> ensureReady() => Future.error(
     QzPrintException(
       'qz_unsupported',

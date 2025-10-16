@@ -174,6 +174,45 @@ EjzSn7DcDE1tL2En/tSVXeUY
         lastError: null,
         timestamp: null,
       };
+      const STATUS_EVENT_NAME = 'mydent-qz-status';
+
+      const cloneLastError = () => {
+        if (!lastConnectionReport || !lastConnectionReport.lastError) {
+          return null;
+        }
+
+        const { code, message } = lastConnectionReport.lastError;
+        return {
+          code: code || null,
+          message: message || null,
+        };
+      };
+
+      const buildStatusDetail = () => {
+        const status = getStatus();
+        return {
+          status,
+          isActive: status === 'active',
+          lastError: cloneLastError(),
+          timestamp: Date.now(),
+        };
+      };
+
+      const dispatchStatusEvent = () => {
+        try {
+          const detail = buildStatusDetail();
+          window.dispatchEvent(new CustomEvent(STATUS_EVENT_NAME, { detail }));
+          return detail;
+        } catch (eventError) {
+          log('warn', 'ไม่สามารถส่งสถานะ QZ Tray ไปยัง Flutter', eventError);
+          return buildStatusDetail();
+        }
+      };
+
+      const updateLastConnectionReport = (report) => {
+        lastConnectionReport = report;
+        dispatchStatusEvent();
+      };
 
       const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -231,6 +270,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
 
       const updateState = (state) => {
         connectionState = state;
+        dispatchStatusEvent();
       };
 
       const getStatus = () => {
@@ -508,7 +548,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
 
       const CONNECTION_ERROR_MESSAGES = {
         qz_not_running: 'กรุณาเปิด QZ Tray ก่อนใช้งาน หรือคลิก \"เปิด QZ Tray\" แล้วลองใหม่',
-        qz_security_error: 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins',
+        qz_security_error: 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)',
         qz_ws_refused: 'ไม่สามารถเชื่อมต่อพอร์ต 8181 ได้ อาจถูก Firewall หรือ Antivirus บล็อกไว้',
         qz_ws_timeout: 'หมดเวลารอการตอบสนองจาก QZ Tray กรุณาตรวจสอบว่าโปรแกรมเปิดอยู่และพอร์ต 8181 ถูกอนุญาต',
         qz_mixed_content: 'หน้าเว็บนี้ทำงานผ่าน HTTPS จำเป็นต้องใช้ wss:// เชื่อมต่อ QZ Tray เท่านั้น',
@@ -522,6 +562,9 @@ EjzSn7DcDE1tL2En/tSVXeUY
           const normalized = error.code.toLowerCase();
           if (CONNECTION_ERROR_MESSAGES[normalized]) {
             return toError(normalized, error.message || CONNECTION_ERROR_MESSAGES[normalized]);
+          }
+          if (normalized.includes('signature')) {
+            return toError('qz_security_error', CONNECTION_ERROR_MESSAGES.qz_security_error);
           }
         }
 
@@ -641,7 +684,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
             lastError: null,
             timestamp: Date.now(),
           };
-          lastConnectionReport = report;
+          updateLastConnectionReport(report);
           return report;
         }
 
@@ -730,7 +773,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
             lastError: null,
             timestamp: Date.now(),
           };
-          lastConnectionReport = report;
+          updateLastConnectionReport(report);
           return report;
         }
 
@@ -749,7 +792,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
           lastError: toSerializableError(lastError),
           timestamp: Date.now(),
         };
-        lastConnectionReport = report;
+        updateLastConnectionReport(report);
         log('error', 'เชื่อมต่อ QZ Tray ไม่สำเร็จหลังลองทุก endpoint', lastError);
 
         throw lastError;
@@ -765,7 +808,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
             lastError: null,
             timestamp: Date.now(),
           };
-          lastConnectionReport = report;
+          updateLastConnectionReport(report);
           return Promise.resolve(report);
         }
 
@@ -791,13 +834,32 @@ EjzSn7DcDE1tL2En/tSVXeUY
           return createError('qz_printer_not_found', notFoundMessage);
         }
 
+        if (typeof error.code === 'string') {
+          const normalizedCode = error.code.toLowerCase();
+          if (normalizedCode.includes('signature') || normalizedCode.includes('certificate')) {
+            return createError(
+              'qz_security_error',
+              'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)',
+              error,
+            );
+          }
+        }
+
         const message = String(error.message || error).toLowerCase();
         if (message.includes('not found') || message.includes('found no')) {
           return createError('qz_printer_not_found', notFoundMessage);
         }
 
-        if (message.includes('security')) {
-          return createError('qz_security_error', 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins', error);
+        if (
+          message.includes('security')
+          || message.includes('certificate')
+          || message.includes('signature')
+        ) {
+          return createError(
+            'qz_security_error',
+            'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)',
+            error,
+          );
         }
 
         return createError('qz_lookup_failed', 'ค้นหาเครื่องพิมพ์จาก QZ Tray ไม่สำเร็จ', error);
@@ -836,9 +898,29 @@ EjzSn7DcDE1tL2En/tSVXeUY
         if (!error) {
           return createError('qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ', error);
         }
+
+        if (typeof error.code === 'string') {
+          const normalizedCode = error.code.toLowerCase();
+          if (normalizedCode.includes('signature') || normalizedCode.includes('certificate')) {
+            return createError(
+              'qz_security_error',
+              'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)',
+              error,
+            );
+          }
+        }
+
         const message = String(error.message || error).toLowerCase();
-        if (message.includes('security')) {
-          return createError('qz_security_error', 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins', error);
+        if (
+          message.includes('security')
+          || message.includes('certificate')
+          || message.includes('signature')
+        ) {
+          return createError(
+            'qz_security_error',
+            'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)',
+            error,
+          );
         }
         if (message.includes('printer not found')) {
           return createError('qz_printer_not_found', 'ไม่พบเครื่องพิมพ์ที่เลือกใน QZ Tray', error);
@@ -963,6 +1045,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
       };
 
       warnIfInsecureOrigin();
+      dispatchStatusEvent();
 
       window.mydentQzLaunch = async () => {
         await tryLaunchQz();
@@ -976,6 +1059,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
       window.mydentQzListPrinters = () => listPrinters();
       window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
       window.mydentQzStatus = () => getStatus();
+      window.mydentQzStatusDetail = () => buildStatusDetail();
       window.mydentQzSelfTest = () => selfTest();
       window.mydentQzSecurityHint = (origin) => {
         const currentOrigin = origin || window.location.origin;

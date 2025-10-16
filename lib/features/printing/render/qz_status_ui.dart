@@ -15,7 +15,6 @@ String qzStatusEmoji(QzStatusSnapshot status) {
     case QzConnectionState.inactive:
       return '🔴';
   }
-  return '🔴';
 }
 
 String qzStatusMessage(QzStatusSnapshot status) {

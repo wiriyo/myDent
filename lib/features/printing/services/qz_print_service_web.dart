@@ -111,7 +111,8 @@ class QzPrintPlatform {
       return;
     }
     try {
-      _statusEventCallback = js_util.allowInterop((web.Event event) {
+      _statusEventCallback =
+          js_util.allowInterop<void Function(web.Event)>((web.Event event) {
         final QzStatusSnapshot snapshot = _snapshotFromEvent(event);
         _statusController.add(snapshot);
       });

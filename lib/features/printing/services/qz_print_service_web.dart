@@ -115,8 +115,13 @@ class QzPrintPlatform {
         final QzStatusSnapshot snapshot = _snapshotFromEvent(event);
         _statusController.add(snapshot);
       });
-      web.window.addEventListener(_statusEventName, _statusEventCallback);
+      js_util.callMethod<void>(
+        web.window,
+        'addEventListener',
+        <Object?>[_statusEventName, _statusEventCallback],
+      );
     } catch (_) {
+      _statusEventCallback = null;
       // ignore listener attachment errors
     }
   }

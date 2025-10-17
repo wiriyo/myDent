@@ -170,6 +170,22 @@ class QzPrintService {
     }
   }
 
+  Future<QzSelfTestRunResult> runSelfTestWithPrints({String? printerName}) async {
+    _assertEnabled();
+    try {
+      return await _delegate.runSelfTestPrints(printerName: printerName);
+    } on QzPrintException {
+      rethrow;
+    } catch (error) {
+      if (kDebugMode) debugPrint('QZ self-test print error: $error');
+      throw QzPrintException(
+        'qz_print_failed',
+        'สั่งพิมพ์ทดสอบผ่าน QZ Tray ไม่สำเร็จ',
+        error,
+      );
+    }
+  }
+
   Future<String?> loadSavedPrinter() => _preferences.load();
 
   Future<void> savePrinter(String? printerName) =>

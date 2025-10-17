@@ -118,6 +118,8 @@
       const QZ_LOAD_TIMEOUT_MS = 3000;
       const QZ_LOAD_POLL_INTERVAL_MS = 100;
       const CUT_CMD_FULL_HEX = '1d5600'; // ESC/POS full cut (GS V 0). TODO: รองรับ half cut (1d5645) ภายหลัง
+      const FEED_CMD_SMALL_HEX = '1b6402'; // ESC d 2 (feed 2 lines)
+      const CUT_DELAY_MS = 250;
 
       let ensureLoadedPromise = null;
       let connectPromise = null;
@@ -1216,6 +1218,9 @@
               error,
             );
           }
+          if (normalizedCode.includes('bad_image')) {
+            return createError('qz_bad_image', 'bad image data', error);
+          }
         }
 
         const message = String(error.message || error).toLowerCase();
@@ -1230,10 +1235,104 @@
             error,
           );
         }
+        if (message.includes('bad image')) {
+          return createError('qz_bad_image', 'bad image data', error);
+        }
+        if (message.includes('unknown type')) {
+          return createError('qz_invalid_payload', 'unknown type', error);
+        }
         if (message.includes('printer not found')) {
           return createError('qz_printer_not_found', 'ไม่พบเครื่องพิมพ์ที่เลือกใน QZ Tray', error);
         }
         return createError('qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ', error);
+      };
+
+      const ensureDataUrl = (base64Value) => {
+        const trimmed = String(base64Value || '').trim();
+        if (!trimmed) {
+          return null;
+        }
+        if (trimmed.startsWith('data:image')) {
+          return trimmed;
+        }
+        return `data:image/png;base64,${trimmed}`;
+      };
+
+      const makeOpaquePng = (dataUrl) => new Promise((resolve, reject) => {
+        try {
+          const image = new Image();
+          image.onload = () => {
+            try {
+              const width = image.width;
+              const height = image.height;
+              if (!width || !height) {
+                reject(createError('qz_bad_image', 'bad image data'));
+                return;
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const context = canvas.getContext('2d');
+              if (!context) {
+                reject(createError('qz_bad_image', 'bad image data'));
+                return;
+              }
+              context.fillStyle = '#ffffff';
+              context.fillRect(0, 0, canvas.width, canvas.height);
+              context.drawImage(image, 0, 0);
+              resolve(canvas.toDataURL('image/png'));
+            } catch (err) {
+              reject(createError('qz_bad_image', 'bad image data', err));
+            }
+          };
+          image.onerror = (event) => {
+            const original = event?.error || event;
+            reject(createError('qz_bad_image', 'bad image data', original));
+          };
+          image.src = dataUrl;
+        } catch (err) {
+          reject(createError('qz_bad_image', 'bad image data', err));
+        }
+      });
+
+      const DEFAULT_THERMAL_OPTIONS = Object.freeze({
+        jobName: 'MyDent Thermal Slip',
+        copies: 1,
+        rasterize: true,
+        scaleContent: false,
+        density: 203,
+        altPrinting: true,
+        colorType: 'grayscale',
+      });
+
+      const createThermalConfig = (printer, overrides = {}) => {
+        const options = {
+          ...DEFAULT_THERMAL_OPTIONS,
+          ...(overrides || {}),
+        };
+        return qz.configs.create(printer, options);
+      };
+
+      const logPrintDebug = (printer, base64Length) => {
+        console.debug(`${LOG_PREFIX} Print job`, {
+          printer: printer || '(default)',
+          base64Length,
+          configOptions: { ...DEFAULT_THERMAL_OPTIONS },
+        });
+      };
+
+      const buildCutPayload = () => ({
+        type: 'raw',
+        format: 'hex',
+        data: `${FEED_CMD_SMALL_HEX}${CUT_CMD_FULL_HEX}`,
+      });
+
+      const createOpaquePngDataUrl = async (base64Input) => {
+        const dataUrl = ensureDataUrl(base64Input);
+        if (!dataUrl) {
+          throw createError('qz_bad_image', 'bad image data');
+        }
+        return makeOpaquePng(dataUrl);
       };
 
       const printPng = async (base64Png, printerName) => {
@@ -1241,42 +1340,138 @@
           throw createError('qz_invalid_payload', 'ข้อมูล PNG ไม่ถูกต้องหรือว่างเปล่า');
         }
 
+        await ensureLoaded();
+        await configureSecurityIfNeeded();
         await ensureConnected();
+
         const resolvedPrinter = await resolvePrinterName(printerName);
+        const config = createThermalConfig(resolvedPrinter);
 
-        const config = qz.configs.create(resolvedPrinter, {
-          jobName: 'MyDent Thermal Slip',
-          copies: 1,
-          rasterize: true,
-          colorType: 'grayscale',
-          scaleContent: true,
-        });
-
-        const payload = [
-          {
-            type: 'raw',
-            format: 'image',
-            flavor: 'base64',
-            data: base64Png,
-          },
-          {
-            type: 'raw',
-            format: 'hex',
-            data: CUT_CMD_FULL_HEX,
-          },
-        ];
-
+        let preparedDataUrl;
         try {
-          await qz.print(config, payload);
-          log('info', `สั่งพิมพ์ผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`);
-          console.log(`${LOG_PREFIX} Printing: Success`);
-          return { printer: resolvedPrinter };
+          preparedDataUrl = await createOpaquePngDataUrl(base64Png);
         } catch (error) {
           throw mapPrintError(error);
         }
+
+        const base64Body = preparedDataUrl.includes(',')
+          ? preparedDataUrl.slice(preparedDataUrl.indexOf(',') + 1)
+          : preparedDataUrl;
+        logPrintDebug(resolvedPrinter, base64Body.length);
+
+        try {
+          await qz.print(config, [
+            {
+              type: 'image',
+              data: preparedDataUrl,
+            },
+          ]);
+          log(
+            'info',
+            `สั่งพิมพ์ผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`,
+          );
+          console.log(`${LOG_PREFIX} Print(Image): Success`);
+        } catch (error) {
+          console.error(`${LOG_PREFIX} Print(Image): Failed`, error);
+          throw mapPrintError(error);
+        }
+
+        await delay(CUT_DELAY_MS);
+
+        try {
+          await qz.print(config, [buildCutPayload()]);
+          console.log(`${LOG_PREFIX} Paper Cut: Success`);
+        } catch (error) {
+          console.error(`${LOG_PREFIX} Paper Cut: Failed`, error);
+          throw mapPrintError(error);
+        }
+
+        return { printer: resolvedPrinter };
       };
 
-      const selfTest = async () => {
+      let cachedSelfTestImage = null;
+
+      const buildSelfTestImageDataUrl = () => {
+        if (cachedSelfTestImage) {
+          return cachedSelfTestImage;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 576;
+        canvas.height = 240;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          cachedSelfTestImage = 'data:image/png;base64,';
+          return cachedSelfTestImage;
+        }
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#1a73e8';
+        context.font = 'bold 48px "Segoe UI", "Arial", sans-serif';
+        context.textBaseline = 'top';
+        context.fillText('MyDent', 24, 24);
+        context.fillStyle = '#000000';
+        context.font = '28px "Segoe UI", "Arial", sans-serif';
+        context.fillText('Thermal Self-Test', 24, 96);
+        context.font = '24px "Segoe UI", "Arial", sans-serif';
+        context.fillText('พิมพ์ทดสอบผ่าน QZ Tray', 24, 140);
+        const timestamp = new Date().toLocaleString('th-TH');
+        context.font = '20px "Segoe UI", "Arial", sans-serif';
+        context.fillText(`เวลา ${timestamp}`, 24, 180);
+        cachedSelfTestImage = canvas.toDataURL('image/png');
+        return cachedSelfTestImage;
+      };
+
+      const runRawSelfTest = async (config) => {
+        const payload = [
+          {
+            type: 'raw',
+            format: 'plain',
+            data: 'Hello MyDent\n',
+          },
+          buildCutPayload(),
+        ];
+        try {
+          await qz.print(config, payload);
+          console.log(`${LOG_PREFIX} SelfTest(Raw): Success`);
+          return {
+            success: true,
+            message: 'พิมพ์ข้อความทดสอบสำเร็จ',
+          };
+        } catch (error) {
+          console.error(`${LOG_PREFIX} SelfTest(Raw): Failed`, error);
+          const mapped = mapPrintError(error);
+          return {
+            success: false,
+            message: mapped.message || 'พิมพ์ข้อความทดสอบไม่สำเร็จ',
+            errorCode: mapped.code || null,
+          };
+        }
+      };
+
+      const runImageSelfTest = async (printerName) => {
+        const imageDataUrl = buildSelfTestImageDataUrl();
+        const base64Body = imageDataUrl.includes(',')
+          ? imageDataUrl.slice(imageDataUrl.indexOf(',') + 1)
+          : imageDataUrl;
+        try {
+          await printPng(base64Body, printerName);
+          console.log(`${LOG_PREFIX} SelfTest(Image): Success`);
+          return {
+            success: true,
+            message: 'พิมพ์ภาพทดสอบสำเร็จ',
+          };
+        } catch (error) {
+          console.error(`${LOG_PREFIX} SelfTest(Image): Failed`, error);
+          const mapped = mapPrintError(error);
+          return {
+            success: false,
+            message: mapped.message || 'พิมพ์ภาพทดสอบไม่สำเร็จ',
+            errorCode: mapped.code || null,
+          };
+        }
+      };
+
+      const selfTest = async (printerName = null, options = {}) => {
         const summary = {
           version: null,
           isActive: false,
@@ -1285,12 +1480,31 @@
           printersCount: null,
         };
 
+        const tests = {
+          rawTest: {
+            success: false,
+            message: options.runPrints === true
+              ? 'กำลังเตรียมการทดสอบ...'
+              : 'ยังไม่ได้ทดสอบ (ไม่ได้ร้องขอ)',
+            skipped: options.runPrints === true ? false : true,
+          },
+          imageTest: {
+            success: false,
+            message: options.runPrints === true
+              ? 'กำลังเตรียมการทดสอบ...'
+              : 'ยังไม่ได้ทดสอบ (ไม่ได้ร้องขอ)',
+            skipped: options.runPrints === true ? false : true,
+          },
+        };
+
+        let resolvedPrinter = null;
+
         try {
           if (connectPromise) {
             try {
               await connectPromise;
             } catch (_) {
-              // ignore, จะจัดการด้านล่าง
+              // ignore, handled later
             }
           }
 
@@ -1312,6 +1526,9 @@
               const mapped = mapConnectionError(error);
               summary.lastError = toSerializableError(mapped);
               summary.triedEndpoints = (lastConnectionReport.triedEndpoints || []).map((item) => ({ ...item }));
+              summary.rawTest = tests.rawTest;
+              summary.imageTest = tests.imageTest;
+              summary.printer = null;
               return summary;
             }
           }
@@ -1344,13 +1561,52 @@
             summary.lastError = { ...report.lastError };
           }
 
-          return summary;
+          if (options.runPrints === true) {
+            if (!summary.isActive) {
+              tests.rawTest = {
+                success: false,
+                message: 'ข้ามการทดสอบเพราะยังไม่เชื่อมต่อ QZ Tray',
+                skipped: true,
+              };
+              tests.imageTest = {
+                success: false,
+                message: 'ข้ามการทดสอบเพราะยังไม่เชื่อมต่อ QZ Tray',
+                skipped: true,
+              };
+            } else {
+              try {
+                resolvedPrinter = await resolvePrinterName(printerName);
+              } catch (error) {
+                const mapped = mapPrinterLookupError(printerName, error);
+                tests.rawTest = {
+                  success: false,
+                  message: mapped.message || 'ไม่พบเครื่องพิมพ์สำหรับทดสอบ',
+                  errorCode: mapped.code || null,
+                };
+                tests.imageTest = { ...tests.rawTest };
+                summary.rawTest = tests.rawTest;
+                summary.imageTest = tests.imageTest;
+                summary.printer = null;
+                return summary;
+              }
+
+              const config = createThermalConfig(resolvedPrinter);
+
+              tests.rawTest = await runRawSelfTest(config);
+              await delay(CUT_DELAY_MS);
+              tests.imageTest = await runImageSelfTest(resolvedPrinter);
+            }
+          }
         } catch (error) {
           const mapped = mapConnectionError(error);
           summary.lastError = toSerializableError(mapped);
           summary.triedEndpoints = (lastConnectionReport.triedEndpoints || []).map((item) => ({ ...item }));
-          return summary;
         }
+
+        summary.rawTest = tests.rawTest;
+        summary.imageTest = tests.imageTest;
+        summary.printer = resolvedPrinter;
+        return summary;
       };
 
       warnIfInsecureOrigin();
@@ -1369,7 +1625,9 @@
       window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
       window.mydentQzStatus = () => getStatus();
       window.mydentQzStatusDetail = () => buildStatusDetail();
-      window.mydentQzSelfTest = () => selfTest();
+      window.mydentQzSelfTest = (printerName, options) => (
+        selfTest(printerName || null, options || {})
+      );
       window.mydentQzEnsureWhitelist = () => attemptWhitelistRepair('manual');
       window.mydentQzSecurityStatus = () => buildStatusDetail();
       window.mydentQzOpenSiteManager = () => {

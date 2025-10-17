@@ -19,6 +19,7 @@ import '../services/image_saver_service.dart';
 import '../../../services/logo_cache_service.dart';
 import '../services/print_settings_service.dart';
 import '../services/web_print_service.dart';
+import 'png_postprocessor.dart';
 import 'qz_status_ui.dart';
 
 class ReceiptPreviewPage extends StatefulWidget {
@@ -172,7 +173,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     if (!forceRecapture &&
         _lastPng == null &&
         widget.debugPngOverride != null) {
-      _lastPng = widget.debugPngOverride;
+      _lastPng = await ThermalPngPostProcessor.process(
+        widget.debugPngOverride!,
+      );
       return _lastPng;
     }
 
@@ -185,11 +188,13 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     final ByteData? byteData = await image.toByteData(
       format: ui.ImageByteFormat.png,
     );
+    image.dispose();
     if (byteData == null) {
       return null;
     }
 
-    _lastPng = byteData.buffer.asUint8List();
+    final Uint8List rawBytes = byteData.buffer.asUint8List();
+    _lastPng = await ThermalPngPostProcessor.process(rawBytes);
     return _lastPng;
   }
 
@@ -404,7 +409,7 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       }
       await _performQzPrint(png);
     } on QzPrintException catch (error) {
-      _handleQzException(error);
+      await _handleQzException(error);
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -671,13 +676,64 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     );
   }
 
-  void _handleQzException(QzPrintException error) {
+  Future<void> _handleQzException(QzPrintException error) async {
     if (!mounted) return;
     if (error.code == 'qz_printer_not_found') {
-      _qzService.savePrinter(null);
-      setState(() => _savedQzPrinter = null);
+      await _handlePrinterNotFound(error);
+      return;
     }
     _showQzErrorSnackBar(error);
+  }
+
+  Future<void> _handlePrinterNotFound(QzPrintException error) async {
+    if (!mounted) return;
+    await _qzService.savePrinter(null);
+    if (mounted) {
+      setState(() => _savedQzPrinter = null);
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text(error.message)),
+    );
+    try {
+      final List<String> printers = await _qzService.listPrinters();
+      if (!mounted) return;
+      if (printers.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('QZ Tray ไม่รายงานเครื่องพิมพ์ โปรดตรวจสอบการเชื่อมต่อ'),
+          ),
+        );
+        return;
+      }
+      final _PrinterChoice? choice = await _pickPrinter(printers);
+      if (!mounted || choice == null || choice.printerName == null) {
+        _showQzErrorSnackBar(error);
+        return;
+      }
+      final String printer = choice.printerName!;
+      if (choice.remember) {
+        await _qzService.savePrinter(printer);
+        if (mounted) {
+          setState(() => _savedQzPrinter = printer);
+        }
+      } else {
+        await _qzService.savePrinter(null);
+        if (mounted) {
+          setState(() => _savedQzPrinter = null);
+        }
+      }
+      messenger.showSnackBar(
+        const SnackBar(content: Text('เลือกเครื่องพิมพ์ใหม่แล้ว โปรดลองพิมพ์อีกครั้ง')),
+      );
+    } on QzPrintException catch (err) {
+      _showQzErrorSnackBar(err);
+    } catch (err) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('เปิดตัวเลือกเครื่องพิมพ์ไม่สำเร็จ: $err')),
+      );
+    }
   }
 
   void _showQzErrorSnackBar(QzPrintException error) {
@@ -729,13 +785,20 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final report = await _qzService.diagnose();
-      final summary = _formatSelfTest(report);
+      final result =
+          await _qzService.runSelfTestWithPrints(printerName: _savedQzPrinter);
+      final String summary = _formatSelfTest(result.report);
+      final String raw = _formatSelfTestTask('RAW', result.raw);
+      final String image = _formatSelfTestTask('PNG', result.image);
+      final List<String> lines = <String>[summary, raw, image];
+      if (result.printerName != null && result.printerName!.isNotEmpty) {
+        lines.add('เครื่องพิมพ์ที่ใช้: ${result.printerName}');
+      }
       messenger.showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 8),
-          content: Text(summary),
+          duration: const Duration(seconds: 10),
+          content: Text(lines.join('\n')),
         ),
       );
     } on QzPrintException catch (error) {
@@ -759,6 +822,20 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       parts.add('ปัญหา: ${report.lastError!.code}');
     }
     return parts.join(' • ');
+  }
+
+  String _formatSelfTestTask(String label, QzSelfTestTaskResult result) {
+    final String message = result.message.trim();
+    if (result.skipped) {
+      return '$label: ข้าม${message.isEmpty ? '' : ' - $message'}';
+    }
+    final String status = result.success ? 'สำเร็จ' : 'ล้มเหลว';
+    final String codePart =
+        (result.errorCode == null || result.errorCode!.isEmpty)
+            ? ''
+            : ' (${result.errorCode})';
+    final String messagePart = message.isEmpty ? '' : ' - $message';
+    return '$label: $status$codePart$messagePart';
   }
 
   String _mapSelfTestStatus(QzSelfTestReport report) {

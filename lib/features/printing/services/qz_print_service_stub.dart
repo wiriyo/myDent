@@ -59,6 +59,14 @@ class QzPrintPlatform {
     ),
   );
 
+  Future<QzSelfTestRunResult> runSelfTestPrints({String? printerName}) =>
+      Future.error(
+        QzPrintException(
+          'qz_unsupported',
+          'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+        ),
+      );
+
   Future<void> ensureWhitelist() => Future.error(
     QzPrintException(
       'qz_unsupported',

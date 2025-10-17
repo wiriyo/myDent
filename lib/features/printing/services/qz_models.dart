@@ -111,3 +111,31 @@ class QzSelfTestReport {
   final QzPrintException? lastError;
   final List<QzEndpointAttempt> triedEndpoints;
 }
+
+class QzSelfTestTaskResult {
+  const QzSelfTestTaskResult({
+    required this.success,
+    required this.message,
+    this.errorCode,
+    this.skipped = false,
+  });
+
+  final bool success;
+  final String message;
+  final String? errorCode;
+  final bool skipped;
+}
+
+class QzSelfTestRunResult {
+  const QzSelfTestRunResult({
+    required this.report,
+    required this.raw,
+    required this.image,
+    this.printerName,
+  });
+
+  final QzSelfTestReport report;
+  final QzSelfTestTaskResult raw;
+  final QzSelfTestTaskResult image;
+  final String? printerName;
+}

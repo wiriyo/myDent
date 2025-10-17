@@ -88,6 +88,31 @@ class QzPrintPlatform {
     return _toSelfTestReport(result);
   });
 
+  Future<QzSelfTestRunResult> runSelfTestPrints({String? printerName}) =>
+      _guard(() async {
+        await _ensureLoaded();
+        final Object? result = await _invokePromise(
+          'mydentQzSelfTest',
+          <dynamic>[printerName, <String, Object?>{'runPrints': true}],
+        );
+        final QzSelfTestReport report = _toSelfTestReport(result);
+        final Map<String, Object?> data = _dartifyMap(result);
+        final QzSelfTestTaskResult raw = _toSelfTestTaskResult(data['rawTest']);
+        final QzSelfTestTaskResult image =
+            _toSelfTestTaskResult(data['imageTest']);
+        final String? printerRaw = data['printer']?.toString();
+        final String? printer =
+            (printerRaw == null || printerRaw.trim().isEmpty)
+                ? null
+                : printerRaw.trim();
+        return QzSelfTestRunResult(
+          report: report,
+          raw: raw,
+          image: image,
+          printerName: printer,
+        );
+      });
+
   Future<void> ensureWhitelist() => _guardBridge('mydentQzEnsureWhitelist');
 
   Future<bool> openSiteManager() async {
@@ -297,6 +322,26 @@ class QzPrintPlatform {
     );
   }
 
+  QzSelfTestTaskResult _toSelfTestTaskResult(Object? raw) {
+    final Map<String, Object?> data = _dartifyMap(raw);
+    final bool success = data['success'] == true;
+    final bool skipped = data['skipped'] == true;
+    final String? errorCodeRaw = data['errorCode']?.toString();
+    final String? messageRaw = data['message']?.toString();
+    final String message = (messageRaw == null || messageRaw.trim().isEmpty)
+        ? (success ? 'สำเร็จ' : 'ล้มเหลว')
+        : messageRaw.trim();
+    final String? errorCode = (errorCodeRaw == null || errorCodeRaw.trim().isEmpty)
+        ? null
+        : errorCodeRaw.trim();
+    return QzSelfTestTaskResult(
+      success: success,
+      message: message,
+      errorCode: errorCode,
+      skipped: skipped,
+    );
+  }
+
   List<QzEndpointAttempt> _parseEndpoints(Object? raw) {
     if (raw is Iterable) {
       return raw
@@ -404,15 +449,32 @@ class QzPrintPlatform {
       return error;
     }
 
-    final String code = _extractCode(error) ?? 'qz_unknown';
-    final String baseMessage =
+    String code = _extractCode(error) ?? 'qz_unknown';
+    String message =
         _extractMessage(error) ??
         _defaultMessageForCode(code, error.toString());
-    final String finalMessage =
-        _codesNeedingAdvice.contains(code)
-            ? _appendAdvice(baseMessage)
-            : baseMessage;
-    return QzPrintException(code, finalMessage, error);
+
+    final String normalized = message.toLowerCase();
+    if (normalized.contains('bad image')) {
+      code = 'qz_bad_image';
+      message = 'ไฟล์ภาพไม่ถูกต้อง/ใหญ่เกินไป (ควรกว้าง 576px)';
+    } else if (normalized.contains('printer not found')) {
+      code = 'qz_printer_not_found';
+      message = 'ไม่พบเครื่องพิมพ์ที่เลือก';
+    } else if (normalized.contains('unknown type')) {
+      code = 'qz_invalid_payload';
+      message = 'รูปแบบข้อมูลไม่ถูกต้อง type ต้องเป็น image';
+    }
+
+    if (message.trim().isEmpty) {
+      message = _defaultMessageForCode(code, error.toString());
+    }
+
+    if (_codesNeedingAdvice.contains(code)) {
+      message = _appendAdvice(message);
+    }
+
+    return QzPrintException(code, message, error);
   }
 
   String? _extractCode(Object? error) {
@@ -556,9 +618,13 @@ String _defaultMessageForCode(String code, String fallback) {
     case 'qz_not_running':
       return "กรุณาเปิด QZ Tray ก่อนใช้งาน หรือคลิก 'เปิด QZ Tray' แล้วลองใหม่";
     case 'qz_printer_not_found':
-      return 'ไม่พบเครื่องพิมพ์ที่เลือกใน QZ Tray';
+      return 'ไม่พบเครื่องพิมพ์ที่เลือก';
     case 'qz_mixed_content':
       return 'หน้าเว็บนี้ทำงานผ่าน HTTPS จำเป็นต้องเชื่อมต่อ QZ Tray ผ่าน wss:// เท่านั้น';
+    case 'qz_bad_image':
+      return 'ไฟล์ภาพไม่ถูกต้อง/ใหญ่เกินไป (ควรกว้าง 576px)';
+    case 'qz_invalid_payload':
+      return 'รูปแบบข้อมูลไม่ถูกต้อง type ต้องเป็น image';
     default:
       return fallback.isNotEmpty
           ? fallback

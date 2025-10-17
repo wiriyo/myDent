@@ -98,10 +98,9 @@ class QzPrintService {
         );
       }
       return snapshot;
+    } on QzPrintException {
+      rethrow;
     } catch (error) {
-      if (error is QzPrintException) {
-        throw error;
-      }
       throw QzPrintException(
         'qz_security_check_failed',
         'ตรวจสอบสถานะความปลอดภัยของ QZ Tray ไม่สำเร็จ',

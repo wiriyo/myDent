@@ -9,6 +9,13 @@ class QzPrintPlatform {
   Future<QzStatusSnapshot> readStatus() =>
       Future<QzStatusSnapshot>.value(const QzStatusSnapshot.inactive());
 
+  Future<QzStatusSnapshot> refreshSecurityStatus() => Future.error(
+        QzPrintException(
+          'qz_unsupported',
+          'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+        ),
+      );
+
   Future<void> ensureReady() => Future.error(
     QzPrintException(
       'qz_unsupported',
@@ -46,6 +53,20 @@ class QzPrintPlatform {
   );
 
   Future<QzSelfTestReport> diagnose() => Future.error(
+    QzPrintException(
+      'qz_unsupported',
+      'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+    ),
+  );
+
+  Future<void> ensureWhitelist() => Future.error(
+    QzPrintException(
+      'qz_unsupported',
+      'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+    ),
+  );
+
+  Future<bool> openSiteManager() => Future<bool>.error(
     QzPrintException(
       'qz_unsupported',
       'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',

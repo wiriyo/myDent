@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
+
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
@@ -168,6 +170,7 @@ class QzPrintPlatform {
   }
 
   QzStatusSnapshot _snapshotFromEvent(web.Event event) {
+    // ignore: invalid_runtime_check_with_js_interop_types
     if (event is web.CustomEvent) {
       final JSAny? detail = event.detail;
       final Object? data = detail?.dartify();

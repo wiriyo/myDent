@@ -117,9 +117,17 @@
       const SELF_TEST_TIMEOUT_MS = 2200;
       const QZ_LOAD_TIMEOUT_MS = 3000;
       const QZ_LOAD_POLL_INTERVAL_MS = 100;
-      const CUT_CMD_FULL_HEX = '1d5600'; // ESC/POS full cut (GS V 0). TODO: รองรับ half cut (1d5645) ภายหลัง
-      const FEED_CMD_SMALL_HEX = '1b6402'; // ESC d 2 (feed 2 lines)
+      const CUT_CMD_FULL_HEX = '1d5600'; // ESC/POS full cut (GS V 0)
+      const CUT_CMD_PARTIAL_HEX = '1d564200'; // ESC/POS partial cut (GS V 66 0)
+      const FEED_CMD_SMALL_HEX = '1b6403'; // ESC d 3 (feed 3 lines)
       const CUT_DELAY_MS = 250;
+      const TARGET_IMAGE_WIDTH = 576;
+      const MAX_IMAGE_HEIGHT = 3000;
+      const MAX_IMAGE_BASE64_LENGTH = 300000;
+      const MIN_IMAGE_SCALE = 0.2;
+      const IMAGE_SCALE_RELATIVE_FLOOR = 0.5;
+      const IMAGE_BAND_HEIGHT = 240;
+      const ESC_POS_MAX_BAND_ROWS = 256;
 
       let ensureLoadedPromise = null;
       let connectPromise = null;
@@ -1034,6 +1042,7 @@
               updateSecurityState({ trusted: true });
               logSecuritySummary();
               await verifyRemoteCertificateChain();
+              console.log(`${LOG_PREFIX} Connection: Ready`);
               successEndpoint = endpoint;
               triedEndpoints.push({
                 url: endpoint.url,
@@ -1236,10 +1245,29 @@
           );
         }
         if (message.includes('bad image')) {
-          return createError('qz_bad_image', 'bad image data', error);
+          return createError(
+            'qz_bad_image',
+            'ไฟล์ภาพไม่ถูกต้อง/ใหญ่เกินไป (ควรกว้าง 576px)',
+            error,
+          );
         }
         if (message.includes('unknown type')) {
-          return createError('qz_invalid_payload', 'unknown type', error);
+          return createError(
+            'qz_invalid_payload',
+            'รูปแบบข้อมูลไม่ถูกต้อง (type ต้องเป็น image)',
+            error,
+          );
+        }
+        if (
+          message.includes('band too large')
+          || (message.includes('band') && message.includes('large'))
+          || message.includes('out of memory')
+        ) {
+          return createError(
+            'qz_band_too_large',
+            'แบ่งภาพเป็นแถบเล็กลง (≤256 แถวต่อครั้ง)',
+            error,
+          );
         }
         if (message.includes('printer not found')) {
           return createError('qz_printer_not_found', 'ไม่พบเครื่องพิมพ์ที่เลือกใน QZ Tray', error);
@@ -1258,33 +1286,11 @@
         return `data:image/png;base64,${trimmed}`;
       };
 
-      const makeOpaquePng = (dataUrl) => new Promise((resolve, reject) => {
+
+      const loadImageElement = (dataUrl) => new Promise((resolve, reject) => {
         try {
           const image = new Image();
-          image.onload = () => {
-            try {
-              const width = image.width;
-              const height = image.height;
-              if (!width || !height) {
-                reject(createError('qz_bad_image', 'bad image data'));
-                return;
-              }
-              const canvas = document.createElement('canvas');
-              canvas.width = width;
-              canvas.height = height;
-              const context = canvas.getContext('2d');
-              if (!context) {
-                reject(createError('qz_bad_image', 'bad image data'));
-                return;
-              }
-              context.fillStyle = '#ffffff';
-              context.fillRect(0, 0, canvas.width, canvas.height);
-              context.drawImage(image, 0, 0);
-              resolve(canvas.toDataURL('image/png'));
-            } catch (err) {
-              reject(createError('qz_bad_image', 'bad image data', err));
-            }
-          };
+          image.onload = () => resolve(image);
           image.onerror = (event) => {
             const original = event?.error || event;
             reject(createError('qz_bad_image', 'bad image data', original));
@@ -1295,44 +1301,311 @@
         }
       });
 
-      const DEFAULT_THERMAL_OPTIONS = Object.freeze({
-        jobName: 'MyDent Thermal Slip',
-        copies: 1,
-        rasterize: true,
-        scaleContent: false,
-        density: 203,
-        altPrinting: true,
-        colorType: 'grayscale',
-      });
-
-      const createThermalConfig = (printer, overrides = {}) => {
-        const options = {
-          ...DEFAULT_THERMAL_OPTIONS,
-          ...(overrides || {}),
+      const renderThermalCanvas = (image, scale) => {
+        const scaledWidth = Math.max(1, Math.round(image.width * scale));
+        const scaledHeight = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = TARGET_IMAGE_WIDTH;
+        canvas.height = Math.max(1, Math.min(MAX_IMAGE_HEIGHT, scaledHeight));
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) {
+          throw createError('qz_bad_image', 'bad image data');
+        }
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        if (typeof context.imageSmoothingEnabled !== 'undefined') {
+          context.imageSmoothingEnabled = false;
+        }
+        if (typeof context.imageSmoothingQuality !== 'undefined') {
+          context.imageSmoothingQuality = 'low';
+        }
+        const drawWidth = Math.min(scaledWidth, canvas.width);
+        const drawHeight = Math.min(scaledHeight, canvas.height);
+        const offsetX = Math.max(0, Math.floor((canvas.width - drawWidth) / 2));
+        context.drawImage(
+          image,
+          0,
+          0,
+          image.width,
+          image.height,
+          offsetX,
+          0,
+          drawWidth,
+          drawHeight,
+        );
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64Body = dataUrl.includes(',')
+          ? dataUrl.slice(dataUrl.indexOf(',') + 1)
+          : dataUrl;
+        return {
+          canvas,
+          width: canvas.width,
+          height: canvas.height,
+          contentWidth: drawWidth,
+          contentHeight: drawHeight,
+          dataUrl,
+          base64Body,
+          base64Length: base64Body.length,
+          hasDataUrlPrefix: dataUrl.startsWith('data:image/png;base64,'),
         };
-        return qz.configs.create(printer, options);
       };
 
-      const logPrintDebug = (printer, base64Length) => {
-        console.debug(`${LOG_PREFIX} Print job`, {
-          printer: printer || '(default)',
-          base64Length,
-          configOptions: { ...DEFAULT_THERMAL_OPTIONS },
-        });
-      };
-
-      const buildCutPayload = () => ({
-        type: 'raw',
-        format: 'hex',
-        data: `${FEED_CMD_SMALL_HEX}${CUT_CMD_FULL_HEX}`,
-      });
-
-      const createOpaquePngDataUrl = async (base64Input) => {
+      const prepareThermalImage = async (base64Input) => {
         const dataUrl = ensureDataUrl(base64Input);
         if (!dataUrl) {
           throw createError('qz_bad_image', 'bad image data');
         }
-        return makeOpaquePng(dataUrl);
+        const image = await loadImageElement(dataUrl);
+        const width = Math.max(1, image.width);
+        const height = Math.max(1, image.height);
+        if (!width || !height) {
+          throw createError('qz_bad_image', 'bad image data');
+        }
+
+        let scale = TARGET_IMAGE_WIDTH / width;
+        if (!Number.isFinite(scale) || scale <= 0) {
+          scale = 1;
+        }
+        if (height * scale > MAX_IMAGE_HEIGHT) {
+          scale = MAX_IMAGE_HEIGHT / height;
+        }
+
+        let currentScale = scale;
+        let minScale = scale * IMAGE_SCALE_RELATIVE_FLOOR;
+        if (minScale < MIN_IMAGE_SCALE) {
+          minScale = MIN_IMAGE_SCALE;
+        }
+        if (minScale > scale) {
+          minScale = scale;
+        }
+        let lastRender = null;
+
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          lastRender = renderThermalCanvas(image, currentScale);
+          if (
+            lastRender.base64Length <= MAX_IMAGE_BASE64_LENGTH
+            || currentScale <= minScale
+          ) {
+            return { ...lastRender, scale: currentScale };
+          }
+          const nextScale = currentScale * 0.92;
+          currentScale = nextScale <= minScale ? minScale : nextScale;
+        }
+
+        return { ...lastRender, scale: currentScale };
+      };
+
+      const sliceCanvasToBands = (canvas) => {
+        const width = canvas.width;
+        const height = canvas.height;
+        if (height <= IMAGE_BAND_HEIGHT) {
+          return [
+            {
+              dataUrl: canvas.toDataURL('image/png'),
+              height,
+            },
+          ];
+        }
+
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) {
+          throw createError('qz_bad_image', 'bad image data');
+        }
+        const fullImage = context.getImageData(0, 0, width, height);
+        const bands = [];
+
+        for (let y = 0; y < height; y += IMAGE_BAND_HEIGHT) {
+          const bandHeight = Math.min(IMAGE_BAND_HEIGHT, height - y);
+          const bandCanvas = document.createElement('canvas');
+          bandCanvas.width = width;
+          bandCanvas.height = bandHeight;
+          const bandContext = bandCanvas.getContext('2d');
+          if (!bandContext) {
+            throw createError('qz_bad_image', 'bad image data');
+          }
+          bandContext.putImageData(fullImage, 0, -y);
+          bands.push({
+            dataUrl: bandCanvas.toDataURL('image/png'),
+            height: bandHeight,
+          });
+        }
+
+        return bands;
+      };
+
+      const buildImagePayloads = (prepared) => {
+        const bands = sliceCanvasToBands(prepared.canvas);
+        const payloads = bands.map((band) => ({
+          type: 'image',
+          data: band.dataUrl,
+        }));
+        return {
+          payloads,
+          bandCount: payloads.length,
+        };
+      };
+
+      const toHex = (buffer) => Array.from(buffer)
+        .map((value) => value.toString(16).padStart(2, '0'))
+        .join('');
+
+      const buildEscPosRasterPayloads = (prepared) => {
+        const width = prepared.width;
+        const height = prepared.height;
+        const context = prepared.canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) {
+          throw createError('qz_bad_image', 'bad image data');
+        }
+        const imageData = context.getImageData(0, 0, width, height);
+        const totalPixels = width * height;
+        const grayscale = new Float64Array(totalPixels);
+
+        for (let i = 0; i < totalPixels; i += 1) {
+          const offset = i * 4;
+          const r = imageData.data[offset];
+          const g = imageData.data[offset + 1];
+          const b = imageData.data[offset + 2];
+          grayscale[i] = (0.299 * r) + (0.587 * g) + (0.114 * b);
+        }
+
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const index = y * width + x;
+            const oldPixel = grayscale[index];
+            const newPixel = oldPixel < 128 ? 0 : 255;
+            const error = oldPixel - newPixel;
+            grayscale[index] = newPixel;
+            if (x + 1 < width) {
+              grayscale[index + 1] += error * (7 / 16);
+            }
+            if (y + 1 < height) {
+              if (x > 0) {
+                grayscale[index + width - 1] += error * (3 / 16);
+              }
+              grayscale[index + width] += error * (5 / 16);
+              if (x + 1 < width) {
+                grayscale[index + width + 1] += error * (1 / 16);
+              }
+            }
+          }
+        }
+
+        const widthBytes = Math.ceil(width / 8);
+        const payloads = [];
+
+        for (let y = 0; y < height; y += ESC_POS_MAX_BAND_ROWS) {
+          const rows = Math.min(ESC_POS_MAX_BAND_ROWS, height - y);
+          const band = new Uint8Array(widthBytes * rows);
+
+          for (let row = 0; row < rows; row += 1) {
+            for (let col = 0; col < widthBytes; col += 1) {
+              let byte = 0;
+              for (let bit = 0; bit < 8; bit += 1) {
+                const pixelX = col * 8 + bit;
+                if (pixelX >= width) {
+                  continue;
+                }
+                const pixelIndex = (y + row) * width + pixelX;
+                if (grayscale[pixelIndex] < 128) {
+                  byte |= 0x80 >> bit;
+                }
+              }
+              band[row * widthBytes + col] = byte;
+            }
+          }
+
+          const header = new Uint8Array(8 + band.length);
+          header[0] = 0x1d;
+          header[1] = 0x76;
+          header[2] = 0x30;
+          header[3] = 0x00;
+          header[4] = widthBytes & 0xff;
+          header[5] = (widthBytes >> 8) & 0xff;
+          header[6] = rows & 0xff;
+          header[7] = (rows >> 8) & 0xff;
+          header.set(band, 8);
+
+          payloads.push({
+            type: 'raw',
+            format: 'hex',
+            data: toHex(header),
+          });
+        }
+
+        return payloads;
+      };
+
+      const printImagePayloads = async (printer, payloads) => {
+        let lastError = null;
+        const attempts = [
+          { altPrinting: false, label: 'primary' },
+          { altPrinting: true, label: 'altPrinting' },
+        ];
+
+        for (let index = 0; index < attempts.length; index += 1) {
+          const attempt = attempts[index];
+          const config = createThermalConfig(printer, { altPrinting: attempt.altPrinting });
+          try {
+            await qz.print(config, payloads);
+            log(
+              'info',
+              `สั่งพิมพ์ผ่าน QZ Tray สำเร็จ${printer ? ` (printer: ${printer})` : ''}${attempt.altPrinting ? ' [altPrinting]' : ''}`,
+            );
+            console.log(`${LOG_PREFIX} Print(Image): Success${attempt.altPrinting ? ' (altPrinting)' : ''}`);
+            return { config, altPrinting: attempt.altPrinting };
+          } catch (error) {
+            console.error(`${LOG_PREFIX} Print(Image): Failed${attempt.altPrinting ? ' (altPrinting)' : ''}`, error);
+            lastError = error;
+          }
+        }
+
+        throw lastError || createError('qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ');
+      };
+
+      const printEscPosRaster = async (printer, prepared) => {
+        const payloads = buildEscPosRasterPayloads(prepared);
+        const config = createThermalConfig(printer, { rasterize: false, altPrinting: false });
+        await qz.print(config, payloads);
+        console.log(`${LOG_PREFIX} Print(RawRaster): Success`);
+        return { config, payloads };
+      };
+
+      const buildFeedPayload = () => ({
+        type: 'raw',
+        format: 'hex',
+        data: FEED_CMD_SMALL_HEX,
+      });
+
+      const buildFullCutPayload = () => ({
+        type: 'raw',
+        format: 'hex',
+        data: CUT_CMD_FULL_HEX,
+      });
+
+      const buildPartialCutPayload = () => ({
+        type: 'raw',
+        format: 'hex',
+        data: CUT_CMD_PARTIAL_HEX,
+      });
+
+      const performCut = async (printer) => {
+        const config = createThermalConfig(printer, { rasterize: false, altPrinting: false });
+        const feedPayload = buildFeedPayload();
+        const fullCutPayload = buildFullCutPayload();
+        const partialCutPayload = buildPartialCutPayload();
+        try {
+          await qz.print(config, [feedPayload, fullCutPayload]);
+          console.log(`${LOG_PREFIX} Paper Cut: Success`);
+        } catch (error) {
+          console.warn(`${LOG_PREFIX} Paper Cut (full) failed, attempting partial`, error);
+          try {
+            await qz.print(config, [feedPayload, partialCutPayload]);
+            console.log(`${LOG_PREFIX} Paper Cut: Success`);
+          } catch (partialError) {
+            console.error(`${LOG_PREFIX} Paper Cut: Failed`, partialError);
+            throw partialError;
+          }
+        }
       };
 
       const printPng = async (base64Png, printerName) => {
@@ -1343,52 +1616,66 @@
         await ensureLoaded();
         await configureSecurityIfNeeded();
         await ensureConnected();
+        console.log(`${LOG_PREFIX} Connection: Ready`);
 
         const resolvedPrinter = await resolvePrinterName(printerName);
-        const config = createThermalConfig(resolvedPrinter);
 
-        let preparedDataUrl;
+        let prepared;
         try {
-          preparedDataUrl = await createOpaquePngDataUrl(base64Png);
+          prepared = await prepareThermalImage(base64Png);
         } catch (error) {
           throw mapPrintError(error);
         }
 
-        const base64Body = preparedDataUrl.includes(',')
-          ? preparedDataUrl.slice(preparedDataUrl.indexOf(',') + 1)
-          : preparedDataUrl;
-        logPrintDebug(resolvedPrinter, base64Body.length);
+        console.log(`${LOG_PREFIX} Prepared Image`, {
+          w: prepared.width,
+          h: prepared.height,
+          base64Length: prepared.base64Length,
+          hasDataUrlPrefix: prepared.hasDataUrlPrefix,
+        });
+
+        const { payloads, bandCount } = buildImagePayloads(prepared);
+        logPrintDebug(resolvedPrinter, {
+          width: prepared.width,
+          height: prepared.height,
+          base64Length: prepared.base64Length,
+          bandCount,
+        });
 
         try {
-          await qz.print(config, [
-            {
-              type: 'image',
-              data: preparedDataUrl,
-            },
-          ]);
-          log(
-            'info',
-            `สั่งพิมพ์ผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`,
-          );
-          console.log(`${LOG_PREFIX} Print(Image): Success`);
-        } catch (error) {
-          console.error(`${LOG_PREFIX} Print(Image): Failed`, error);
-          throw mapPrintError(error);
+          await printImagePayloads(resolvedPrinter, payloads);
+        } catch (imageError) {
+          const mapped = mapPrintError(imageError);
+          console.warn(`${LOG_PREFIX} Print(Image) failed, trying ESC/POS raster fallback`, mapped);
+          try {
+            await printEscPosRaster(resolvedPrinter, prepared);
+            log(
+              'info',
+              `สั่งพิมพ์ผ่าน ESC/POS RAW สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`,
+            );
+          } catch (rawError) {
+            console.error(`${LOG_PREFIX} Print(RawRaster): Failed`, rawError);
+            throw mapPrintError(rawError);
+          }
+          await delay(CUT_DELAY_MS);
+          try {
+            await performCut(resolvedPrinter);
+          } catch (cutError) {
+            throw mapPrintError(cutError);
+          }
+          return { printer: resolvedPrinter };
         }
 
         await delay(CUT_DELAY_MS);
 
         try {
-          await qz.print(config, [buildCutPayload()]);
-          console.log(`${LOG_PREFIX} Paper Cut: Success`);
+          await performCut(resolvedPrinter);
         } catch (error) {
-          console.error(`${LOG_PREFIX} Paper Cut: Failed`, error);
           throw mapPrintError(error);
         }
 
         return { printer: resolvedPrinter };
       };
-
       let cachedSelfTestImage = null;
 
       const buildSelfTestImageDataUrl = () => {
@@ -1396,7 +1683,7 @@
           return cachedSelfTestImage;
         }
         const canvas = document.createElement('canvas');
-        canvas.width = 576;
+        canvas.width = TARGET_IMAGE_WIDTH;
         canvas.height = 240;
         const context = canvas.getContext('2d');
         if (!context) {
@@ -1421,17 +1708,18 @@
         return cachedSelfTestImage;
       };
 
-      const runRawSelfTest = async (config) => {
-        const payload = [
-          {
-            type: 'raw',
-            format: 'plain',
-            data: 'Hello MyDent\n',
-          },
-          buildCutPayload(),
-        ];
+      const runRawSelfTest = async (printerName) => {
         try {
-          await qz.print(config, payload);
+          const config = createThermalConfig(printerName, { rasterize: false, altPrinting: false });
+          await qz.print(config, [
+            {
+              type: 'raw',
+              format: 'plain',
+              data: 'Hello MyDent\n',
+            },
+          ]);
+          await delay(CUT_DELAY_MS);
+          await performCut(printerName);
           console.log(`${LOG_PREFIX} SelfTest(Raw): Success`);
           return {
             success: true,
@@ -1448,30 +1736,92 @@
         }
       };
 
-      const runImageSelfTest = async (printerName) => {
+      const runImageSelfTest      const runImageSelfTest = async (printerName) => {
+        const now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function'
+          ? performance.now()
+          : Date.now());
         const imageDataUrl = buildSelfTestImageDataUrl();
         const base64Body = imageDataUrl.includes(',')
           ? imageDataUrl.slice(imageDataUrl.indexOf(',') + 1)
           : imageDataUrl;
+
+        let prepared;
         try {
-          await printPng(base64Body, printerName);
-          console.log(`${LOG_PREFIX} SelfTest(Image): Success`);
-          return {
-            success: true,
-            message: 'พิมพ์ภาพทดสอบสำเร็จ',
-          };
+          prepared = await prepareThermalImage(base64Body);
         } catch (error) {
-          console.error(`${LOG_PREFIX} SelfTest(Image): Failed`, error);
           const mapped = mapPrintError(error);
+          console.error(`${LOG_PREFIX} SelfTest(Image): Failed during preparation`, error);
           return {
             success: false,
-            message: mapped.message || 'พิมพ์ภาพทดสอบไม่สำเร็จ',
+            message: mapped.message || 'เตรียมภาพทดสอบไม่สำเร็จ',
             errorCode: mapped.code || null,
           };
         }
+
+        console.log(`${LOG_PREFIX} Prepared SelfTest Image`, {
+          w: prepared.width,
+          h: prepared.height,
+          base64Length: prepared.base64Length,
+          hasDataUrlPrefix: prepared.hasDataUrlPrefix,
+        });
+
+        const { payloads, bandCount } = buildImagePayloads(prepared);
+        logPrintDebug(printerName, {
+          width: prepared.width,
+          height: prepared.height,
+          base64Length: prepared.base64Length,
+          bandCount,
+        });
+
+        const details = [];
+        let imageErrorMapped = null;
+        let rawErrorMapped = null;
+
+        const imageStart = now();
+        try {
+          await printImagePayloads(printerName, payloads);
+          const duration = Math.round(now() - imageStart);
+          await delay(CUT_DELAY_MS);
+          await performCut(printerName);
+          details.push(`type:image สำเร็จ (${duration} ms, bands: ${bandCount})`);
+        } catch (error) {
+          const duration = Math.round(now() - imageStart);
+          imageErrorMapped = mapPrintError(error);
+          details.push(`type:image ล้มเหลว (${duration} ms, bands: ${bandCount}) - ${imageErrorMapped.message}`);
+        }
+
+        await delay(CUT_DELAY_MS);
+
+        const rawStart = now();
+        try {
+          await printEscPosRaster(printerName, prepared);
+          const duration = Math.round(now() - rawStart);
+          await delay(CUT_DELAY_MS);
+          await performCut(printerName);
+          details.push(`ESC/POS สำเร็จ (${duration} ms)`);
+        } catch (error) {
+          const duration = Math.round(now() - rawStart);
+          rawErrorMapped = mapPrintError(error);
+          details.push(`ESC/POS ล้มเหลว (${duration} ms) - ${rawErrorMapped.message}`);
+        }
+
+        const success = !imageErrorMapped && !rawErrorMapped;
+        const message = details.join('\n');
+
+        if (success) {
+          console.log(`${LOG_PREFIX} SelfTest(Image): Success`);
+        } else {
+          console.error(`${LOG_PREFIX} SelfTest(Image): Failed`, { message });
+        }
+
+        return {
+          success,
+          message,
+          errorCode: imageErrorMapped?.code || rawErrorMapped?.code || null,
+        };
       };
 
-      const selfTest = async (printerName = null, options = {}) => {
+      const selfTest = async      const selfTest = async (printerName = null, options = {}) => {
         const summary = {
           version: null,
           isActive: false,
@@ -1590,9 +1940,7 @@
                 return summary;
               }
 
-              const config = createThermalConfig(resolvedPrinter);
-
-              tests.rawTest = await runRawSelfTest(config);
+              tests.rawTest = await runRawSelfTest(resolvedPrinter);
               await delay(CUT_DELAY_MS);
               tests.imageTest = await runImageSelfTest(resolvedPrinter);
             }

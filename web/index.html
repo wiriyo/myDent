@@ -193,6 +193,7 @@
       const CUT_CMD_PARTIAL_HEX = '1d564200'; // ESC/POS partial cut (GS V 66 0)
       const FEED_CMD_SMALL_HEX = '1b6403'; // ESC d 3 (feed 3 lines)
       const CUT_DELAY_MS = 250;
+      const IMAGE_PRINTING_ENABLED = false;
       const TARGET_IMAGE_WIDTH = 576;
       const MAX_IMAGE_HEIGHT = 3000;
       const MAX_IMAGE_BASE64_LENGTH = 300000;
@@ -223,6 +224,7 @@
       let handlersAttached = false;
       let connectionState = 'inactive';
       let bridgeReadyLogged = false;
+      let dependencySnapshotLogged = false;
       let connectionReadyLogged = false;
       let launchIframe = null;
       let lastConnectionReport = {
@@ -718,6 +720,46 @@
         handlersAttached = true;
       };
 
+      const snapshotDependencyStatus = () => ({
+        qzObject: typeof window.qz !== 'undefined',
+        websocket: typeof window.qz?.websocket !== 'undefined',
+        jsrsasign: {
+          KJUR: typeof window.KJUR !== 'undefined',
+          KEYUTIL: typeof window.KEYUTIL !== 'undefined',
+        },
+        loadPromise: typeof window.__mydentLoadQzPromise !== 'undefined',
+      });
+
+      const logDependencySnapshot = () => {
+        if (dependencySnapshotLogged) {
+          return;
+        }
+        dependencySnapshotLogged = true;
+        const snapshot = snapshotDependencyStatus();
+        console.log(`${LOG_PREFIX} Dependency snapshot`, snapshot);
+        const scripts = listDependencyScripts();
+        console.log(`${LOG_PREFIX} Dependency scripts`, scripts);
+      };
+
+      const checkDependencyStatus = async () => {
+        const snapshot = snapshotDependencyStatus();
+
+        if (snapshot.qzObject && typeof qz?.api?.getVersion === 'function') {
+          try {
+            snapshot.version = await qz.api.getVersion();
+          } catch (error) {
+            snapshot.versionError = toSerializableError(mapConnectionError(error));
+          }
+        }
+
+        return snapshot;
+      };
+
+      const listDependencyScripts = () => Array
+        .from(document.querySelectorAll('script[src]'))
+        .map((node) => node.getAttribute('src'))
+        .filter((src) => !!src && (src.includes('qz') || src.includes('jsrsasign')));
+
       const ensureLoaded = () => {
         if (window.qz && qz.websocket) {
           ensureQzAvailable();
@@ -726,6 +768,7 @@
             bridgeReadyLogged = true;
             log('info', 'Bridge: Ready');
           }
+          logDependencySnapshot();
           return Promise.resolve();
         }
 
@@ -745,6 +788,7 @@
                 bridgeReadyLogged = true;
                 log('info', 'Bridge: Ready');
               }
+              logDependencySnapshot();
               resolve();
               return;
             }
@@ -1730,7 +1774,74 @@
         }
       };
 
+      const printTextJob = async (printerName, lines, options = {}) => {
+        const settings = {
+          feed: options.feed !== false,
+          cut: options.cut !== false,
+          appendNewline: options.appendNewline !== false,
+        };
+
+        const normalizedLines = Array.isArray(lines) ? lines : [lines];
+        const printable = normalizedLines
+          .map((line) => (typeof line === 'string' ? line : String(line ?? '')))
+          .join('\n');
+
+        if (!printable.trim()) {
+          throw createError('qz_invalid_payload', 'ไม่มีข้อความสำหรับการพิมพ์');
+        }
+
+        await ensureLoaded();
+        await configureSecurityIfNeeded();
+        await ensureConnected();
+
+        const resolvedPrinter = await resolvePrinterName(printerName);
+        const config = createThermalConfig(resolvedPrinter, { rasterize: false, altPrinting: false });
+        const payloads = [
+          {
+            type: 'raw',
+            format: 'plain',
+            data: settings.appendNewline ? `${printable}\n` : printable,
+          },
+        ];
+
+        if (settings.feed) {
+          payloads.push(buildFeedPayload());
+        }
+
+        await qz.print(config, payloads);
+        console.log(`${LOG_PREFIX} Print(Text): Success`);
+        log(
+          'info',
+          `สั่งพิมพ์ข้อความผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`,
+        );
+
+        if (settings.cut) {
+          await delay(CUT_DELAY_MS);
+          await performCut(resolvedPrinter);
+        }
+
+        return {
+          printer: resolvedPrinter,
+          payloadType: 'text',
+          config,
+        };
+      };
+
       const printPng = async (base64Png, printerName) => {
+        if (!IMAGE_PRINTING_ENABLED) {
+          const timestamp = new Date().toLocaleString('th-TH');
+          const lines = [
+            '*** MyDent Thermal Print (Text only) ***',
+            'การพิมพ์ภาพถูกปิดใช้งานชั่วคราวสำหรับการทดสอบ',
+            `ร้องขอเมื่อ: ${timestamp}`,
+            '',
+          ];
+          const result = await printTextJob(printerName, lines);
+          log('warn', 'ปิดการพิมพ์ภาพชั่วคราว ส่งงานข้อความแทน');
+          result.fallback = 'text-only';
+          return result;
+        }
+
         if (!base64Png) {
           throw createError('qz_invalid_payload', 'ข้อมูล PNG ไม่ถูกต้องหรือว่างเปล่า');
         }
@@ -1832,16 +1943,13 @@
 
       const runRawSelfTest = async (printerName) => {
         try {
-          const config = createThermalConfig(printerName, { rasterize: false, altPrinting: false });
-          await qz.print(config, [
-            {
-              type: 'raw',
-              format: 'plain',
-              data: 'Hello MyDent\n',
-            },
+          const timestamp = new Date().toLocaleString('th-TH');
+          await printTextJob(printerName, [
+            'Hello MyDent',
+            'พิมพ์ทดสอบผ่าน QZ Tray (ข้อความ)',
+            `เวลา ${timestamp}`,
+            '',
           ]);
-          await delay(CUT_DELAY_MS);
-          await performCut(printerName);
           console.log(`${LOG_PREFIX} SelfTest(Raw): Success`);
           return {
             success: true,
@@ -1859,6 +1967,15 @@
       };
 
       const runImageSelfTest = async (printerName) => {
+        if (!IMAGE_PRINTING_ENABLED) {
+          const timestamp = new Date().toLocaleString('th-TH');
+          return {
+            success: false,
+            message: `ข้ามการทดสอบภาพ (ปิดใช้งานชั่วคราวเมื่อ ${timestamp})`,
+            skipped: true,
+          };
+        }
+
         const now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function'
           ? performance.now()
           : Date.now());
@@ -2063,7 +2180,9 @@
               }
 
               tests.rawTest = await runRawSelfTest(resolvedPrinter);
-              await delay(CUT_DELAY_MS);
+              if (IMAGE_PRINTING_ENABLED) {
+                await delay(CUT_DELAY_MS);
+              }
               tests.imageTest = await runImageSelfTest(resolvedPrinter);
             }
           }
@@ -2093,6 +2212,9 @@
       window.mydentQzConnect = (options) => ensureConnected(options || {});
       window.mydentQzListPrinters = () => listPrinters();
       window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
+      window.mydentQzPrintText = (textOrLines, printerName, options) => (
+        printTextJob(printerName || null, textOrLines, options || {})
+      );
       window.mydentQzCut = (printerName) => (async () => {
         await ensureLoaded();
         await ensureConnected();
@@ -2113,6 +2235,11 @@
           log('warn', 'เปิด QZ Tray Site Manager ไม่สำเร็จ', error);
           return false;
         }
+      };
+      window.mydentQzDiagnostics = {
+        snapshot: () => snapshotDependencyStatus(),
+        checkDependencies: () => checkDependencyStatus(),
+        listScripts: () => listDependencyScripts(),
       };
       window.mydentQzSecurityHint = (origin) => {
         const currentOrigin = origin || window.location.origin;

@@ -370,6 +370,18 @@
         }
       };
 
+      const logPrintDebug = (printerName, details) => {
+        const info = {
+          printer: printerName || '(default)',
+          ...(details || {}),
+        };
+        try {
+          console.debug(`${LOG_PREFIX} PrintDebug`, info);
+        } catch (err) {
+          console.debug(`${LOG_PREFIX} PrintDebug`, printerName, details);
+        }
+      };
+
       const fetchTextAsset = async (path) => {
         const normalized = String(path || '').trim();
         if (!normalized) {
@@ -380,6 +392,12 @@
           throw new Error(`โหลด asset ไม่สำเร็จ (${normalized}): ${response.status}`);
         }
         return response.text();
+      };
+
+      const extractPemBlock = (input) => {
+        const raw = String(input || '');
+        const match = raw.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/);
+        return (match ? match[0] : raw).trim();
       };
 
       const loadDevCredentials = async () => {
@@ -394,7 +412,7 @@
           fetchTextAsset(DEV_CERTIFICATE_PATH),
           fetchTextAsset(DEV_PRIVATE_KEY_PATH),
         ]);
-        cachedDevCertificatePem = certificatePem.trim();
+        cachedDevCertificatePem = extractPemBlock(certificatePem);
         cachedDevPrivateKeyPem = privateKeyPem.trim();
         recordCertificateMeta(cachedDevCertificatePem);
         log('info', 'โหลด demo certificate/key สำหรับโหมดพัฒนาเรียบร้อย');
@@ -429,7 +447,7 @@
 
       const loadProductionCredentials = async () => {
         const config = window.mydentQzConfig || {};
-        const certificatePem = String(config.productionCertificatePem || config.certificatePem || '').trim();
+        const certificatePem = extractPemBlock(config.productionCertificatePem || config.certificatePem || '');
         if (!certificatePem) {
           throw new Error('Production certificate ไม่ได้ถูกกำหนด');
         }
@@ -454,6 +472,14 @@
 
       const loadSecurityMaterial = async () => {
         updateSecurityState({ environment: CURRENT_ENVIRONMENT });
+        try {
+          const pending = window.__mydentLoadQzPromise;
+          if (pending && typeof pending.then === 'function') {
+            await pending;
+          }
+        } catch (promiseError) {
+          log('warn', 'โหลดสคริปต์ QZ Tray ไม่ครบถ้วนก่อนตั้งค่า security', promiseError);
+        }
         if (IS_DEV) {
           return loadDevCredentials();
         }

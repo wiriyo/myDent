@@ -493,6 +493,14 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
   Future<void> _performQzPrint(Uint8List png) async {
     await _qzService.ensureReady();
     if (!mounted) return;
+    try {
+      await _qzService.ensureSecurityReady();
+    } on QzPrintException catch (error) {
+      final QzStatusSnapshot? snapshot =
+          error.original is QzStatusSnapshot ? error.original as QzStatusSnapshot : null;
+      await _showQzSecurityDialog(error, snapshot);
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     final List<String> printers = await _qzService.listPrinters();
     if (!mounted) return;
@@ -538,6 +546,97 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
     if (mounted) {
       messenger.showSnackBar(
         const SnackBar(content: Text('ส่งคำสั่งพิมพ์ไปยัง QZ Tray แล้ว')),
+      );
+    }
+  }
+
+  Future<void> _showQzSecurityDialog(
+    QzPrintException error,
+    QzStatusSnapshot? status,
+  ) async {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final bool certificateInvalid = status?.hasCertificateIssue ?? false;
+    final bool whitelistOk = status?.isWhitelisted ?? false;
+    final String? expiresAt = status?.certificateExpiresAt?.toLocal().toString();
+    final String certificateSummary = status?.certificateSubject != null
+        ? 'Subject: ${status!.certificateSubject}\nIssuer: ${status.certificateIssuer ?? '-'}'
+        : 'ไม่สามารถอ่านข้อมูลใบรับรองจาก QZ Tray ได้';
+    final List<Widget> contentWidgets = [
+      Text(
+        certificateInvalid
+            ? 'certificate ของ QZ Tray ไม่ถูกต้องหรือหมดอายุ'
+            : 'QZ Tray ยังไม่อนุญาตให้ไซต์นี้เชื่อมต่อ (Untrusted website).',
+      ),
+      const SizedBox(height: 12),
+      Text(certificateSummary),
+    ];
+    if (expiresAt != null) {
+      contentWidgets.addAll([
+        const SizedBox(height: 8),
+        Text('วันหมดอายุ: $expiresAt'),
+      ]);
+    }
+    contentWidgets.addAll([
+      const SizedBox(height: 12),
+      Text(
+        whitelistOk
+            ? 'QZ Tray รายงานว่า whitelist.txt ถูกใช้งานแล้ว โปรดลองรีสตาร์ทโปรแกรมหรือเปิด Site Manager เพื่อตรวจสอบล็อก “Using whitelist.txt”.'
+            : 'ระบบจะพยายามเพิ่ม localhost/127.0.0.1 ลงใน whitelist.txt ให้อัตโนมัติ แต่ยังต้องอนุญาตผ่าน Site Manager หากยังขึ้น Untrusted.',
+      ),
+    ]);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('QZ Tray ยังไม่อนุญาตไซต์นี้'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: contentWidgets,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('ปิด'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _qzService.ensureWhitelist();
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('พยายามอัปเดต whitelist.txt ผ่าน QZ Tray แล้ว โปรดรีสตาร์ทโปรแกรมก่อนพิมพ์อีกครั้ง'),
+                  ),
+                );
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('ซ่อม whitelist อัตโนมัติ'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final bool opened = await _qzService.openSiteManager();
+                if (!mounted) return;
+                if (!opened) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('เปิด QZ Tray Site Manager ไม่สำเร็จ')),
+                  );
+                }
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('เปิด QZ Tray Site Manager'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (certificateInvalid) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('กรุณารีเฟรช certificate จาก qz.io/latest-signing และรีสตาร์ท QZ Tray'),
+        ),
       );
     }
   }

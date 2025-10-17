@@ -43,78 +43,72 @@
       'use strict';
 
       const LOG_PREFIX = '[MyDent|QZ]';
-      // NOTE: Self-signed dev certificate generated from DEV_PRIVATE_KEY on 2025-10-17 (valid until 2030-10-16).
-      //       Replace with production certificate for real deployments.
-      const DEV_CERTIFICATE = `-----BEGIN CERTIFICATE-----
-MIID3zCCAsegAwIBAgIUSwAn0EX3JVnkb/X6ydDNxxfWHCEwDQYJKoZIhvcNAQEL
-BQAwfzELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAk5ZMRswGQYDVQQKDBJRWiBJbmR1
-c3RyaWVzLCBMTEMxDTALBgNVBAsMBERlbW8xGTAXBgNVBAMMEHF6aW5kdXN0cmll
-cy5jb20xHDAaBgkqhkiG9w0BCQEWDXN1cHBvcnRAcXouaW8wHhcNMjUxMDE3MDYw
-NDUyWhcNMzAxMDE2MDYwNDUyWjB/MQswCQYDVQQGEwJVUzELMAkGA1UECAwCTlkx
-GzAZBgNVBAoMElFaIEluZHVzdHJpZXMsIExMQzENMAsGA1UECwwERGVtbzEZMBcG
-A1UEAwwQcXppbmR1c3RyaWVzLmNvbTEcMBoGCSqGSIb3DQEJARYNc3VwcG9ydEBx
-ei5pbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALTP0V4zKewLz652
-9f4tyJnGeHm5GPgL1Lq0154CUgYJ9BiTTNRw0UKgKROSc1B39gSJrAMs1vEGq61s
-wNnVpqvKzVrSViZR5UsIiq/MGQ8lNJCwKilBD1Xxa5PbnbPM3Ozrx1UY10Il3kk1
-FDKSnB7GaeM8+/Sa+PuLxeAbfv1PJbo/5ZZXmiR5SRcn14lLai4Nh1HZIz0GhVb4
-WDEO7oGZeGjNbkR+ydqMWnscvyRAKUjRA5zv3K4qXfj3asfpvMWwWfaV/BbL2Jzt
-w/wSkJN4WnW0VoP6/EGE9mR5NDUcrHqFDnN4cgHnJIklntp/Zbyvh5MZjNt1Fbbg
-MMcI+FkCAwEAAaNTMFEwHQYDVR0OBBYEFD3EC2ZRkUUlmMh9n+bC/8UVBgQuMB8G
-A1UdIwQYMBaAFD3EC2ZRkUUlmMh9n+bC/8UVBgQuMA8GA1UdEwEB/wQFMAMBAf8w
-DQYJKoZIhvcNAQELBQADggEBAGQ7Bqh9NN8wDBd4NdoEiobXDNs5py8HNegumX5J
-3RccRYQFaa3Mi707DLyXWHPrvUobJYFP/4ziPv/rnzeYf1nfOYAWJMFotLpnXuQ9
-4RdyQskzpcBSedxut5GXHGQMDNed8dgYJ3r8i15o+mXqlswy7EHD1mGgCUQh5ezR
-jrIhFz852KrI238b0qbTHVjB9dLMne434v9Hi9jqDPQR6TQ428eluvIb2yxHbDKh
-1BLYk13zIfBW2Y/OxIcUljY1uIdSJNIBQFjDiLeDkj9lhBlza3b93DaBOtL2aqG6
-jWcgIdvdL2sw1hORmyPdstUE+gInWhg6X6NdxQqVNW7faIM=
------END CERTIFICATE-----`;
-      const DEV_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC0z9FeMynsC8+u
-dvX+LciZxnh5uRj4C9S6tNeeAlIGCfQYk0zUcNFCoCkTknNQd/YEiawDLNbxBqut
-bMDZ1aarys1a0lYmUeVLCIqvzBkPJTSQsCopQQ9V8WuT252zzNzs68dVGNdCJd5J
-NRQykpwexmnjPPv0mvj7i8XgG379TyW6P+WWV5okeUkXJ9eJS2ouDYdR2SM9BoVW
-+FgxDu6BmXhozW5EfsnajFp7HL8kQClI0QOc79yuKl3492rH6bzFsFn2lfwWy9ic
-7cP8EpCTeFp1tFaD+vxBhPZkeTQ1HKx6hQ5zeHIB5ySJJZ7af2W8r4eTGYzbdRW2
-4DDHCPhZAgMBAAECggEATvofR3gtrY8TLe+ET3wMDS8l3HU/NMlmKA9pxvjYfw7F
-8h4VBw4oOWPfzU7A07syWJUR72kckbcKMfw42G18GbnBrRQG0UIgV3/ppBQQNg9Y
-QILSR6bFXhLPnIvm/GxVa58pOEBbdec4it2Gbvie/MpJ4hn3K8atTqKk0djwxQ+b
-QNBWtVgTkyIqMpUTFDi5ECiVXaGWZ5AOVK2TzlLRNQ5Y7US8lmGxVWzt0GONjXSE
-iO/eBk8A7wI3zknMx5o1uZa/hFCPQH33uKeuqU5rmphi3zS0BY7iGY9EoKu/o+BO
-HPwLQJ3wCDA3O9APZ3gmmbHFPMFPr/mVGeAeGP/BAQKBgQDaPELRriUaanWrZpgT
-VnKKrRSqPED3anAVgmDfzTQwuR/3oD506F3AMBzloAo3y9BXmDfe8qLn6kgdZQKy
-SFNLz888at96oi+2mEKPpvssqiwE6F3OtEM6yv4DP9KJHaHmXaWv+/sjwjzpFNjs
-wGThBxFvrTWRJqBYsM1XNJJ2EQKBgQDUGbTSwHKqRCYWhQ1GPCZKE98l5UtMKvUb
-hyWWOXoyoeYbJEMfG1ynX4JeXIkl6YtBjYCqszv9PjHa1rowTZaAPJ0V70zyhTcF
-t581ii9LpiejIGrELHvJnW87QmjjStkjwGIqgKLp7Qe6CDjHI9HP1NM0uav/IQLW
-pB6wyEz1yQKBgQCuxPut+Ax2rzM05KB9PAnWzO1zt3U/rtm8IAF8uVVGf7r+EDJ0
-ZXJO6zj5G8WTEYHz5E86GI4ltBW0lKQoKouqdu27sMrv5trXG/CSImOcTVubQot9
-chc1CkOKTp5IeJajafO6j817wZ4N+0gNsbYYEBUCnm/7ojdfT5ficpOoQQKBgQDB
-PgKPmaNfGeQR1Ht5qEfCakR/RF/ML79Nq15FdmytQPBjfjBhYQ6Tt+MRkgGqtxOX
-UBMQc2iOnGHT3puYcrhScec1GufidhjhbqDxqMrag7HNYDWmMlk+IeA7/4+Mtp8L
-gbZuvvCvbLQDfIYueaYpUuBzQ08/jZYGdVU4/+WOcQKBgAGUN0kIB6EM1K/iZ0TN
-jlt8P5UEV3ZCyATWFiGZRhhE2WAh8gv1jx4J26pcUs1n8sd2a1h6ZuBSqsyIlNSp
-xtKsm3bqQFDHRrPcsBX4nanrw9DzkpH1k/I3WMSdGqkDAR3DtL7yXTJXJo2Sbrp5
-EjzSn7DcDE1tL2En/tSVXeUY
------END PRIVATE KEY-----`;
-      // TODO: Production ให้เปลี่ยนเป็นใบรับรอง/ลายเซ็นจริง
+      const DEV_CERTIFICATE_PATH = 'assets/qz/qz-tray.pem';
+      const DEV_PRIVATE_KEY_PATH = 'assets/qz/qz-tray.key';
+      const REQUIRED_WHITELIST = [
+        'localhost',
+        '127.0.0.1',
+        'http://localhost',
+        'http://127.0.0.1',
+      ];
+      const detectEnvironment = () => {
+        try {
+          const config = window.mydentQzConfig || {};
+          const forced = String(config.mode || config.environment || '')
+            .trim()
+            .toLowerCase();
+          if (forced === 'dev' || forced === 'development') {
+            return 'development';
+          }
+          if (forced === 'prod' || forced === 'production') {
+            return 'production';
+          }
+          const host = String(window.location.hostname || '').toLowerCase();
+          if (!host || host === 'localhost' || host.startsWith('127.')) {
+            return 'development';
+          }
+          if (host.endsWith('.local') || host.endsWith('.test')) {
+            return 'development';
+          }
+          if (window.location.protocol === 'http:') {
+            return 'development';
+          }
+          return 'production';
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} Failed to detect environment`, err);
+          return 'development';
+        }
+      };
+      const CURRENT_ENVIRONMENT = detectEnvironment();
+      const IS_DEV = CURRENT_ENVIRONMENT === 'development';
+      const ALLOWED_QZ_HOSTS = new Set(['127.0.0.1', 'localhost']);
       const DEFAULT_QZ_PORT = 8181;
       const createEndpoint = (host, secure, port = DEFAULT_QZ_PORT) => {
-        const normalizedHost = String(host || '').trim() || 'localhost';
-        const normalizedPort = Number.isNaN(Number.parseInt(port, 10))
-          ? DEFAULT_QZ_PORT
-          : Number.parseInt(port, 10);
+        const candidateHost = String(host || '').trim() || 'localhost';
+        let normalizedHost = candidateHost;
+        if (!ALLOWED_QZ_HOSTS.has(candidateHost)) {
+          console.warn(`${LOG_PREFIX} ปฏิเสธ endpoint host ${candidateHost} (อนุญาตเฉพาะ localhost/127.0.0.1)`);
+          normalizedHost = 'localhost';
+        }
+        const requestedPort = Number.parseInt(port, 10);
+        if (!Number.isNaN(requestedPort) && requestedPort !== DEFAULT_QZ_PORT) {
+          console.warn(
+            `${LOG_PREFIX} ปรับพอร์ต ${requestedPort} -> ${DEFAULT_QZ_PORT} (QZ Tray รองรับผ่าน 8181 เท่านั้น)`,
+          );
+        }
+        if (secure === false) {
+          console.warn(`${LOG_PREFIX} บังคับใช้ wss:// สำหรับ QZ Tray (ปฏิเสธ ws://)`);
+        }
         return {
           host: normalizedHost,
-          port: normalizedPort,
-          secure: !!secure,
-          url: `${secure ? 'wss' : 'ws'}://${normalizedHost}:${normalizedPort}`,
+          port: DEFAULT_QZ_PORT,
+          secure: true,
+          url: `wss://${normalizedHost}:${DEFAULT_QZ_PORT}`,
         };
       };
       const DEFAULT_ENDPOINTS = [
         createEndpoint('127.0.0.1', true),
         createEndpoint('localhost', true),
-        createEndpoint('127.0.0.1', false),
-        createEndpoint('localhost', false),
       ];
       const CONNECT_TIMEOUT_MS = 1800;
       const CONNECT_BACKOFF_MS = [0, 800, 1600, 2400];
@@ -129,6 +123,21 @@ EjzSn7DcDE1tL2En/tSVXeUY
       let connectPromise = null;
       let securityConfigured = false;
       let demoSignatureWarned = false;
+      let cachedDevCertificatePem = null;
+      let cachedDevPrivateKeyPem = null;
+      let lastSecurityState = {
+        certificateValid: null,
+        certificateSubject: null,
+        certificateIssuer: null,
+        certificateExpiry: null,
+        trusted: null,
+        whitelistEnsured: false,
+        whitelistUpdatedAt: null,
+        whitelistError: null,
+        environment: CURRENT_ENVIRONMENT,
+      };
+      let whitelistPendingWrite = false;
+      let activeSecurityMaterial = null;
       let handlersAttached = false;
       let connectionState = 'inactive';
       let launchIframe = null;
@@ -140,6 +149,14 @@ EjzSn7DcDE1tL2En/tSVXeUY
         timestamp: null,
       };
       const STATUS_EVENT_NAME = 'mydent-qz-status';
+
+      const updateSecurityState = (patch = {}) => {
+        lastSecurityState = {
+          ...lastSecurityState,
+          ...patch,
+        };
+        return lastSecurityState;
+      };
 
       const cloneLastError = () => {
         if (!lastConnectionReport || !lastConnectionReport.lastError) {
@@ -153,13 +170,89 @@ EjzSn7DcDE1tL2En/tSVXeUY
         };
       };
 
+      const parseCertificateMeta = (pem) => {
+        try {
+          const raw = String(pem || '').trim();
+          if (!raw) {
+            return null;
+          }
+          if (typeof KJUR === 'undefined' || !KJUR.asn1 || !KJUR.asn1.x509) {
+            console.warn(`${LOG_PREFIX} jsrsasign ยังไม่พร้อมสำหรับ parse certificate`);
+            return null;
+          }
+          const cert = new KJUR.asn1.x509.X509();
+          cert.readCertPEM(raw);
+          const subject = cert.getSubjectString?.() || cert.getSubjectString;
+          const issuer = cert.getIssuerString?.() || cert.getIssuerString;
+          const notAfter = cert.getNotAfter?.() || cert.getNotAfter;
+          const notBefore = cert.getNotBefore?.() || cert.getNotBefore;
+          const parseDate = (value) => {
+            if (!value) {
+              return null;
+            }
+            try {
+              if (typeof value === 'string' && value.endsWith('Z') && value.length >= 13 && KJUR?.jws?.IntDate?.getDate) {
+                return KJUR.jws.IntDate.getDate(value);
+              }
+              return new Date(value);
+            } catch (dateErr) {
+              console.warn(`${LOG_PREFIX} ไม่สามารถแปลงวันที่ของ certificate`, dateErr);
+              return null;
+            }
+          };
+          const expiry = parseDate(typeof notAfter === 'function' ? notAfter.call(cert) : notAfter);
+          const effective = parseDate(typeof notBefore === 'function' ? notBefore.call(cert) : notBefore);
+          const now = new Date();
+          const isValid = Boolean(
+            expiry && effective && now.getTime() >= effective.getTime() && now.getTime() <= expiry.getTime(),
+          );
+          return {
+            subject: typeof subject === 'function' ? subject.call(cert) : subject,
+            issuer: typeof issuer === 'function' ? issuer.call(cert) : issuer,
+            expiry,
+            effective,
+            isValid,
+            pem: raw,
+          };
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} วิเคราะห์ certificate ไม่สำเร็จ`, err);
+          return null;
+        }
+      };
+
+      const recordCertificateMeta = (pem) => {
+        const meta = parseCertificateMeta(pem);
+        if (!meta) {
+          return null;
+        }
+        updateSecurityState({
+          certificateValid: meta.isValid,
+          certificateSubject: meta.subject || null,
+          certificateIssuer: meta.issuer || null,
+          certificateExpiry: meta.expiry ? meta.expiry.toISOString() : null,
+        });
+        return meta;
+      };
+
       const buildStatusDetail = () => {
         const status = getStatus();
+        const security = {
+          certificateValid: lastSecurityState.certificateValid,
+          certificateSubject: lastSecurityState.certificateSubject,
+          certificateIssuer: lastSecurityState.certificateIssuer,
+          certificateExpiry: lastSecurityState.certificateExpiry,
+          trusted: lastSecurityState.trusted,
+          whitelistEnsured: lastSecurityState.whitelistEnsured,
+          whitelistUpdatedAt: lastSecurityState.whitelistUpdatedAt,
+          whitelistError: lastSecurityState.whitelistError,
+          environment: lastSecurityState.environment,
+        };
         return {
           status,
           isActive: status === 'active',
           lastError: cloneLastError(),
           timestamp: Date.now(),
+          security,
         };
       };
 
@@ -191,6 +284,226 @@ EjzSn7DcDE1tL2En/tSVXeUY
         } else {
           console.log(payload, error || '');
         }
+      };
+
+      const fetchTextAsset = async (path) => {
+        const normalized = String(path || '').trim();
+        if (!normalized) {
+          throw new Error('Path to asset is required');
+        }
+        const response = await fetch(normalized, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`โหลด asset ไม่สำเร็จ (${normalized}): ${response.status}`);
+        }
+        return response.text();
+      };
+
+      const loadDevCredentials = async () => {
+        if (cachedDevCertificatePem && cachedDevPrivateKeyPem) {
+          return {
+            certificate: cachedDevCertificatePem,
+            privateKey: cachedDevPrivateKeyPem,
+            mode: 'dev',
+          };
+        }
+        const [certificatePem, privateKeyPem] = await Promise.all([
+          fetchTextAsset(DEV_CERTIFICATE_PATH),
+          fetchTextAsset(DEV_PRIVATE_KEY_PATH),
+        ]);
+        cachedDevCertificatePem = certificatePem.trim();
+        cachedDevPrivateKeyPem = privateKeyPem.trim();
+        recordCertificateMeta(cachedDevCertificatePem);
+        log('info', 'โหลด demo certificate/key สำหรับโหมดพัฒนาเรียบร้อย');
+        return {
+          certificate: cachedDevCertificatePem,
+          privateKey: cachedDevPrivateKeyPem,
+          mode: 'dev',
+        };
+      };
+
+      const callSignatureEndpoint = async (endpoint, payload) => {
+        const target = String(endpoint || '').trim();
+        if (!target) {
+          throw new Error('ไม่พบ signature endpoint สำหรับ production');
+        }
+        const response = await fetch(target, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ payload }),
+        });
+        if (!response.ok) {
+          throw new Error(`signature endpoint ตอบกลับ ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data || typeof data.signature !== 'string') {
+          throw new Error('signature endpoint ตอบกลับไม่ถูกต้อง');
+        }
+        return data.signature;
+      };
+
+      const loadProductionCredentials = async () => {
+        const config = window.mydentQzConfig || {};
+        const certificatePem = String(config.productionCertificatePem || config.certificatePem || '').trim();
+        if (!certificatePem) {
+          throw new Error('Production certificate ไม่ได้ถูกกำหนด');
+        }
+        recordCertificateMeta(certificatePem);
+        let signer = null;
+        if (typeof config.productionSigner === 'function') {
+          signer = config.productionSigner;
+        } else if (typeof config.signMessage === 'function') {
+          signer = config.signMessage;
+        } else if (config.signatureEndpoint) {
+          signer = (toSign) => callSignatureEndpoint(config.signatureEndpoint, toSign);
+        }
+        if (!signer) {
+          throw new Error('Production signature provider ไม่พร้อมใช้งาน (ต้องกำหนด productionSigner/signMessage/signatureEndpoint)');
+        }
+        return {
+          certificate: certificatePem,
+          signer,
+          mode: 'prod',
+        };
+      };
+
+      const loadSecurityMaterial = async () => {
+        updateSecurityState({ environment: CURRENT_ENVIRONMENT });
+        if (IS_DEV) {
+          return loadDevCredentials();
+        }
+        return loadProductionCredentials();
+      };
+
+      const whitelistFileUri = 'file://%APPDATA%/qz/whitelist.txt';
+
+      const whitelistPayload = () => `${REQUIRED_WHITELIST.join('\n')}\n`;
+
+      const ensureWhitelistViaApi = async () => {
+        if (!window.qz || !qz.security) {
+          return false;
+        }
+        if (typeof qz.security.setAllowedOrigins === 'function') {
+          try {
+            await qz.security.setAllowedOrigins(REQUIRED_WHITELIST);
+            log('info', 'อัปเดต whitelist ผ่าน qz.security.setAllowedOrigins แล้ว');
+            updateSecurityState({ whitelistEnsured: true, whitelistError: null, whitelistUpdatedAt: Date.now() });
+            return true;
+          } catch (err) {
+            log('warn', 'ตั้งค่า whitelist ผ่าน API ไม่สำเร็จ', err);
+          }
+        }
+        return false;
+      };
+
+      const writeWhitelistFile = async () => {
+        try {
+          ensureQzAvailable();
+          if (!qz.configs || !qz.print) {
+            throw new Error('ไม่สามารถเรียก qz.configs หรือ qz.print');
+          }
+          const payload = whitelistPayload();
+          const config = qz.configs.create(whitelistFileUri, { copies: 1, colorType: 'grayscale', encoding: 'utf8' });
+          const data = [
+            {
+              type: 'raw',
+              format: 'plain',
+              data: payload,
+            },
+          ];
+          await qz.print(config, data);
+          updateSecurityState({ whitelistEnsured: true, whitelistError: null, whitelistUpdatedAt: Date.now() });
+          log('info', 'เขียน whitelist.txt ผ่าน QZ Tray แล้ว (กรุณารีสตาร์ท QZ Tray หากยังไม่รับค่าใหม่)');
+          return true;
+        } catch (err) {
+          updateSecurityState({ whitelistError: err?.message || 'ไม่สามารถอัปเดต whitelist ได้' });
+          log('warn', 'เขียน whitelist.txt อัตโนมัติไม่สำเร็จ', err);
+          return false;
+        }
+      };
+
+      const attemptWhitelistRepair = async (reason) => {
+        if (whitelistPendingWrite) {
+          return;
+        }
+        whitelistPendingWrite = true;
+        try {
+          log('warn', `พยายามซ่อม whitelist อัตโนมัติ (${reason || 'unknown'})`);
+          const appliedViaApi = await ensureWhitelistViaApi();
+          if (appliedViaApi) {
+            return;
+          }
+          await writeWhitelistFile();
+        } finally {
+          whitelistPendingWrite = false;
+        }
+      };
+
+      const shouldAttemptWhitelistRepair = (error) => {
+        if (!error) {
+          return false;
+        }
+        const message = String(error.message || error).toLowerCase();
+        if (message.includes('whitelist') || message.includes('untrusted') || message.includes('trust')) {
+          return true;
+        }
+        if (typeof error.code === 'string') {
+          const normalized = error.code.toLowerCase();
+          if (normalized.includes('whitelist') || normalized.includes('trust')) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      const logSecuritySummary = () => {
+        const certificateStatus = lastSecurityState.certificateValid === true
+          ? 'Valid'
+          : lastSecurityState.certificateValid === false
+            ? 'Invalid'
+            : 'Unknown';
+        const trustedStatus = lastSecurityState.trusted === false
+          ? 'Untrusted'
+          : lastSecurityState.trusted === true
+            ? 'OK'
+            : 'Unknown';
+        const connectionStatus = connectionState === 'active' ? 'Ready' : connectionState;
+        console.log(`${LOG_PREFIX} Certificate: ${certificateStatus}`);
+        console.log(`${LOG_PREFIX} Trusted: ${trustedStatus}`);
+        console.log(`${LOG_PREFIX} Connection: ${connectionStatus}`);
+      };
+
+      const verifyRemoteCertificateChain = async () => {
+        if (!window.qz || !qz.api) {
+          return false;
+        }
+        try {
+          if (typeof qz.api.getCertificate === 'function') {
+            const chain = await qz.api.getCertificate();
+            if (Array.isArray(chain) && chain.length > 0) {
+              const leaf = chain[0];
+              if (leaf) {
+                const pem = typeof leaf === 'string' ? leaf : leaf.pem || leaf.certificate;
+                if (pem) {
+                  recordCertificateMeta(pem);
+                }
+              }
+              if (chain.length > 1) {
+                const root = chain[chain.length - 1];
+                const rootPem = typeof root === 'string' ? root : root.pem || root.certificate;
+                if (rootPem) {
+                  parseCertificateMeta(rootPem);
+                }
+              }
+              log('info', 'ตรวจสอบ certificate chain จาก QZ Tray สำเร็จ');
+              return true;
+            }
+          }
+        } catch (err) {
+          log('warn', 'ไม่สามารถตรวจสอบ certificate chain จาก QZ Tray ได้', err);
+        }
+        return false;
       };
 
       const createError = (code, message, original) => {
@@ -329,7 +642,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
         return ensureLoadedPromise;
       };
 
-      const configureSecurityIfNeeded = () => {
+      const configureSecurityIfNeeded = async () => {
         if (securityConfigured) {
           return;
         }
@@ -344,36 +657,57 @@ EjzSn7DcDE1tL2En/tSVXeUY
           throw createError('qz_security_error', 'ไม่พบ jsrsasign สำหรับลงนามข้อความ demo');
         }
 
+        const material = await loadSecurityMaterial();
+        activeSecurityMaterial = material;
         qz.security.setSignatureAlgorithm('SHA512');
-        qz.security.setCertificatePromise((resolve) => {
-          log('warn', 'กำลังใช้ demo certificate ของ QZ Tray (dev mode เท่านั้น)');
-          console.warn(`${LOG_PREFIX} ใช้ DEMO certificate/signature (dev mode) – TODO: Production ให้เปลี่ยนเป็นใบรับรอง/ลายเซ็นจริง`);
-          resolve(DEV_CERTIFICATE);
+        qz.security.setCertificatePromise((resolve, reject) => {
+          try {
+            if (material.mode === 'dev') {
+              log('warn', 'กำลังใช้ demo certificate ของ QZ Tray (dev mode เท่านั้น)');
+              console.warn(`${LOG_PREFIX} ใช้ DEMO certificate/signature (dev mode) – ห้ามใช้ใน production`);
+            }
+            resolve(material.certificate);
+          } catch (err) {
+            reject(createError('qz_security_error', 'ไม่สามารถโหลด certificate สำหรับ QZ Tray', err));
+          }
         });
 
-        qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
+        qz.security.setSignaturePromise((toSign) => async (resolve, reject) => {
           try {
-            if (!demoSignatureWarned) {
-              demoSignatureWarned = true;
-              log('warn', 'กำลังใช้ demo signature ของ QZ Tray (dev mode เท่านั้น)');
-              console.warn(`${LOG_PREFIX} ใช้ DEMO signature (dev mode) – TODO: Production ให้เปลี่ยนเป็นใบรับรอง/ลายเซ็นจริง`);
+            if (material.mode === 'dev') {
+              if (!demoSignatureWarned) {
+                demoSignatureWarned = true;
+                log('warn', 'กำลังใช้ demo signature ของ QZ Tray (dev mode เท่านั้น)');
+                console.warn(`${LOG_PREFIX} ใช้ DEMO signature (dev mode) – ห้ามใช้ใน production`);
+              }
+              const pk = KEYUTIL.getKey(material.privateKey);
+              const signature = new KJUR.crypto.Signature({ alg: 'SHA512withRSA' });
+              signature.init(pk);
+              signature.updateString(toSign);
+              const hex = signature.sign();
+              const b64 = hexToBase64(hex);
+              resolve(b64);
+              return;
             }
-            const pk = KEYUTIL.getKey(DEV_PRIVATE_KEY);
-            const signature = new KJUR.crypto.Signature({ alg: 'SHA512withRSA' });
-            signature.init(pk);
-            signature.updateString(toSign);
-            const hex = signature.sign();
-            const b64 = hexToBase64(hex);
-            resolve(b64);
+
+            const signer = material.signer;
+            if (typeof signer !== 'function') {
+              throw new Error('Production signer function ไม่พร้อมใช้งาน');
+            }
+            const result = await signer(toSign);
+            if (!result || typeof result !== 'string') {
+              throw new Error('Production signer ส่งข้อมูลไม่ถูกต้อง');
+            }
+            resolve(result);
           } catch (err) {
-            reject(createError('qz_security_error', 'ลงนามข้อความ demo ไม่สำเร็จ (ตรวจ DEV key)', err));
+            reject(createError('qz_security_error', 'ลงนามข้อความไม่สำเร็จ', err));
           }
         });
 
         securityConfigured = true;
       };
 
-      const buildEndpointUrl = (endpoint) => `${endpoint.secure ? 'wss' : 'ws'}://${endpoint.host}:${endpoint.port}`;
+      const buildEndpointUrl = (endpoint) => `wss://${endpoint.host}:${endpoint.port}`;
 
       const parseEndpoint = (candidate, fallbackPort = DEFAULT_QZ_PORT) => {
         if (!candidate) {
@@ -398,11 +732,11 @@ EjzSn7DcDE1tL2En/tSVXeUY
             }
 
             const parsed = new URL(value);
-            if (parsed.protocol !== 'wss:' && parsed.protocol !== 'ws:') {
+            if (parsed.protocol !== 'wss:') {
               return null;
             }
 
-            const secure = parsed.protocol === 'wss:';
+            const secure = true;
             const port = parsed.port ? Number.parseInt(parsed.port, 10) : fallbackPort;
             return make(parsed.hostname, secure, port);
           } catch (err) {
@@ -416,7 +750,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
           if (!host) {
             return null;
           }
-          const secure = candidate.secure === undefined ? true : Boolean(candidate.secure);
+          const secure = true;
           const portValue = candidate.port === undefined ? fallbackPort : candidate.port;
           return make(host, secure, portValue);
         }
@@ -443,12 +777,8 @@ EjzSn7DcDE1tL2En/tSVXeUY
         const hostOverride = typeof overrides.host === 'string' ? overrides.host.trim() : '';
         if (hostOverride) {
           const secureEndpoint = parseEndpoint({ host: hostOverride, port: fallbackPort, secure: true }, fallbackPort);
-          const insecureEndpoint = parseEndpoint({ host: hostOverride, port: fallbackPort, secure: false }, fallbackPort);
           if (secureEndpoint) {
             parsedEndpoints.push(secureEndpoint);
-          }
-          if (insecureEndpoint) {
-            parsedEndpoints.push(insecureEndpoint);
           }
         }
 
@@ -482,18 +812,20 @@ EjzSn7DcDE1tL2En/tSVXeUY
       };
 
       const createConnectConfig = (endpoint, overrides) => {
-        const usingSecure = !!endpoint.secure;
+        const usingSecure = true;
         const config = {
           host: [endpoint.host],
           hostIndex: 0,
           usingSecure,
           port: {
-            secure: usingSecure ? [endpoint.port] : [],
-            insecure: usingSecure ? [] : [endpoint.port],
+            secure: [endpoint.port],
+            insecure: [],
             portIndex: 0,
           },
           retries: 0,
           delay: 0,
+          trustAllCertificates: IS_DEV,
+          allowSelfSigned: IS_DEV,
         };
 
         if (typeof overrides.keepAlive === 'number') {
@@ -636,7 +968,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
 
       const performConnection = async (options = {}) => {
         await ensureLoaded();
-        configureSecurityIfNeeded();
+        await configureSecurityIfNeeded();
         ensureQzAvailable();
         attachWebsocketHandlers();
 
@@ -654,7 +986,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
         }
 
         const secureOrigin = isSecureOrigin();
-        const allowInsecure = options.allowInsecure === undefined ? !secureOrigin : !!options.allowInsecure;
+        const allowInsecure = false;
         const autoLaunch = options.autoLaunch === undefined ? true : !!options.autoLaunch;
         const timeoutMs = options.timeoutMs || CONNECT_TIMEOUT_MS;
 
@@ -697,6 +1029,9 @@ EjzSn7DcDE1tL2En/tSVXeUY
             await connectOnce(createConnectConfig(endpoint, overrides), timeoutMs);
             if (qz.websocket.isActive()) {
               updateState('active');
+              updateSecurityState({ trusted: true });
+              logSecuritySummary();
+              await verifyRemoteCertificateChain();
               successEndpoint = endpoint;
               triedEndpoints.push({
                 url: endpoint.url,
@@ -709,6 +1044,10 @@ EjzSn7DcDE1tL2En/tSVXeUY
             }
           } catch (err) {
             const mapped = mapConnectionError(err);
+            if (shouldAttemptWhitelistRepair(mapped)) {
+              updateSecurityState({ trusted: false });
+              await attemptWhitelistRepair(mapped.message || mapped.code || 'security_error');
+            }
             lastError = mapped;
             updateState('inactive');
             triedEndpoints.push({
@@ -759,6 +1098,8 @@ EjzSn7DcDE1tL2En/tSVXeUY
         };
         updateLastConnectionReport(report);
         log('error', 'เชื่อมต่อ QZ Tray ไม่สำเร็จหลังลองทุก endpoint', lastError);
+        updateSecurityState({ trusted: false });
+        logSecuritySummary();
 
         throw lastError;
       };
@@ -766,6 +1107,8 @@ EjzSn7DcDE1tL2En/tSVXeUY
       const ensureConnected = (options = {}) => {
         if (qz.websocket.isActive()) {
           updateState('active');
+          updateSecurityState({ trusted: true });
+          logSecuritySummary();
           const report = {
             success: true,
             endpoint: null,
@@ -926,6 +1269,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
         try {
           await qz.print(config, payload);
           log('info', `สั่งพิมพ์ผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`);
+          console.log(`${LOG_PREFIX} Printing: Success`);
           return { printer: resolvedPrinter };
         } catch (error) {
           throw mapPrintError(error);
@@ -951,7 +1295,7 @@ EjzSn7DcDE1tL2En/tSVXeUY
           }
 
           await ensureLoaded();
-          configureSecurityIfNeeded();
+          await configureSecurityIfNeeded();
           ensureQzAvailable();
           attachWebsocketHandlers();
 
@@ -1026,6 +1370,17 @@ EjzSn7DcDE1tL2En/tSVXeUY
       window.mydentQzStatus = () => getStatus();
       window.mydentQzStatusDetail = () => buildStatusDetail();
       window.mydentQzSelfTest = () => selfTest();
+      window.mydentQzEnsureWhitelist = () => attemptWhitelistRepair('manual');
+      window.mydentQzSecurityStatus = () => buildStatusDetail();
+      window.mydentQzOpenSiteManager = () => {
+        try {
+          window.open('https://localhost:8181/', '_blank', 'noopener,noreferrer');
+          return true;
+        } catch (error) {
+          log('warn', 'เปิด QZ Tray Site Manager ไม่สำเร็จ', error);
+          return false;
+        }
+      };
       window.mydentQzSecurityHint = (origin) => {
         const currentOrigin = origin || window.location.origin;
         return [

@@ -27,6 +27,16 @@ class QzPrintPlatform {
     return snapshot;
   }
 
+  Future<QzStatusSnapshot> refreshSecurityStatus() async {
+    if (!_hasBridge('mydentQzSecurityStatus')) {
+      return readStatus();
+    }
+    final Object? result = await _invokePromise('mydentQzSecurityStatus');
+    final QzStatusSnapshot snapshot = _toStatusSnapshot(result);
+    _statusController.add(snapshot);
+    return snapshot;
+  }
+
   Future<void> ensureReady() => _guard(() async {
     await _ensureLoaded();
     await _connectWithDiagnostics();
@@ -75,6 +85,17 @@ class QzPrintPlatform {
     final dynamic result = await _invokePromise('mydentQzSelfTest');
     return _toSelfTestReport(result);
   });
+
+  Future<void> ensureWhitelist() => _guardBridge('mydentQzEnsureWhitelist');
+
+  Future<bool> openSiteManager() async {
+    try {
+      final Object? result = await _invokePromise('mydentQzOpenSiteManager');
+      return result == true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<T> _guard<T>(FutureOr<T> Function() body) async {
     try {
@@ -224,14 +245,33 @@ class QzPrintPlatform {
     final String stateRaw = data['status']?.toString() ?? '';
     final QzConnectionState state = _parseStatusState(stateRaw);
     final Map<String, Object?> lastError = _dartifyMap(data['lastError']);
+    final Map<String, Object?> security = _dartifyMap(data['security']);
     final String? lastErrorCode = lastError['code']?.toString();
     final String? lastErrorMessage = lastError['message']?.toString();
     final DateTime? timestamp = _parseTimestamp(data['timestamp']);
+    final bool? isTrusted = _toBool(security['trusted']);
+    final bool? isCertificateValid = _toBool(security['certificateValid']);
+    final DateTime? certificateExpiry = _parseTimestamp(security['certificateExpiry']);
+    final String? certificateSubject = security['certificateSubject']?.toString();
+    final String? certificateIssuer = security['certificateIssuer']?.toString();
+    final bool? whitelistEnsured = _toBool(security['whitelistEnsured']);
+    final DateTime? whitelistUpdatedAt = _parseTimestamp(security['whitelistUpdatedAt']);
+    final String? whitelistError = security['whitelistError']?.toString();
+    final String? environment = security['environment']?.toString();
     return QzStatusSnapshot(
       state: state,
       lastErrorCode: lastErrorCode,
       lastErrorMessage: lastErrorMessage,
       timestamp: timestamp,
+      isTrusted: isTrusted,
+      isCertificateValid: isCertificateValid,
+      certificateExpiresAt: certificateExpiry,
+      certificateSubject: certificateSubject,
+      certificateIssuer: certificateIssuer,
+      whitelistEnsured: whitelistEnsured,
+      whitelistUpdatedAt: whitelistUpdatedAt,
+      whitelistError: whitelistError,
+      environment: environment,
     );
   }
 
@@ -443,6 +483,25 @@ class QzPrintPlatform {
     }
     if (value is num) {
       return value.toInt();
+    }
+    return null;
+  }
+
+  bool? _toBool(Object? value) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final String normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+        return false;
+      }
     }
     return null;
   }

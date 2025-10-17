@@ -10,21 +10,55 @@ class QzStatusSnapshot {
     this.lastErrorCode,
     this.lastErrorMessage,
     this.timestamp,
+    this.isTrusted,
+    this.isCertificateValid,
+    this.certificateExpiresAt,
+    this.certificateSubject,
+    this.certificateIssuer,
+    this.whitelistEnsured,
+    this.whitelistUpdatedAt,
+    this.whitelistError,
+    this.environment,
   });
 
   const QzStatusSnapshot.inactive()
       : state = QzConnectionState.inactive,
         lastErrorCode = null,
         lastErrorMessage = null,
-        timestamp = null;
+        timestamp = null,
+        isTrusted = null,
+        isCertificateValid = null,
+        certificateExpiresAt = null,
+        certificateSubject = null,
+        certificateIssuer = null,
+        whitelistEnsured = null,
+        whitelistUpdatedAt = null,
+        whitelistError = null,
+        environment = null;
 
   final QzConnectionState state;
   final String? lastErrorCode;
   final String? lastErrorMessage;
   final DateTime? timestamp;
+  final bool? isTrusted;
+  final bool? isCertificateValid;
+  final DateTime? certificateExpiresAt;
+  final String? certificateSubject;
+  final String? certificateIssuer;
+  final bool? whitelistEnsured;
+  final DateTime? whitelistUpdatedAt;
+  final String? whitelistError;
+  final String? environment;
 
   bool get isReady =>
-      state == QzConnectionState.active && (lastErrorCode == null || lastErrorCode!.isEmpty);
+      state == QzConnectionState.active &&
+      (lastErrorCode == null || lastErrorCode!.isEmpty) &&
+      (isTrusted ?? true) &&
+      (isCertificateValid ?? true);
+
+  bool get hasCertificateIssue => (isCertificateValid ?? true) == false;
+
+  bool get isWhitelisted => whitelistEnsured == true && (whitelistError == null || whitelistError!.isEmpty);
 }
 
 class QzPrintResult {

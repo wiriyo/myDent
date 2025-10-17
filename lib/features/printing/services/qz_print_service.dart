@@ -79,6 +79,37 @@ class QzPrintService {
     }
   }
 
+  Future<QzStatusSnapshot> ensureSecurityReady() async {
+    _assertEnabled();
+    try {
+      final QzStatusSnapshot snapshot = await _delegate.refreshSecurityStatus();
+      if (snapshot.hasCertificateIssue) {
+        throw QzPrintException(
+          'qz_certificate_invalid',
+          'certificate ของ QZ Tray ไม่ถูกต้องหรือหมดอายุ',
+          snapshot,
+        );
+      }
+      if (snapshot.isTrusted == false) {
+        throw QzPrintException(
+          'qz_untrusted',
+          'QZ Tray ยังไม่อนุญาตให้ไซต์นี้เชื่อมต่อ (Untrusted website)',
+          snapshot,
+        );
+      }
+      return snapshot;
+    } catch (error) {
+      if (error is QzPrintException) {
+        throw error;
+      }
+      throw QzPrintException(
+        'qz_security_check_failed',
+        'ตรวจสอบสถานะความปลอดภัยของ QZ Tray ไม่สำเร็จ',
+        error,
+      );
+    }
+  }
+
   Future<List<String>> listPrinters() async {
     _assertEnabled();
     try {
@@ -144,6 +175,26 @@ class QzPrintService {
 
   Future<void> savePrinter(String? printerName) =>
       _preferences.save(printerName);
+
+  Future<void> ensureWhitelist() async {
+    if (!isEnabled) {
+      return;
+    }
+    try {
+      await _delegate.ensureWhitelist();
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('QZ ensureWhitelist error: $error');
+      }
+    }
+  }
+
+  Future<bool> openSiteManager() async {
+    if (!isEnabled) {
+      return false;
+    }
+    return _delegate.openSiteManager();
+  }
 
   Future<void> _primeStatus() async {
     try {

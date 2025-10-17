@@ -120,6 +120,8 @@
         '127.0.0.1',
         'http://localhost',
         'http://127.0.0.1',
+        'http://localhost:55390',
+        'http://127.0.0.1:55390',
       ];
       const detectEnvironment = () => {
         try {
@@ -1915,7 +1917,7 @@
         };
       };
 
-      const selfTest = async      const selfTest = async (printerName = null, options = {}) => {
+      const selfTest = async (printerName = null, options = {}) => {
         const summary = {
           version: null,
           isActive: false,

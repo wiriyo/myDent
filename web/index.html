@@ -34,8 +34,78 @@
 </head>
 <body>
 
-  <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const LOG_PREFIX = '[MyDent|QZ]';
+      const cacheBust = String(Date.now());
+      const withCacheBust = (url) => `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(cacheBust)}`;
+
+      const sources = {
+        qz: [
+          { url: 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js', type: 'remote' },
+          { url: 'third_party/qz-tray.js', type: 'local' },
+        ],
+        jsrsasign: [
+          { url: 'https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js', type: 'remote' },
+          { url: 'third_party/jsrsasign-all-min.js', type: 'local' },
+        ],
+      };
+
+      const loadRemote = (label, url) => new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = withCacheBust(url);
+        script.async = false;
+        script.crossOrigin = 'anonymous';
+        script.onload = () => resolve();
+        script.onerror = (error) => reject(error || new Error(`Failed to load ${label} from ${url}`));
+        document.head.appendChild(script);
+      });
+
+      const loadLocal = async (label, url) => {
+        const response = await fetch(withCacheBust(url), { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Local fallback for ${label} not found (${response.status})`);
+        }
+        const code = await response.text();
+        const script = document.createElement('script');
+        script.async = false;
+        script.type = 'text/javascript';
+        script.text = code;
+        document.head.appendChild(script);
+      };
+
+      const loadSequential = async (label, list) => {
+        let lastError = null;
+        for (const source of list) {
+          try {
+            if (source.type === 'local') {
+              await loadLocal(label, source.url);
+              console.info(`${LOG_PREFIX} Loaded ${label} from local fallback: ${source.url}`);
+            } else {
+              await loadRemote(label, source.url);
+              console.info(`${LOG_PREFIX} Loaded ${label} from CDN: ${source.url}`);
+            }
+            return;
+          } catch (error) {
+            lastError = error;
+            console.warn(`${LOG_PREFIX} Failed to load ${label} from ${source.url}`, error);
+          }
+        }
+        throw lastError || new Error(`Unable to load ${label}`);
+      };
+
+      window.__mydentLoadQzPromise = (async () => {
+        await loadSequential('qz-tray.js', sources.qz);
+        await loadSequential('jsrsasign', sources.jsrsasign);
+      })();
+
+      window.__mydentLoadQzPromise.catch((error) => {
+        console.error(`${LOG_PREFIX} Failed to load QZ dependencies`, error);
+      });
+    })();
+  </script>
   <!-- NOTE: Changes in this file require a full restart (e.g. stop flutter run -d chrome and start again).
        Hot reload does not reload index.html. -->
   <script>
@@ -150,6 +220,8 @@
       let activeSecurityMaterial = null;
       let handlersAttached = false;
       let connectionState = 'inactive';
+      let bridgeReadyLogged = false;
+      let connectionReadyLogged = false;
       let launchIframe = null;
       let lastConnectionReport = {
         success: false,
@@ -558,6 +630,9 @@
 
       const updateState = (state) => {
         connectionState = state;
+        if (state !== 'active') {
+          connectionReadyLogged = false;
+        }
         dispatchStatusEvent();
       };
 
@@ -571,7 +646,14 @@
       const ensureQzAvailable = () => {
         if (!window.qz || !qz.websocket) {
           log('error', 'QZ Tray library "window.qz" is missing. Confirm qz-tray.js is loaded before flutter_bootstrap.js.');
-          throw createError('qz_bridge_missing', 'ไม่พบไลบรารี QZ Tray (ตรวจลำดับการโหลดสคริปต์)');
+          throw createError('qz_bridge_missing', 'ไม่พบไลบรารี QZ Tray (ลองกด \"ลองโหลดบริดจ์ใหม่\" หรือรีเฟรชหน้า)');
+        }
+      };
+
+      const logConnectionReady = () => {
+        if (!connectionReadyLogged) {
+          connectionReadyLogged = true;
+          log('info', 'Connection: Ready');
         }
       };
 
@@ -612,6 +694,10 @@
         if (window.qz && qz.websocket) {
           ensureQzAvailable();
           attachWebsocketHandlers();
+          if (!bridgeReadyLogged) {
+            bridgeReadyLogged = true;
+            log('info', 'Bridge: Ready');
+          }
           return Promise.resolve();
         }
 
@@ -627,7 +713,10 @@
               ensureLoadedPromise = null;
               ensureQzAvailable();
               attachWebsocketHandlers();
-              log('info', 'QZ Tray bridge ready');
+              if (!bridgeReadyLogged) {
+                bridgeReadyLogged = true;
+                log('info', 'Bridge: Ready');
+              }
               resolve();
               return;
             }
@@ -636,7 +725,7 @@
               ensureLoadedPromise = null;
               const err = createError(
                 'qz_bridge_missing',
-                'ไม่พบสคริปต์ qz-tray.js (ต้องโหลดก่อน flutter_bootstrap.js)'
+                'ไม่พบสคริปต์ qz-tray.js (ลองกด "ลองโหลดบริดจ์ใหม่" หรือรีเฟรชหน้า)'
               );
               log('error', 'Failed to detect qz-tray.js. Fix web/index.html and perform a full restart.', err);
               reject(err);
@@ -1120,6 +1209,7 @@
           updateState('active');
           updateSecurityState({ trusted: true });
           logSecuritySummary();
+          logConnectionReady();
           const report = {
             success: true,
             endpoint: null,
@@ -1136,6 +1226,10 @@
         }
 
         connectPromise = performConnection(options)
+          .then((report) => {
+            logConnectionReady();
+            return report;
+          })
           .finally(() => {
             connectPromise = null;
           });
@@ -1971,6 +2065,11 @@
       window.mydentQzConnect = (options) => ensureConnected(options || {});
       window.mydentQzListPrinters = () => listPrinters();
       window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
+      window.mydentQzCut = (printerName) => (async () => {
+        await ensureLoaded();
+        await ensureConnected();
+        return performCut(printerName || null);
+      })();
       window.mydentQzStatus = () => getStatus();
       window.mydentQzStatusDetail = () => buildStatusDetail();
       window.mydentQzSelfTest = (printerName, options) => (

@@ -575,7 +575,7 @@ class QzPrintPlatform {
 QzPrintPlatform createQzPrintPlatform() => QzPrintPlatform();
 
 const String _bridgeMissingMessage =
-    'ไม่พบ JS bridge สำหรับ QZ Tray (ลองหยุด dev server แล้วรัน flutter run -d chrome ใหม่)';
+    'ไม่พบ JS bridge สำหรับ QZ Tray (ลองกด "ลองโหลดบริดจ์ใหม่" หรือรีเฟรชหน้า หากยังไม่ดีให้หยุดแล้วรัน flutter run -d chrome ใหม่)';
 
 const Set<String> _codesNeedingAdvice = <String>{
   'qz_connect_failed',

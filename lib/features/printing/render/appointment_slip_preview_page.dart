@@ -21,6 +21,7 @@ import '../services/qz_print_service.dart';
 import '../services/web_print_service.dart';
 import 'png_postprocessor.dart';
 import 'qz_status_ui.dart';
+import 'qz_diagnostics_sheet.dart';
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
   final AppointmentSlipModel? slip;
@@ -446,6 +447,27 @@ class _AppointmentSlipPreviewPageState
                   onTap: () {
                     Navigator.of(ctx).pop();
                     _runQzSelfTest();
+                  },
+                ),
+              if (_qzService.isEnabled)
+                ListTile(
+                  leading: const Icon(Icons.refresh_outlined),
+                  title: const Text('ลองโหลดบริดจ์ใหม่'),
+                  subtitle:
+                      const Text('รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    retryQzBridge(context, _qzService);
+                  },
+                ),
+              if (_qzService.isEnabled)
+                ListTile(
+                  leading: const Icon(Icons.analytics_outlined),
+                  title: const Text('QZ Diagnostics'),
+                  subtitle: const Text('ดู origin ปัจจุบันและสถานะความปลอดภัย'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    showQzDiagnosticsSheet(context, _qzService);
                   },
                 ),
             ],

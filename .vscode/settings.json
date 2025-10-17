@@ -1,0 +1,8 @@
+{
+  "dart.flutterRunAdditionalArgs": [
+    "--web-port",
+    "55390",
+    "--web-hostname",
+    "localhost"
+  ]
+}

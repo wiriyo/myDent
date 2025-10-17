@@ -1,4 +1,4 @@
-// 📁 lib/main.dart
+﻿// 📁 lib/main.dart
 // v4.1.0 - Laila's Release Optimisation
 // ลดภาระงานในเฟรมเวิร์กด้วย AnimatedBuilder ให้ลื่นไหลสุด ๆ ค่ะ! 💖
 

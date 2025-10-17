@@ -8,6 +8,8 @@
 ## 2. โหมดทดสอบ (Dev)
 - เว็บแอปรวมสคริปต์ `qz-tray.js@2.2.5` และตั้งค่า demo certificate/signature (self-signed dev cert)
   ที่สร้างจาก private key เดียวกับใน client (หมดอายุ 16 ต.ค. 2030) ให้พร้อมใช้งาน
+- Dev certificate รุ่นล่าสุดลงวันที่เริ่มต้น **17 ต.ค. 2023** เพื่อหลีกเลี่ยงปัญหา *Invalid Certificate*
+  ที่ QZ Tray รายงานก่อนหน้านี้ (กรณีเคยอนุญาต origin เดิมไว้ แนะนำให้เปิด QZ Tray แล้วกด Allow อีกครั้ง)
 - แค่เปิด QZ Tray แล้วเข้า MyDent Web ก็สามารถกด `พิมพ์ (QZ Tray)` ได้ทันที
 - มีข้อความเตือนใน console และ UI หาก QZ Tray ไม่ทำงาน, certificate ผิด หรือหาเครื่องพิมพ์ไม่เจอ
 

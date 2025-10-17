@@ -17,7 +17,7 @@ class QzPrintPlatform {
 
   final StreamController<QzStatusSnapshot> _statusController =
       StreamController<QzStatusSnapshot>.broadcast();
-  JSFunction? _statusEventCallback;
+  Object? _statusEventCallback;
 
   Stream<QzStatusSnapshot> get statusStream => _statusController.stream;
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <!--
@@ -193,7 +193,7 @@
       const CUT_CMD_PARTIAL_HEX = '1d564200'; // ESC/POS partial cut (GS V 66 0)
       const FEED_CMD_SMALL_HEX = '1b6403'; // ESC d 3 (feed 3 lines)
       const CUT_DELAY_MS = 250;
-      const IMAGE_PRINTING_ENABLED = false;
+      const IMAGE_PRINTING_ENABLED = true;
       const TARGET_IMAGE_WIDTH = 576;
       const MAX_IMAGE_HEIGHT = 3000;
       const MAX_IMAGE_BASE64_LENGTH = 300000;
@@ -202,7 +202,6 @@
       const IMAGE_BAND_HEIGHT = 240;
       const ESC_POS_MAX_BAND_ROWS = 256;
 
-            const THAI_INTERNATIONAL_SET = 21;
       const THAI_CODEPAGE = 255; // Thai (Page255) per printer self-test; PC874 fallback will be sent too
       const UNKNOWN_GLYPH_BYTE = 0x3f;
 
@@ -224,16 +223,8 @@
         return fallback;
       };
 
-      const resolveThaiInternationalSet = () => {
-        const override =
-          window.mydentQzConfig?.thaiInternationalSet ??
-          window.mydentQzConfig?.thaiIntlSet ??
-          window.mydentQzConfig?.printer?.thaiInternationalSet;
-        return resolveThaiValue(override, THAI_INTERNATIONAL_SET);
-      };
-
       const resolveThaiCodepage = () => {
-        const override =
+        const override = 
           window.mydentQzConfig?.thaiCodepage ??
           window.mydentQzConfig?.thaiCodePage ??
           window.mydentQzConfig?.printer?.thaiCodepage ??
@@ -371,62 +362,52 @@
         const baseText = String(text ?? '');
         const normalized = baseText.endsWith('\n') ? baseText : `${baseText}\n`;
         const cfg = window.mydentQzConfig || {};
-        const ordered = [70];
+        
+        // Resolve codepages, defaulting to 255.
+        const ordered = [];
         const codepages = Array.isArray(cfg.thaiCodepages) ? cfg.thaiCodepages : [];
         for (const cp of codepages) {
           if (typeof cp === 'number') ordered.push(cp & 0xff);
         }
         const direct = cfg.thaiCodepage ?? cfg.thaiCodePage;
         if (typeof direct === 'number') ordered.push(direct & 0xff);
-        ordered.push(255);
+        ordered.push(THAI_CODEPAGE); // Add default Thai codepage
         const thaiCodePages = Array.from(new Set(ordered));
 
         const bytes = [];
-        bytes.push(0x1b, 0x25, 0x00);
-        bytes.push(0x1c, 0x2e);
-        const intlSet = resolveThaiInternationalSet();
-        bytes.push(0x1b, 0x52, intlSet & 0xff);
+        bytes.push(0x1b, 0x25, 0x00); // Cancel user-defined characters
+        bytes.push(0x1c, 0x2e); // Turn off Kanji mode
+        
+        // Set character code table to Thai for each specified codepage
         for (const cp of thaiCodePages) {
           bytes.push(0x1b, 0x74, cp & 0xff);
         }
+
         const textBytes = encodePc874(normalized);
         bytes.push(...textBytes);
+
         if (includeCut) {
           bytes.push(0x0a);
           bytes.push(0x1d, 0x56, 0x00);
         }
 
-        let command = '';
-        for (const byte of bytes) {
-          command += '\x' + byte.toString(16).padStart(2, '0');
-        }
+        const hexData = bytes.map(b => b.toString(16).padStart(2, '0')).join('');
 
         const meta = {
           codePages: thaiCodePages,
-          internationalSet: intlSet & 0xff,
-          encoding: 'TIS-620',
+          encoding: 'TIS-620/PC874',
           bytes: bytes.length,
         };
+
         if (typeof console !== 'undefined' && console.debug) {
-          console.debug(`${LOG_PREFIX} Thai text payload prepared (raw command)`, meta);
+          console.debug(`${LOG_PREFIX} Thai text payload prepared (raw hex)`, meta);
         }
+
         return {
           payload: {
             type: 'raw',
-            format: 'command',
-            data: command,
-          },
-          meta,
-        };
-      };
-        if (typeof console !== 'undefined' && console.debug) {
-          console.debug(`${LOG_PREFIX} Thai text payload prepared (raw command)`, meta);
-        }
-        return {
-          payload: {
-            type: 'raw',
-            format: 'command',
-            data: command,
+            format: 'hex',
+            data: hexData,
           },
           meta,
         };
@@ -907,7 +888,7 @@
       const ensureQzAvailable = () => {
         if (!window.qz || !qz.websocket) {
           log('error', 'QZ Tray library "window.qz" is missing. Confirm qz-tray.js is loaded before flutter_bootstrap.js.');
-          throw createError('qz_bridge_missing', 'ไม่พบไลบรารี QZ Tray (ลองกด \"ลองโหลดบริดจ์ใหม่\" หรือรีเฟรชหน้า)');
+          throw createError('qz_bridge_missing', 'ไม่พบไลบรารี QZ Tray (ลองกด "ลองโหลดบริดจ์ใหม่" หรือรีเฟรชหน้า)');
         }
       };
 
@@ -1257,7 +1238,7 @@
       const toSerializableError = (error) => (error ? { code: error.code, message: error.message } : null);
 
       const CONNECTION_ERROR_MESSAGES = {
-        qz_not_running: 'กรุณาเปิด QZ Tray ก่อนใช้งาน หรือคลิก \"เปิด QZ Tray\" แล้วลองใหม่',
+        qz_not_running: 'กรุณาเปิด QZ Tray ก่อนใช้งาน หรือคลิก "เปิด QZ Tray" แล้วลองใหม่',
         qz_security_error: 'certificate หรือ signature ของ QZ Tray ไม่ผ่านการตรวจสอบ หรือ origin นี้ยังไม่ได้อยู่ใน Allowed Origins (หลังแก้ไขให้รีเฟรชหน้าแล้วลองใหม่)',
         qz_ws_refused: 'ไม่สามารถเชื่อมต่อพอร์ต 8181 ได้ อาจถูก Firewall หรือ Antivirus บล็อกไว้',
         qz_ws_timeout: 'หมดเวลารอการตอบสนองจาก QZ Tray กรุณาตรวจสอบว่าโปรแกรมเปิดอยู่และพอร์ต 8181 ถูกอนุญาต',
@@ -1725,7 +1706,7 @@
           context.imageSmoothingEnabled = false;
         }
         if (typeof context.imageSmoothingQuality !== 'undefined') {
-          context.imageSmoothingQuality = 'low';
+          context.imageSmoothingQuality = 'high';
         }
         const drawWidth = Math.min(scaledWidth, canvas.width);
         const drawHeight = Math.min(scaledHeight, canvas.height);
@@ -1872,7 +1853,7 @@
         const baseOptions = {
           copies: 1,
           colorType: 'grayscale',
-          density: 'default',
+          density: 'high',
           duplex: false,
           encoding: 'utf8',
           interpolation: 'nearest-neighbor',
@@ -2576,7 +2557,7 @@
           'เพิ่ม http://localhost (สำหรับงานพัฒนา) หากยังไม่มี',
           'เพิ่มโดเมน production ของ MyDent (เช่น https://app.mydent.co.th)',
           'ใช้ QZ Tray เวอร์ชัน 2.2.x ขึ้นไป และรีสตาร์ทโปรแกรมหลังปรับตั้งค่า',
-        ].join('\\n');
+        ].join('\n');
       };
       log('info', 'Registered MyDent QZ bridge functions on window');
     })();
@@ -2587,4 +2568,3 @@
 
 </body>
 </html>
-

@@ -45,6 +45,18 @@ class QzPrintPlatform {
         ),
       );
 
+  Future<String?> printRawCommand(
+    String command, {
+    String? printerName,
+    Map<String, Object?>? meta,
+  }) =>
+      Future.error(
+        QzPrintException(
+          'qz_unsupported',
+          'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+        ),
+      );
+
   Future<void> launchQzTray() => Future.error(
     QzPrintException(
       'qz_unsupported',

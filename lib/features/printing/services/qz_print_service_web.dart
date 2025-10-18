@@ -78,6 +78,27 @@ class QzPrintPlatform {
         return printerName;
       });
 
+  Future<String?> printRawCommand(
+    String command, {
+    String? printerName,
+    Map<String, Object?>? meta,
+  }) =>
+      _guard(() async {
+        await _ensureLoaded();
+        await _connectWithDiagnostics();
+        final Object? result = await _invokePromise(
+          'mydentQzPrintCommand',
+          <dynamic>[command, printerName, meta],
+        );
+        if (result is Map) {
+          final Object? value = result['printer'];
+          if (value is String && value.trim().isNotEmpty) {
+            return value.trim();
+          }
+        }
+        return printerName;
+      });
+
   Future<void> launchQzTray() => _guard(() async {
     await _invokePromise('mydentQzLaunch');
   });

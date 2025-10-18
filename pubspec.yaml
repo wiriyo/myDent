@@ -54,6 +54,7 @@ dependencies:
   esc_pos_utils_plus: ^2.0.4
   gal: ^2.1.2
   http: ^1.2.2
+  charset_converter: ^2.0.2
   webview_flutter: ^4.7.0
   web: ^0.5.1
 

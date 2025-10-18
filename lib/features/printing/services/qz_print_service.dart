@@ -1,5 +1,6 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'qz_models.dart';
 import 'qz_print_service_stub.dart'
     if (dart.library.html) 'qz_print_service_web.dart'
     as platform;
+import '../utils/thai_escpos_encoder.dart';
 
 export 'qz_models.dart';
 
@@ -141,6 +143,38 @@ class QzPrintService {
     }
   }
 
+  Future<QzPrintResult> printThaiEscPos(
+    String text, {
+    String? printerName,
+    bool includeCut = true,
+  }) async {
+    _assertEnabled();
+    final ThaiEscPosPayload payload = await ThaiEscPosEncoder.buildThaiPayload(
+      text,
+      includeCut: includeCut,
+    );
+    if (kDebugMode) {
+      debugPrint(
+        '[MyDent|POS] ส่ง ESC/POS ผ่าน QZ Tray codePages=${payload.codePages} encoding=${payload.encoding} bytes=${payload.bytes.length}',
+      );
+    }
+    try {
+      final String? usedPrinter = await _delegate.printRawCommand(
+        payload.command,
+        printerName: printerName,
+        meta: <String, Object?>{
+          'codePages': payload.codePages,
+          'encoding': payload.encoding,
+          'bytes': payload.bytes.length,
+        },
+      );
+      return QzPrintResult(printerName: usedPrinter ?? printerName);
+    } catch (error) {
+      if (kDebugMode) debugPrint('QZ printThaiEscPos error: $error');
+      _throwMapped(error, 'qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ');
+    }
+  }
+
   Future<void> launchQzTray() async {
     if (!isEnabled) {
       return;
@@ -170,7 +204,9 @@ class QzPrintService {
     }
   }
 
-  Future<QzSelfTestRunResult> runSelfTestWithPrints({String? printerName}) async {
+  Future<QzSelfTestRunResult> runSelfTestWithPrints({
+    String? printerName,
+  }) async {
     _assertEnabled();
     try {
       return await _delegate.runSelfTestPrints(printerName: printerName);

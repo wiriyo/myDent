@@ -202,6 +202,236 @@
       const IMAGE_BAND_HEIGHT = 240;
       const ESC_POS_MAX_BAND_ROWS = 256;
 
+            const THAI_INTERNATIONAL_SET = 21;
+      const THAI_CODEPAGE = 255; // Thai (Page255) per printer self-test; PC874 fallback will be sent too
+      const UNKNOWN_GLYPH_BYTE = 0x3f;
+
+      const resolveThaiValue = (value, fallback) => {
+        if (value == null) {
+          return fallback;
+        }
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return Math.max(0, Math.min(255, Math.trunc(value)));
+        }
+        if (typeof value === 'string' && value.trim()) {
+          const trimmed = value.trim();
+          const radix = trimmed.startsWith('0x') ? 16 : 10;
+          const parsed = Number.parseInt(trimmed, radix);
+          if (!Number.isNaN(parsed)) {
+            return Math.max(0, Math.min(255, parsed));
+          }
+        }
+        return fallback;
+      };
+
+      const resolveThaiInternationalSet = () => {
+        const override =
+          window.mydentQzConfig?.thaiInternationalSet ??
+          window.mydentQzConfig?.thaiIntlSet ??
+          window.mydentQzConfig?.printer?.thaiInternationalSet;
+        return resolveThaiValue(override, THAI_INTERNATIONAL_SET);
+      };
+
+      const resolveThaiCodepage = () => {
+        const override =
+          window.mydentQzConfig?.thaiCodepage ??
+          window.mydentQzConfig?.thaiCodePage ??
+          window.mydentQzConfig?.printer?.thaiCodepage ??
+          window.mydentQzConfig?.printer?.thaiCodePage;
+        return resolveThaiValue(override, THAI_CODEPAGE);
+      };
+
+      const _unicodeToPc874 = new Map([
+        [0x0e01, 0xa1],
+        [0x0e02, 0xa2],
+        [0x0e03, 0xa3],
+        [0x0e04, 0xa4],
+        [0x0e05, 0xa5],
+        [0x0e06, 0xa6],
+        [0x0e07, 0xa7],
+        [0x0e08, 0xa8],
+        [0x0e09, 0xa9],
+        [0x0e0a, 0xaa],
+        [0x0e0b, 0xab],
+        [0x0e0c, 0xac],
+        [0x0e0d, 0xad],
+        [0x0e0e, 0xae],
+        [0x0e0f, 0xaf],
+        [0x0e10, 0xb0],
+        [0x0e11, 0xb1],
+        [0x0e12, 0xb2],
+        [0x0e13, 0xb3],
+        [0x0e14, 0xb4],
+        [0x0e15, 0xb5],
+        [0x0e16, 0xb6],
+        [0x0e17, 0xb7],
+        [0x0e18, 0xb8],
+        [0x0e19, 0xb9],
+        [0x0e1a, 0xba],
+        [0x0e1b, 0xbb],
+        [0x0e1c, 0xbc],
+        [0x0e1d, 0xbd],
+        [0x0e1e, 0xbe],
+        [0x0e1f, 0xbf],
+        [0x0e20, 0xc0],
+        [0x0e21, 0xc1],
+        [0x0e22, 0xc2],
+        [0x0e23, 0xc3],
+        [0x0e24, 0xc4],
+        [0x0e25, 0xc5],
+        [0x0e26, 0xc6],
+        [0x0e27, 0xc7],
+        [0x0e28, 0xc8],
+        [0x0e29, 0xc9],
+        [0x0e2a, 0xca],
+        [0x0e2b, 0xcb],
+        [0x0e2c, 0xcc],
+        [0x0e2d, 0xcd],
+        [0x0e2e, 0xce],
+        [0x0e2f, 0xcf],
+        [0x0e30, 0xd0],
+        [0x0e31, 0xd1],
+        [0x0e32, 0xd2],
+        [0x0e33, 0xd3],
+        [0x0e34, 0xd4],
+        [0x0e35, 0xd5],
+        [0x0e36, 0xd6],
+        [0x0e37, 0xd7],
+        [0x0e38, 0xd8],
+        [0x0e39, 0xd9],
+        [0x0e3a, 0xda],
+        [0x0e3f, 0xdb],
+        [0x0e40, 0xdc],
+        [0x0e41, 0xdd],
+        [0x0e42, 0xde],
+        [0x0e43, 0xdf],
+        [0x0e44, 0xe0],
+        [0x0e45, 0xe1],
+        [0x0e46, 0xe2],
+        [0x0e47, 0xe3],
+        [0x0e48, 0xe4],
+        [0x0e49, 0xe5],
+        [0x0e4a, 0xe6],
+        [0x0e4b, 0xe7],
+        [0x0e4c, 0xe8],
+        [0x0e4d, 0xe9],
+        [0x0e4e, 0xea],
+        [0x0e4f, 0xeb],
+        [0x0e50, 0xec],
+        [0x0e51, 0xed],
+        [0x0e52, 0xee],
+        [0x0e53, 0xef],
+        [0x0e54, 0xf0],
+        [0x0e55, 0xf1],
+        [0x0e56, 0xf2],
+        [0x0e57, 0xf3],
+        [0x0e58, 0xf4],
+        [0x0e59, 0xf5],
+        [0x0e5a, 0xf6],
+        [0x0e5b, 0xf7],
+        [0x0e5c, 0xf8],
+        [0x0e5d, 0xf9],
+        [0x0e5e, 0xfa],
+        [0x0e5f, 0xfb],
+        [0x0e60, 0xfc],
+        [0x0e61, 0xfd],
+        [0x0e62, 0xfe],
+        [0x0e63, 0xff],
+      ]);
+
+      const encodePc874 = (input) => {
+        const source = Array.from(String(input ?? ''));
+        const bytes = [];
+        for (const char of source) {
+          const codePoint = char.codePointAt(0);
+          if (codePoint === 0x0a || codePoint === 0x0d) {
+            bytes.push(codePoint);
+          } else if (codePoint === 0x00a0) {
+            bytes.push(0xa0);
+          } else if (codePoint >= 0x00 && codePoint <= 0x7f) {
+            bytes.push(codePoint);
+          } else if (_unicodeToPc874.has(codePoint)) {
+            bytes.push(_unicodeToPc874.get(codePoint));
+          } else {
+            bytes.push(UNKNOWN_GLYPH_BYTE);
+          }
+        }
+        return Uint8Array.from(bytes);
+      };
+
+      const bytesToHex = (bytes) => {
+        let hex = '';
+        for (let i = 0; i < bytes.length; i += 1) {
+          hex += bytes[i].toString(16).padStart(2, '0').toUpperCase();
+        }
+        return hex;
+      };
+
+      const buildThaiTextPayload = (text, includeCut = true) => {
+        const baseText = String(text ?? '');
+        const normalized = baseText.endsWith('\n') ? baseText : `${baseText}\n`;
+        const cfg = window.mydentQzConfig || {};
+        const ordered = [70];
+        const codepages = Array.isArray(cfg.thaiCodepages) ? cfg.thaiCodepages : [];
+        for (const cp of codepages) {
+          if (typeof cp === 'number') ordered.push(cp & 0xff);
+        }
+        const direct = cfg.thaiCodepage ?? cfg.thaiCodePage;
+        if (typeof direct === 'number') ordered.push(direct & 0xff);
+        ordered.push(255);
+        const thaiCodePages = Array.from(new Set(ordered));
+
+        const bytes = [];
+        bytes.push(0x1b, 0x25, 0x00);
+        bytes.push(0x1c, 0x2e);
+        const intlSet = resolveThaiInternationalSet();
+        bytes.push(0x1b, 0x52, intlSet & 0xff);
+        for (const cp of thaiCodePages) {
+          bytes.push(0x1b, 0x74, cp & 0xff);
+        }
+        const textBytes = encodePc874(normalized);
+        bytes.push(...textBytes);
+        if (includeCut) {
+          bytes.push(0x0a);
+          bytes.push(0x1d, 0x56, 0x00);
+        }
+
+        let command = '';
+        for (const byte of bytes) {
+          command += '\x' + byte.toString(16).padStart(2, '0');
+        }
+
+        const meta = {
+          codePages: thaiCodePages,
+          internationalSet: intlSet & 0xff,
+          encoding: 'TIS-620',
+          bytes: bytes.length,
+        };
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug(`${LOG_PREFIX} Thai text payload prepared (raw command)`, meta);
+        }
+        return {
+          payload: {
+            type: 'raw',
+            format: 'command',
+            data: command,
+          },
+          meta,
+        };
+      };
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug(`${LOG_PREFIX} Thai text payload prepared (raw command)`, meta);
+        }
+        return {
+          payload: {
+            type: 'raw',
+            format: 'command',
+            data: command,
+          },
+          meta,
+        };
+      };
+
       let ensureLoadedPromise = null;
       let connectPromise = null;
       let securityConfigured = false;
@@ -225,6 +455,7 @@
       let connectionState = 'inactive';
       let bridgeReadyLogged = false;
       let dependencySnapshotLogged = false;
+      let dependencyCheckLogged = false;
       let connectionReadyLogged = false;
       let launchIframe = null;
       let lastConnectionReport = {
@@ -731,14 +962,25 @@
       });
 
       const logDependencySnapshot = () => {
-        if (dependencySnapshotLogged) {
-          return;
+        if (!dependencySnapshotLogged) {
+          dependencySnapshotLogged = true;
+          const snapshot = snapshotDependencyStatus();
+          console.log(`${LOG_PREFIX} Dependency snapshot`, snapshot);
+          const scripts = listDependencyScripts();
+          console.log(`${LOG_PREFIX} Dependency scripts`, scripts);
         }
-        dependencySnapshotLogged = true;
-        const snapshot = snapshotDependencyStatus();
-        console.log(`${LOG_PREFIX} Dependency snapshot`, snapshot);
-        const scripts = listDependencyScripts();
-        console.log(`${LOG_PREFIX} Dependency scripts`, scripts);
+
+        if (!dependencyCheckLogged) {
+          dependencyCheckLogged = true;
+          checkDependencyStatus()
+            .then((report) => {
+              console.log(`${LOG_PREFIX} Dependency check`, report);
+            })
+            .catch((error) => {
+              console.warn(`${LOG_PREFIX} Dependency check failed`, error);
+              dependencyCheckLogged = false;
+            });
+        }
       };
 
       const checkDependencyStatus = async () => {
@@ -1615,6 +1857,53 @@
         .map((value) => value.toString(16).padStart(2, '0'))
         .join('');
 
+      const DEFAULT_THERMAL_JOB_NAME = 'MyDent Thermal Print Job';
+
+      const createThermalConfig = (printerName, overrides = {}) => {
+        ensureQzAvailable();
+        if (!qz.configs || typeof qz.configs.create !== 'function') {
+          throw createError('qz_config_error', 'ไม่พบ qz.configs.create');
+        }
+
+        const normalizedPrinter = typeof printerName === 'string' && printerName.trim()
+          ? printerName.trim()
+          : null;
+
+        const baseOptions = {
+          copies: 1,
+          colorType: 'grayscale',
+          density: 'default',
+          duplex: false,
+          encoding: 'utf8',
+          interpolation: 'nearest-neighbor',
+          jobName: DEFAULT_THERMAL_JOB_NAME,
+          margins: 0,
+          rasterize: true,
+          altPrinting: false,
+        };
+
+        const merged = {
+          ...baseOptions,
+          ...overrides,
+        };
+
+        if (typeof merged.jobName !== 'string' || !merged.jobName.trim()) {
+          merged.jobName = DEFAULT_THERMAL_JOB_NAME;
+        }
+
+        if (typeof merged.margins !== 'number' && (typeof merged.margins !== 'object' || merged.margins === null)) {
+          merged.margins = 0;
+        }
+
+        merged.altPrinting = overrides.altPrinting === true;
+
+        if (typeof overrides.rasterize === 'boolean') {
+          merged.rasterize = overrides.rasterize;
+        }
+
+        return qz.configs.create(normalizedPrinter, merged);
+      };
+
       const buildEscPosRasterPayloads = (prepared) => {
         const width = prepared.width;
         const height = prepared.height;
@@ -1774,6 +2063,45 @@
         }
       };
 
+      const printRawCommandJob = async (printerName, commandString, meta = {}) => {
+        await ensureLoaded();
+        await configureSecurityIfNeeded();
+        await ensureConnected();
+
+        const resolvedPrinter = await resolvePrinterName(printerName);
+        const config = createThermalConfig(resolvedPrinter, {
+          rasterize: false,
+          altPrinting: false,
+          encoding: 'binary',
+        });
+        await qz.print(config, [
+          {
+            type: 'raw',
+            format: 'command',
+            data: commandString,
+          },
+        ]);
+        const info = {
+          codePages: Array.isArray(meta.codePages) && meta.codePages.length > 0 ? meta.codePages : [70, 255],
+          encoding: meta.encoding || 'TIS-620',
+          bytes: typeof meta.bytes === 'number' ? meta.bytes : commandString.length,
+        };
+        console.log(`${LOG_PREFIX} Print(Text Command): Success`);
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[MyDent|POS] QZ raw command sent', {
+            ...info,
+            printer: resolvedPrinter || undefined,
+          });
+        }
+        log(
+          'info',
+          `สั่งพิมพ์คำสั่ง ESC/POS ผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`,
+        );
+        return {
+          printer: resolvedPrinter,
+        };
+      };
+
       const printTextJob = async (printerName, lines, options = {}) => {
         const settings = {
           feed: options.feed !== false,
@@ -1784,6 +2112,7 @@
         const normalizedLines = Array.isArray(lines) ? lines : [lines];
         const printable = normalizedLines
           .map((line) => (typeof line === 'string' ? line : String(line ?? '')))
+          .map((line) => line.replace(/\r\n/g, '\n').replace(/\r/g, '\n'))
           .join('\n');
 
         if (!printable.trim()) {
@@ -1795,29 +2124,24 @@
         await ensureConnected();
 
         const resolvedPrinter = await resolvePrinterName(printerName);
-        const config = createThermalConfig(resolvedPrinter, { rasterize: false, altPrinting: false });
-        const payloads = [
-          {
-            type: 'raw',
-            format: 'plain',
-            data: settings.appendNewline ? `${printable}\n` : printable,
-          },
-        ];
-
-        if (settings.feed) {
-          payloads.push(buildFeedPayload());
-        }
-
-        await qz.print(config, payloads);
+        const config = createThermalConfig(resolvedPrinter, {
+          rasterize: false,
+          altPrinting: false,
+          encoding: 'binary',
+        });
+        const { payload, meta } = buildThaiTextPayload(printable, settings.cut !== false);
+        await qz.print(config, [payload]);
         console.log(`${LOG_PREFIX} Print(Text): Success`);
         log(
           'info',
           `สั่งพิมพ์ข้อความผ่าน QZ Tray สำเร็จ${resolvedPrinter ? ` (printer: ${resolvedPrinter})` : ''}`,
         );
 
-        if (settings.cut) {
-          await delay(CUT_DELAY_MS);
-          await performCut(resolvedPrinter);
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[MyDent|POS] QZ raw command printed', {
+            ...meta,
+            printer: resolvedPrinter || undefined,
+          });
         }
 
         return {
@@ -2212,6 +2536,9 @@
       window.mydentQzConnect = (options) => ensureConnected(options || {});
       window.mydentQzListPrinters = () => listPrinters();
       window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
+      window.mydentQzPrintCommand = (commandString, printerName, meta) => (
+        printRawCommandJob(printerName || null, commandString, meta || {})
+      );
       window.mydentQzPrintText = (textOrLines, printerName, options) => (
         printTextJob(printerName || null, textOrLines, options || {})
       );

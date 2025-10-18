@@ -1,34 +1,45 @@
 // lib/features/printing/utils/th_format.dart
-// Utils สำหรับจัดรูปแบบข้อมูลไทย เช่น วันที่, เวลา, จำนวนเงิน
+// Utilities สำหรับฟอร์แมตรูปแบบวันที่ เวลา และจำนวนเงินภาษาไทย
+
 import 'package:intl/intl.dart';
 
 class ThFormat {
   static String baht(num value) {
-    final f = NumberFormat('#,##0.##', 'th_TH');
-    return '${f.format(value)} บาท';
+    final formatter = NumberFormat('#,##0.##', 'th_TH');
+    return '${formatter.format(value)} บาท';
   }
 
-  /// คืนปี พ.ศ.
-  static int beYear(DateTime dt) => dt.year + 543;
+  /// คืนค่าเป็นปีพุทธศักราช
+  static int beYear(DateTime date) => date.year + 543;
 
-  /// วันที่ไทย เช่น 12 ก.ย. 2568 หรือ 12 ก.ย. 68 (เมื่อ shortYear=true)
-  static String dateThai(DateTime dt, {bool shortYear = false}) {
-    // ชื่อย่อเดือนแบบไม่มีจุดท้าย เพื่อตรงกับรูปแบบใบเสร็จของคลินิก
-    final months = [
-      'ม.ค', 'ก.พ', 'มี.ค', 'เม.ย', 'พ.ค', 'มิ.ย',
-      'ก.ค', 'ส.ค', 'ก.ย', 'ต.ค', 'พ.ย', 'ธ.ค'
+  /// คืนข้อความวันที่ในรูปแบบไทย เช่น 12 ม.ค. 2568 หรือ 12 ม.ค. 68
+  static String dateThai(DateTime date, {bool shortYear = false}) {
+    const months = <String>[
+      'ม.ค',
+      'ก.พ',
+      'มี.ค',
+      'เม.ย',
+      'พ.ค',
+      'มิ.ย',
+      'ก.ค',
+      'ส.ค',
+      'ก.ย',
+      'ต.ค',
+      'พ.ย',
+      'ธ.ค',
     ];
-    final d = dt.day;
-    final m = months[dt.month - 1];
-    final y = beYear(dt);
-    final yStr = shortYear ? (y % 100).toString().padLeft(2, '0') : y.toString();
-    return '$d $m $yStr';
+    final day = date.day;
+    final month = months[date.month - 1];
+    final year = beYear(date);
+    final yearText =
+        shortYear ? (year % 100).toString().padLeft(2, '0') : year.toString();
+    return '$day $month $yearText';
   }
 
-  /// เวลาไทย HH:mm น.
-  static String timeThai(DateTime dt) {
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mm = dt.minute.toString().padLeft(2, '0');
-    return '$hh:$mm น.';
+  /// คืนข้อความเวลารูปแบบ HH:mm น.
+  static String timeThai(DateTime date) {
+    final hours = date.hour.toString().padLeft(2, '0');
+    final minutes = date.minute.toString().padLeft(2, '0');
+    return '$hours:$minutes น.';
   }
 }

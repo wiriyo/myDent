@@ -128,6 +128,7 @@ class QzPrintService {
   Future<QzPrintResult> printPng(
     Uint8List pngBytes, {
     String? printerName,
+    int? postFeed,
   }) async {
     _assertEnabled();
     final base64Data = base64Encode(pngBytes);
@@ -135,6 +136,7 @@ class QzPrintService {
       final usedPrinter = await _delegate.printPng(
         base64Data,
         printerName: printerName,
+        postFeed: postFeed,
       );
       return QzPrintResult(printerName: usedPrinter ?? printerName);
     } catch (error) {

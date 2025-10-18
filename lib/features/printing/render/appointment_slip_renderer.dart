@@ -15,6 +15,9 @@ import '../../../services/logo_cache_service.dart';
 
 class AppointmentSlipRenderer {
   final int widthPx;
+  static const double _fontScale = 1.3;
+  static const double _logoScale = 1.3;
+  static const double _baseLogoWidth = 160.0;
   AppointmentSlipRenderer({this.widthPx = 576});
 
   Future<ui.Image> render(AppointmentSlipModel s) async {
@@ -59,7 +62,7 @@ class AppointmentSlipRenderer {
     // --- Header (with logo & clinic info) ---
     if (logoBytes != null) {
       final img = await _decodeImage(logoBytes);
-      final drawW = 160.0;
+      final drawW = _baseLogoWidth * _logoScale;
       final drawH = drawW * img.height / img.width;
       c.drawImageRect(
         img,
@@ -105,7 +108,15 @@ class AppointmentSlipRenderer {
 
   double _text(Canvas c, String text, double y, {double size = 22, bool bold = false, bool center = false, double height = 1.25}) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: TextStyle(fontSize: size, fontWeight: bold ? FontWeight.w700 : FontWeight.w400, color: Colors.black, height: height)),
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: size * _fontScale,
+          fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+          color: Colors.black,
+          height: height,
+        ),
+      ),
       textAlign: center ? TextAlign.center : TextAlign.left,
       textDirection: ui.TextDirection.ltr,
       // 💖 FIX: บังคับ textScaler = TextScaler.noScaling

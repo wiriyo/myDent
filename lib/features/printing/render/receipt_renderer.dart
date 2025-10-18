@@ -18,6 +18,10 @@ import '../domain/appointment_slip_model.dart' show AppointmentInfo; // เผ�
 class ReceiptRenderer {
   /// ความกว้างพิกเซลสำหรับ 80mm @ ~203dpi (บางรุ่น 576px)
   final int widthPx;
+  static const double _fontScale = 1.0;
+  static const double _logoScale = 1.3;
+  static const double _defaultLogoWidthFactor = 0.5;
+  static const double _fallbackFontSize = 14.0;
   ReceiptRenderer({this.widthPx = 576});
 
   Future<ui.Image> render(
@@ -38,7 +42,10 @@ class ReceiptRenderer {
     // 0) โลโก้ (ออปชัน)
     if (logoAssetPath != null) {
       try {
-        final img = await _loadAssetImage(logoAssetPath, maxWidth: (widthPx * 0.5).round());
+        final img = await _loadAssetImage(
+          logoAssetPath,
+          maxWidth: (widthPx * _defaultLogoWidthFactor * _logoScale).round(),
+        );
         final dx = (widthPx - img.width) / 2;
         canvas.drawImage(img, Offset(dx, y), paint);
         y += img.height + 12;
@@ -168,9 +175,18 @@ class ReceiptRenderer {
   String _formatBaht(num n) => NumberFormat('#,##0.##', 'th_TH').format(n);
   String _repeatChar(String ch, {required int count}) => List.filled(count, ch).join();
 
+  TextStyle _scaledStyle(TextStyle? style) {
+    final base = style ?? const TextStyle();
+    final double resolvedFontSize = (base.fontSize ?? _fallbackFontSize) * _fontScale;
+    return base.copyWith(
+      fontSize: resolvedFontSize,
+      color: Colors.black,
+    );
+  }
+
   double _drawCenter(Canvas canvas, double y, String text, {TextStyle? style}) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: (style ?? const TextStyle()).copyWith(color: Colors.black)),
+      text: TextSpan(text: text, style: _scaledStyle(style)),
       textAlign: TextAlign.center,
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: widthPx.toDouble());
@@ -180,7 +196,7 @@ class ReceiptRenderer {
 
   double _drawRight(Canvas canvas, double y, String text, {TextStyle? style}) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: (style ?? const TextStyle()).copyWith(color: Colors.black)),
+      text: TextSpan(text: text, style: _scaledStyle(style)),
       textAlign: TextAlign.right,
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: widthPx.toDouble());
@@ -197,13 +213,13 @@ class ReceiptRenderer {
     TextStyle? rightStyle,
   }) {
     final leftTp = TextPainter(
-      text: TextSpan(text: left, style: (leftStyle ?? const TextStyle()).copyWith(color: Colors.black)),
+      text: TextSpan(text: left, style: _scaledStyle(leftStyle)),
       textAlign: TextAlign.left,
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: widthPx.toDouble() * 0.6);
 
     final rightTp = TextPainter(
-      text: TextSpan(text: right, style: (rightStyle ?? const TextStyle()).copyWith(color: Colors.black)),
+      text: TextSpan(text: right, style: _scaledStyle(rightStyle)),
       textAlign: TextAlign.right,
       textDirection: ui.TextDirection.ltr,
     )..layout(maxWidth: widthPx.toDouble() * 0.35);

@@ -10,11 +10,11 @@ class QzPrintPlatform {
       Future<QzStatusSnapshot>.value(const QzStatusSnapshot.inactive());
 
   Future<QzStatusSnapshot> refreshSecurityStatus() => Future.error(
-        QzPrintException(
-          'qz_unsupported',
-          'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
-        ),
-      );
+    QzPrintException(
+      'qz_unsupported',
+      'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+    ),
+  );
 
   Future<void> ensureReady() => Future.error(
     QzPrintException(
@@ -37,25 +37,27 @@ class QzPrintPlatform {
     ),
   );
 
-  Future<String?> printPng(String base64Png, {String? printerName}) =>
-      Future.error(
-        QzPrintException(
-          'qz_unsupported',
-          'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
-        ),
-      );
+  Future<String?> printPng(
+    String base64Png, {
+    String? printerName,
+    int? postFeed,
+  }) => Future.error(
+    QzPrintException(
+      'qz_unsupported',
+      'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+    ),
+  );
 
   Future<String?> printRawCommand(
     String command, {
     String? printerName,
     Map<String, Object?>? meta,
-  }) =>
-      Future.error(
-        QzPrintException(
-          'qz_unsupported',
-          'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
-        ),
-      );
+  }) => Future.error(
+    QzPrintException(
+      'qz_unsupported',
+      'QZ Tray printing ใช้งานได้เฉพาะบนเว็บเท่านั้น',
+    ),
+  );
 
   Future<void> launchQzTray() => Future.error(
     QzPrintException(

@@ -97,18 +97,18 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       final logo = await _loadLogo();
       if (!mounted) return;
 
-        setState(() {
-          _printingScale = settings.scale;
-          _printingPostFeed = settings.postFeed;
-          _printingHeaderSpace = settings.headerSpace;
-          _browserMode = settings.browserMode;
-          _browserPixelWidth = settings.browserPixelWidth;
-          _browserAutoClose = settings.browserAutoClose;
-          _cachedPngBase64 = null;
-          _data = data;
-          _logo = logo;
-          _isLoading = false;
-        });
+      setState(() {
+        _printingScale = settings.scale;
+        _printingPostFeed = settings.postFeed;
+        _printingHeaderSpace = settings.headerSpace;
+        _browserMode = settings.browserMode;
+        _browserPixelWidth = settings.browserPixelWidth;
+        _browserAutoClose = settings.browserAutoClose;
+        _cachedPngBase64 = null;
+        _data = data;
+        _logo = logo;
+        _isLoading = false;
+      });
     } catch (e, st) {
       if (kDebugMode) debugPrint('prepare error: $e\n$st');
       if (mounted) {
@@ -302,10 +302,13 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         return;
       }
 
+      final int feedLines = PrintSettings.feedLinesFromSetting(
+        _printingPostFeed,
+      );
       await ThermalPrinterService.I.ensureConnectAndPrintPng(
         context,
         png,
-        feed: _printingPostFeed,
+        feed: feedLines,
         cut: true,
       );
       if (!mounted) return;
@@ -381,8 +384,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                 ListTile(
                   leading: const Icon(Icons.refresh_outlined),
                   title: const Text('ลองโหลดบริดจ์ใหม่'),
-                  subtitle:
-                      const Text('รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง'),
+                  subtitle: const Text(
+                    'รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง',
+                  ),
                   onTap: () {
                     Navigator.of(ctx).pop();
                     retryQzBridge(context, _qzService);
@@ -484,9 +488,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       final png = await _ensurePng(forceRecapture: forceRecapture);
       if (!context.mounted) return;
       if (png == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
         return;
       }
       await _performQzPrint(png);
@@ -511,7 +515,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       await _qzService.ensureSecurityReady();
     } on QzPrintException catch (error) {
       final QzStatusSnapshot? snapshot =
-          error.original is QzStatusSnapshot ? error.original as QzStatusSnapshot : null;
+          error.original is QzStatusSnapshot
+              ? error.original as QzStatusSnapshot
+              : null;
       await _showQzSecurityDialog(error, snapshot);
       return;
     }
@@ -551,7 +557,12 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
       }
     }
 
-    final result = await _qzService.printPng(png, printerName: printer);
+    final int feedLines = PrintSettings.feedLinesFromSetting(_printingPostFeed);
+    final result = await _qzService.printPng(
+      png,
+      printerName: printer,
+      postFeed: feedLines,
+    );
     final String? used = result.printerName ?? printer;
     if (used != null && used.isNotEmpty) {
       await _qzService.savePrinter(used);
@@ -573,10 +584,12 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     final messenger = ScaffoldMessenger.of(context);
     final bool certificateInvalid = status?.hasCertificateIssue ?? false;
     final bool whitelistOk = status?.isWhitelisted ?? false;
-    final String? expiresAt = status?.certificateExpiresAt?.toLocal().toString();
-    final String certificateSummary = status?.certificateSubject != null
-        ? 'Subject: ${status!.certificateSubject}\nIssuer: ${status.certificateIssuer ?? '-'}'
-        : 'ไม่สามารถอ่านข้อมูลใบรับรองจาก QZ Tray ได้';
+    final String? expiresAt =
+        status?.certificateExpiresAt?.toLocal().toString();
+    final String certificateSummary =
+        status?.certificateSubject != null
+            ? 'Subject: ${status!.certificateSubject}\nIssuer: ${status.certificateIssuer ?? '-'}'
+            : 'ไม่สามารถอ่านข้อมูลใบรับรองจาก QZ Tray ได้';
     final List<Widget> contentWidgets = [
       Text(
         certificateInvalid
@@ -622,7 +635,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                 if (!context.mounted) return;
                 messenger.showSnackBar(
                   const SnackBar(
-                    content: Text('พยายามอัปเดต whitelist.txt ผ่าน QZ Tray แล้ว โปรดรีสตาร์ทโปรแกรมก่อนลองใหม่'),
+                    content: Text(
+                      'พยายามอัปเดต whitelist.txt ผ่าน QZ Tray แล้ว โปรดรีสตาร์ทโปรแกรมก่อนลองใหม่',
+                    ),
                   ),
                 );
                 Navigator.of(dialogContext).pop(true);
@@ -635,7 +650,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
                 if (!context.mounted) return;
                 if (!opened) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('เปิด QZ Tray Site Manager ไม่สำเร็จ')),
+                    const SnackBar(
+                      content: Text('เปิด QZ Tray Site Manager ไม่สำเร็จ'),
+                    ),
                   );
                 }
                 Navigator.of(dialogContext).pop(opened);
@@ -650,7 +667,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     if (action == true && certificateInvalid && context.mounted) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('หลังรีเฟรช certificate จาก qz.io/latest-signing โปรดรีสตาร์ท QZ Tray'),
+          content: Text(
+            'หลังรีเฟรช certificate จาก qz.io/latest-signing โปรดรีสตาร์ท QZ Tray',
+          ),
         ),
       );
     }
@@ -775,16 +794,16 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
     }
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(content: Text(error.message)),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(error.message)));
     try {
       final List<String> printers = await _qzService.listPrinters();
       if (!mounted) return;
       if (printers.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('QZ Tray ไม่รายงานเครื่องพิมพ์ โปรดตรวจสอบการเชื่อมต่อ'),
+            content: Text(
+              'QZ Tray ไม่รายงานเครื่องพิมพ์ โปรดตรวจสอบการเชื่อมต่อ',
+            ),
           ),
         );
         return;
@@ -807,7 +826,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
         }
       }
       messenger.showSnackBar(
-        const SnackBar(content: Text('เลือกเครื่องพิมพ์ใหม่แล้ว โปรดลองพิมพ์อีกครั้ง')),
+        const SnackBar(
+          content: Text('เลือกเครื่องพิมพ์ใหม่แล้ว โปรดลองพิมพ์อีกครั้ง'),
+        ),
       );
     } on QzPrintException catch (err) {
       _showQzErrorSnackBar(err);
@@ -867,8 +888,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
 
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final result =
-          await _qzService.runSelfTestWithPrints(printerName: _savedQzPrinter);
+      final result = await _qzService.runSelfTestWithPrints(
+        printerName: _savedQzPrinter,
+      );
       final String summary = _formatSelfTest(result.report);
       final String raw = _formatSelfTestTask('RAW', result.raw);
       final String image = _formatSelfTestTask('PNG', result.image);

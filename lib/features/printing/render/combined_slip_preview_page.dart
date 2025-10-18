@@ -378,10 +378,13 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
         return;
       }
 
+      final int feedLines = PrintSettings.feedLinesFromSetting(
+        _printingPostFeed,
+      );
       await ThermalPrinterService.I.ensureConnectAndPrintPng(
         context,
         png,
-        feed: _printingPostFeed,
+        feed: feedLines,
         cut: true,
       );
       if (!mounted) return;
@@ -445,7 +448,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
                 ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
                   title: const Text('Self-test (QZ Tray)'),
-                  subtitle: const Text('ตรวจสอบสถานะ/ลายเซ็น และรายงานเวอร์ชันอย่างรวดเร็ว'),
+                  subtitle: const Text(
+                    'ตรวจสอบสถานะ/ลายเซ็น และรายงานเวอร์ชันอย่างรวดเร็ว',
+                  ),
                   onTap: () {
                     Navigator.of(ctx).pop();
                     _runQzSelfTest();
@@ -455,8 +460,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
                 ListTile(
                   leading: const Icon(Icons.refresh_outlined),
                   title: const Text('ลองโหลดบริดจ์ใหม่'),
-                  subtitle:
-                      const Text('รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง'),
+                  subtitle: const Text(
+                    'รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง',
+                  ),
                   onTap: () {
                     Navigator.of(ctx).pop();
                     retryQzBridge(context, _qzService);
@@ -552,9 +558,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       final png = await _ensurePng(forceRecapture: forceRecapture);
       if (!context.mounted) return;
       if (png == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
         return;
       }
       await _performQzPrint(png);
@@ -577,7 +583,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       await _qzService.ensureSecurityReady();
     } on QzPrintException catch (error) {
       final QzStatusSnapshot? snapshot =
-          error.original is QzStatusSnapshot ? error.original as QzStatusSnapshot : null;
+          error.original is QzStatusSnapshot
+              ? error.original as QzStatusSnapshot
+              : null;
       await _showQzSecurityDialog(error, snapshot);
       return;
     }
@@ -617,7 +625,12 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       }
     }
 
-    final result = await _qzService.printPng(png, printerName: printer);
+    final int feedLines = PrintSettings.feedLinesFromSetting(_printingPostFeed);
+    final result = await _qzService.printPng(
+      png,
+      printerName: printer,
+      postFeed: feedLines,
+    );
     final String? used = result.printerName ?? printer;
     if (used != null && used.isNotEmpty) {
       await _qzService.savePrinter(used);
@@ -639,10 +652,12 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
     final messenger = ScaffoldMessenger.of(context);
     final bool certificateInvalid = status?.hasCertificateIssue ?? false;
     final bool whitelistOk = status?.isWhitelisted ?? false;
-    final String? expiresAt = status?.certificateExpiresAt?.toLocal().toString();
-    final String certificateSummary = status?.certificateSubject != null
-        ? 'Subject: ${status!.certificateSubject}\nIssuer: ${status.certificateIssuer ?? '-'}'
-        : 'ไม่สามารถอ่านข้อมูลใบรับรองจาก QZ Tray ได้';
+    final String? expiresAt =
+        status?.certificateExpiresAt?.toLocal().toString();
+    final String certificateSummary =
+        status?.certificateSubject != null
+            ? 'Subject: ${status!.certificateSubject}\nIssuer: ${status.certificateIssuer ?? '-'}'
+            : 'ไม่สามารถอ่านข้อมูลใบรับรองจาก QZ Tray ได้';
     final List<Widget> contentWidgets = [
       Text(
         certificateInvalid
@@ -688,7 +703,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
                 if (!context.mounted) return;
                 messenger.showSnackBar(
                   const SnackBar(
-                    content: Text('พยายามอัปเดต whitelist.txt ผ่าน QZ Tray แล้ว โปรดรีสตาร์ทโปรแกรมก่อนพิมพ์อีกครั้ง'),
+                    content: Text(
+                      'พยายามอัปเดต whitelist.txt ผ่าน QZ Tray แล้ว โปรดรีสตาร์ทโปรแกรมก่อนพิมพ์อีกครั้ง',
+                    ),
                   ),
                 );
                 Navigator.of(dialogContext).pop();
@@ -701,7 +718,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
                 if (!context.mounted) return;
                 if (!opened) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('เปิด QZ Tray Site Manager ไม่สำเร็จ')),
+                    const SnackBar(
+                      content: Text('เปิด QZ Tray Site Manager ไม่สำเร็จ'),
+                    ),
                   );
                 }
                 Navigator.of(dialogContext).pop();
@@ -716,7 +735,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
     if (certificateInvalid && context.mounted) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('กรุณารีเฟรช certificate จาก qz.io/latest-signing และรีสตาร์ท QZ Tray'),
+          content: Text(
+            'กรุณารีเฟรช certificate จาก qz.io/latest-signing และรีสตาร์ท QZ Tray',
+          ),
         ),
       );
     }
@@ -846,7 +867,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
       if (printers.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('QZ Tray ไม่รายงานเครื่องพิมพ์ โปรดตรวจสอบการเชื่อมต่อ'),
+            content: Text(
+              'QZ Tray ไม่รายงานเครื่องพิมพ์ โปรดตรวจสอบการเชื่อมต่อ',
+            ),
           ),
         );
         return;
@@ -865,7 +888,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
         if (mounted) setState(() => _savedQzPrinter = null);
       }
       messenger.showSnackBar(
-        const SnackBar(content: Text('เลือกเครื่องพิมพ์ใหม่แล้ว โปรดลองพิมพ์อีกครั้ง')),
+        const SnackBar(
+          content: Text('เลือกเครื่องพิมพ์ใหม่แล้ว โปรดลองพิมพ์อีกครั้ง'),
+        ),
       );
     } on QzPrintException catch (err) {
       _showQzErrorSnackBar(err);

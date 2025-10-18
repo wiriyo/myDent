@@ -191,7 +191,8 @@
       const QZ_LOAD_POLL_INTERVAL_MS = 100;
       const CUT_CMD_FULL_HEX = '1d5600'; // ESC/POS full cut (GS V 0)
       const CUT_CMD_PARTIAL_HEX = '1d564200'; // ESC/POS partial cut (GS V 66 0)
-      const FEED_CMD_SMALL_HEX = '1b6403'; // ESC d 3 (feed 3 lines)
+      const DEFAULT_FEED_LINES = 3;
+      const FEED_CMD_PREFIX_HEX = '1B64'; // ESC d n (feed n lines)
       const CUT_DELAY_MS = 250;
       const IMAGE_PRINTING_ENABLED = true;
       const TARGET_IMAGE_WIDTH = 576;
@@ -204,6 +205,23 @@
 
       const THAI_CODEPAGE = 255; // Thai (Page255) per printer self-test; PC874 fallback will be sent too
       const UNKNOWN_GLYPH_BYTE = 0x3f;
+      const clampFeedLines = (value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return DEFAULT_FEED_LINES;
+        }
+        if (numeric <= 0) {
+          return 0;
+        }
+        if (numeric >= 255) {
+          return 255;
+        }
+        return Math.round(numeric);
+      };
+      const feedCommandHex = (lines) => {
+        const clamped = clampFeedLines(lines);
+        return `${FEED_CMD_PREFIX_HEX}${clamped.toString(16).padStart(2, '0').toUpperCase()}`;
+      };
 
       const resolveThaiValue = (value, fallback) => {
         if (value == null) {
@@ -2006,10 +2024,10 @@
         return { config, payloads };
       };
 
-      const buildFeedPayload = () => ({
+      const buildFeedPayload = (lines = DEFAULT_FEED_LINES) => ({
         type: 'raw',
         format: 'hex',
-        data: FEED_CMD_SMALL_HEX,
+        data: feedCommandHex(lines),
       });
 
       const buildFullCutPayload = () => ({
@@ -2024,9 +2042,10 @@
         data: CUT_CMD_PARTIAL_HEX,
       });
 
-      const performCut = async (printer) => {
+      const performCut = async (printer, options = {}) => {
         const config = createThermalConfig(printer, { rasterize: false, altPrinting: false });
-        const feedPayload = buildFeedPayload();
+        const feedLines = clampFeedLines(options.postFeedLines ?? DEFAULT_FEED_LINES);
+        const feedPayload = buildFeedPayload(feedLines);
         const fullCutPayload = buildFullCutPayload();
         const partialCutPayload = buildPartialCutPayload();
         try {
@@ -2132,7 +2151,7 @@
         };
       };
 
-      const printPng = async (base64Png, printerName) => {
+      const printPng = async (base64Png, printerName, options = {}) => {
         if (!IMAGE_PRINTING_ENABLED) {
           const timestamp = new Date().toLocaleString('th-TH');
           const lines = [
@@ -2150,6 +2169,7 @@
         if (!base64Png) {
           throw createError('qz_invalid_payload', 'ข้อมูล PNG ไม่ถูกต้องหรือว่างเปล่า');
         }
+        const feedLines = clampFeedLines((options && typeof options === 'object') ? options.postFeed : undefined);
 
         await ensureLoaded();
         await configureSecurityIfNeeded();
@@ -2197,7 +2217,7 @@
           }
           await delay(CUT_DELAY_MS);
           try {
-            await performCut(resolvedPrinter);
+            await performCut(resolvedPrinter, { postFeedLines: feedLines });
           } catch (cutError) {
             throw mapPrintError(cutError);
           }
@@ -2207,7 +2227,7 @@
         await delay(CUT_DELAY_MS);
 
         try {
-          await performCut(resolvedPrinter);
+          await performCut(resolvedPrinter, { postFeedLines: feedLines });
         } catch (error) {
           throw mapPrintError(error);
         }
@@ -2516,7 +2536,7 @@
       window.mydentQzEnsureLoaded = () => ensureLoaded();
       window.mydentQzConnect = (options) => ensureConnected(options || {});
       window.mydentQzListPrinters = () => listPrinters();
-      window.mydentQzPrintPng = (base64Png, printerName) => printPng(base64Png, printerName || null);
+      window.mydentQzPrintPng = (base64Png, printerName, options) => printPng(base64Png, printerName || null, options || {});
       window.mydentQzPrintCommand = (commandString, printerName, meta) => (
         printRawCommandJob(printerName || null, commandString, meta || {})
       );

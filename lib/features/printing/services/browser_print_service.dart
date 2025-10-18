@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'browser_print_service_delegate.dart';
 import 'browser_print_service_stub.dart'
     if (dart.library.html) 'browser_print_service_web.dart';
 

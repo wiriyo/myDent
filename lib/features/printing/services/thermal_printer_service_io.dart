@@ -403,7 +403,8 @@ class ThermalPrinterService implements PrinterClient {
     );
 
     // 💖 FIX v1.1.0: ทำให้ feed เป็นตัวควบคุมระยะห่างท้ายกระดาษทั้งหมด
-    if (feed > 0) bytes.addAll(gen.feed(feed));
+    final int effectiveFeed = feed.clamp(0, 255).toInt();
+    if (effectiveFeed > 0) bytes.addAll(gen.feed(effectiveFeed));
     if (cut) {
       bytes.addAll(gen.cut(mode: PosCutMode.full));
       // เอา feed(2) ที่เคย hardcode ไว้ออก เพื่อให้ตั้งค่าจากข้างนอกได้ 100%

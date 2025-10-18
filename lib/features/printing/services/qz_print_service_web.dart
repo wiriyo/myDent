@@ -61,43 +61,46 @@ class QzPrintPlatform {
     return const <String>[];
   });
 
-  Future<String?> printPng(String base64Png, {String? printerName}) =>
-      _guard(() async {
-        await _ensureLoaded();
-        await _connectWithDiagnostics();
-        final Object? result = await _invokePromise(
-          'mydentQzPrintPng',
-          <dynamic>[base64Png, printerName],
-        );
-        if (result is Map) {
-          final Object? value = result['printer'];
-          if (value is String && value.trim().isNotEmpty) {
-            return value.trim();
-          }
-        }
-        return printerName;
-      });
+  Future<String?> printPng(
+    String base64Png, {
+    String? printerName,
+    int? postFeed,
+  }) => _guard(() async {
+    await _ensureLoaded();
+    await _connectWithDiagnostics();
+    final List<dynamic> args = <dynamic>[base64Png, printerName];
+    if (postFeed != null) {
+      args.add(<String, Object?>{'postFeed': postFeed});
+    }
+    final Object? result = await _invokePromise('mydentQzPrintPng', args);
+    if (result is Map) {
+      final Object? value = result['printer'];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return printerName;
+  });
 
   Future<String?> printRawCommand(
     String command, {
     String? printerName,
     Map<String, Object?>? meta,
-  }) =>
-      _guard(() async {
-        await _ensureLoaded();
-        await _connectWithDiagnostics();
-        final Object? result = await _invokePromise(
-          'mydentQzPrintCommand',
-          <dynamic>[command, printerName, meta],
-        );
-        if (result is Map) {
-          final Object? value = result['printer'];
-          if (value is String && value.trim().isNotEmpty) {
-            return value.trim();
-          }
-        }
-        return printerName;
-      });
+  }) => _guard(() async {
+    await _ensureLoaded();
+    await _connectWithDiagnostics();
+    final Object? result = await _invokePromise(
+      'mydentQzPrintCommand',
+      <dynamic>[command, printerName, meta],
+    );
+    if (result is Map) {
+      final Object? value = result['printer'];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return printerName;
+  });
 
   Future<void> launchQzTray() => _guard(() async {
     await _invokePromise('mydentQzLaunch');
@@ -109,30 +112,30 @@ class QzPrintPlatform {
     return _toSelfTestReport(result);
   });
 
-  Future<QzSelfTestRunResult> runSelfTestPrints({String? printerName}) =>
-      _guard(() async {
-        await _ensureLoaded();
-        final Object? result = await _invokePromise(
-          'mydentQzSelfTest',
-          <dynamic>[printerName, <String, Object?>{'runPrints': true}],
-        );
-        final QzSelfTestReport report = _toSelfTestReport(result);
-        final Map<String, Object?> data = _dartifyMap(result);
-        final QzSelfTestTaskResult raw = _toSelfTestTaskResult(data['rawTest']);
-        final QzSelfTestTaskResult image =
-            _toSelfTestTaskResult(data['imageTest']);
-        final String? printerRaw = data['printer']?.toString();
-        final String? printer =
-            (printerRaw == null || printerRaw.trim().isEmpty)
-                ? null
-                : printerRaw.trim();
-        return QzSelfTestRunResult(
-          report: report,
-          raw: raw,
-          image: image,
-          printerName: printer,
-        );
-      });
+  Future<QzSelfTestRunResult> runSelfTestPrints({
+    String? printerName,
+  }) => _guard(() async {
+    await _ensureLoaded();
+    final Object? result = await _invokePromise('mydentQzSelfTest', <dynamic>[
+      printerName,
+      <String, Object?>{'runPrints': true},
+    ]);
+    final QzSelfTestReport report = _toSelfTestReport(result);
+    final Map<String, Object?> data = _dartifyMap(result);
+    final QzSelfTestTaskResult raw = _toSelfTestTaskResult(data['rawTest']);
+    final QzSelfTestTaskResult image = _toSelfTestTaskResult(data['imageTest']);
+    final String? printerRaw = data['printer']?.toString();
+    final String? printer =
+        (printerRaw == null || printerRaw.trim().isEmpty)
+            ? null
+            : printerRaw.trim();
+    return QzSelfTestRunResult(
+      report: report,
+      raw: raw,
+      image: image,
+      printerName: printer,
+    );
+  });
 
   Future<void> ensureWhitelist() => _guardBridge('mydentQzEnsureWhitelist');
 
@@ -180,16 +183,16 @@ class QzPrintPlatform {
       return;
     }
     try {
-      _statusEventCallback =
-          js_util.allowInterop<void Function(web.Event)>((web.Event event) {
+      _statusEventCallback = js_util.allowInterop<void Function(web.Event)>((
+        web.Event event,
+      ) {
         final QzStatusSnapshot snapshot = _snapshotFromEvent(event);
         _statusController.add(snapshot);
       });
-      js_util.callMethod<void>(
-        web.window,
-        'addEventListener',
-        <Object?>[_statusEventName, _statusEventCallback],
-      );
+      js_util.callMethod<void>(web.window, 'addEventListener', <Object?>[
+        _statusEventName,
+        _statusEventCallback,
+      ]);
     } catch (_) {
       _statusEventCallback = null;
       // ignore listener attachment errors
@@ -300,11 +303,16 @@ class QzPrintPlatform {
     final DateTime? timestamp = _parseTimestamp(data['timestamp']);
     final bool? isTrusted = _toBool(security['trusted']);
     final bool? isCertificateValid = _toBool(security['certificateValid']);
-    final DateTime? certificateExpiry = _parseTimestamp(security['certificateExpiry']);
-    final String? certificateSubject = security['certificateSubject']?.toString();
+    final DateTime? certificateExpiry = _parseTimestamp(
+      security['certificateExpiry'],
+    );
+    final String? certificateSubject =
+        security['certificateSubject']?.toString();
     final String? certificateIssuer = security['certificateIssuer']?.toString();
     final bool? whitelistEnsured = _toBool(security['whitelistEnsured']);
-    final DateTime? whitelistUpdatedAt = _parseTimestamp(security['whitelistUpdatedAt']);
+    final DateTime? whitelistUpdatedAt = _parseTimestamp(
+      security['whitelistUpdatedAt'],
+    );
     final String? whitelistError = security['whitelistError']?.toString();
     final String? environment = security['environment']?.toString();
     return QzStatusSnapshot(
@@ -349,12 +357,14 @@ class QzPrintPlatform {
     final bool skipped = data['skipped'] == true;
     final String? errorCodeRaw = data['errorCode']?.toString();
     final String? messageRaw = data['message']?.toString();
-    final String message = (messageRaw == null || messageRaw.trim().isEmpty)
-        ? (success ? 'สำเร็จ' : 'ล้มเหลว')
-        : messageRaw.trim();
-    final String? errorCode = (errorCodeRaw == null || errorCodeRaw.trim().isEmpty)
-        ? null
-        : errorCodeRaw.trim();
+    final String message =
+        (messageRaw == null || messageRaw.trim().isEmpty)
+            ? (success ? 'สำเร็จ' : 'ล้มเหลว')
+            : messageRaw.trim();
+    final String? errorCode =
+        (errorCodeRaw == null || errorCodeRaw.trim().isEmpty)
+            ? null
+            : errorCodeRaw.trim();
     return QzSelfTestTaskResult(
       success: success,
       message: message,
@@ -508,7 +518,8 @@ class QzPrintPlatform {
     final String? fromProperty = _readStringProperty(error, 'code');
     if (fromProperty != null && fromProperty.isNotEmpty) {
       final String normalized = fromProperty.toLowerCase();
-      if (normalized.contains('invalid_signature') || normalized.contains('signature')) {
+      if (normalized.contains('invalid_signature') ||
+          normalized.contains('signature')) {
         return 'qz_security_error';
       }
       return fromProperty;

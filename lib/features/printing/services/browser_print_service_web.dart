@@ -4,32 +4,41 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 
-import 'browser_print_service_stub.dart';
+import 'browser_print_service_delegate.dart';
 
 BrowserPrintServiceDelegate createBrowserPrintService() {
-  return BrowserPrintServiceDelegate(
-    printPng: _printPng,
-    printHtml: _printHtml,
-  );
+  return _WebBrowserPrintServiceDelegate();
 }
 
-Future<void> _printPng(String base64Png, bool autoClose, int pixelWidth) async {
-  await _openPrintWindow(
-    mode: 'png',
-    autoClose: autoClose,
-    payload: <String, dynamic>{
-      'base64': base64Png,
-      'pixelWidth': pixelWidth,
-    },
-  );
-}
+class _WebBrowserPrintServiceDelegate
+    implements BrowserPrintServiceDelegate {
+  @override
+  Future<void> printPng(
+    String base64Png,
+    bool autoClose,
+    int pixelWidth,
+  ) async {
+    await _openPrintWindow(
+      mode: 'png',
+      autoClose: autoClose,
+      payload: <String, dynamic>{
+        'base64': base64Png,
+        'pixelWidth': pixelWidth,
+      },
+    );
+  }
 
-Future<void> _printHtml(Map<String, dynamic> payload, bool autoClose) async {
-  await _openPrintWindow(
-    mode: 'html',
-    autoClose: autoClose,
-    payload: payload,
-  );
+  @override
+  Future<void> printHtml(
+    Map<String, dynamic> payload,
+    bool autoClose,
+  ) async {
+    await _openPrintWindow(
+      mode: 'html',
+      autoClose: autoClose,
+      payload: payload,
+    );
+  }
 }
 
 Future<void> _openPrintWindow({
@@ -39,7 +48,9 @@ Future<void> _openPrintWindow({
 }) async {
   final String origin = html.window.location.origin ?? '';
   final Uri baseUri = Uri.parse(html.window.location.href ?? '/');
-  final Uri resolved = baseUri.resolve('print/print.html?mode=$mode&autoClose=${autoClose ? '1' : '0'}');
+  final Uri resolved = baseUri.resolve(
+    'print/print.html?mode=$mode&autoClose=${autoClose ? '1' : '0'}',
+  );
 
   final html.WindowBase? popup = html.window.open(
     resolved.toString(),
@@ -48,7 +59,9 @@ Future<void> _openPrintWindow({
   );
 
   if (popup == null) {
-    throw StateError('ไม่สามารถเปิดหน้าต่างพิมพ์ได้');
+    throw StateError(
+      'Unable to open browser print window. Please allow pop-ups for this site.',
+    );
   }
 
   final Map<String, dynamic> message = <String, dynamic>{

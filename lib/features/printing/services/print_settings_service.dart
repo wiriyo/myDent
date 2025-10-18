@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +27,9 @@ class PrintSettings {
   static const int minBrowserPixelWidth = 384;
   static const int maxBrowserPixelWidth = 640;
 
+  static const int _feedStepLines = 4;
+  static const int _minEffectiveFeedLines = 3;
+
   final double scale;
   final int postFeed;
   final int headerSpace;
@@ -43,14 +48,14 @@ class PrintSettings {
   );
 
   const PrintSettings.defaults()
-      : this._(
-          defaultScale,
-          defaultPostFeed,
-          defaultHeaderSpace,
-          defaultBrowserMode,
-          defaultBrowserPixelWidth,
-          defaultBrowserAutoClose,
-        );
+    : this._(
+        defaultScale,
+        defaultPostFeed,
+        defaultHeaderSpace,
+        defaultBrowserMode,
+        defaultBrowserPixelWidth,
+        defaultBrowserAutoClose,
+      );
 
   factory PrintSettings({
     required double scale,
@@ -64,9 +69,10 @@ class PrintSettings {
     final clampedPostFeed = postFeed.clamp(minPostFeed, maxPostFeed).toInt();
     final clampedHeaderSpace =
         headerSpace.clamp(minHeaderSpace, maxHeaderSpace).toInt();
-    final int width = (browserPixelWidth ?? defaultBrowserPixelWidth)
-        .clamp(minBrowserPixelWidth, maxBrowserPixelWidth)
-        .toInt();
+    final int width =
+        (browserPixelWidth ?? defaultBrowserPixelWidth)
+            .clamp(minBrowserPixelWidth, maxBrowserPixelWidth)
+            .toInt();
     return PrintSettings._(
       clampedScale,
       clampedPostFeed,
@@ -96,13 +102,13 @@ class PrintSettings {
   }
 
   Map<String, dynamic> toMap() => <String, dynamic>{
-        'scale': scale,
-        'postFeed': postFeed,
-        'headerSpace': headerSpace,
-        'browserMode': browserMode.name,
-        'browserPixelWidth': browserPixelWidth,
-        'browserAutoClose': browserAutoClose,
-      };
+    'scale': scale,
+    'postFeed': postFeed,
+    'headerSpace': headerSpace,
+    'browserMode': browserMode.name,
+    'browserPixelWidth': browserPixelWidth,
+    'browserAutoClose': browserAutoClose,
+  };
 
   static PrintSettings fromMap(Map<String, dynamic>? data) {
     if (data == null) {
@@ -114,7 +120,8 @@ class PrintSettings {
     final String? modeRaw = data['browserMode'] as String?;
     final BrowserPrintMode mode = _modeFromRaw(modeRaw);
     final int? browserWidth = (data['browserPixelWidth'] as num?)?.toInt();
-    final bool autoClose = (data['browserAutoClose'] as bool?) ??
+    final bool autoClose =
+        (data['browserAutoClose'] as bool?) ??
         PrintSettings.defaultBrowserAutoClose;
     return PrintSettings(
       scale: scale ?? defaultScale,
@@ -125,11 +132,23 @@ class PrintSettings {
       browserAutoClose: autoClose,
     );
   }
+
+  /// Converts the user-facing post feed value (0-10) into ESC/POS feed lines.
+  /// Each unit maps to 4 printer lines (~1.7 cm on 80 mm paper) so changes are easy to see at the cutter.
+  static int feedLinesFromSetting(int postFeed) {
+    if (postFeed <= 0) return 0;
+    final int computed = postFeed * _feedStepLines;
+    final int bounded = math.min(
+      255,
+      math.max(_minEffectiveFeedLines, computed),
+    );
+    return bounded;
+  }
 }
 
 class PrintSettingsService {
   PrintSettingsService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -223,7 +242,10 @@ class PrintSettingsService {
     }
   }
 
-  Future<void> _writeToFirestore(String clinicId, PrintSettings settings) async {
+  Future<void> _writeToFirestore(
+    String clinicId,
+    PrintSettings settings,
+  ) async {
     final payload = <String, dynamic>{
       ...settings.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -250,15 +272,16 @@ class PrintSettingsService {
       final scale = prefs.getDouble(scalePrefKey) ?? PrintSettings.defaultScale;
       final postFeed =
           prefs.getInt(postFeedPrefKey) ?? PrintSettings.defaultPostFeed;
-      final headerSpace = prefs.getInt(headerSpacePrefKey) ??
-          PrintSettings.defaultHeaderSpace;
+      final headerSpace =
+          prefs.getInt(headerSpacePrefKey) ?? PrintSettings.defaultHeaderSpace;
       final String? modeRaw = prefs.getString(browserModePrefKey);
       final BrowserPrintMode mode = _modeFromRaw(modeRaw);
-      final int browserWidth = prefs.getInt(browserWidthPrefKey) ??
+      final int browserWidth =
+          prefs.getInt(browserWidthPrefKey) ??
           PrintSettings.defaultBrowserPixelWidth;
       final bool autoClose =
           prefs.getBool(browserAutoClosePrefKey) ??
-              PrintSettings.defaultBrowserAutoClose;
+          PrintSettings.defaultBrowserAutoClose;
       return PrintSettings(
         scale: scale,
         postFeed: postFeed,

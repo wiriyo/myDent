@@ -23,7 +23,6 @@ import '../../../config/clinic_defaults.dart';
 import 'dart:async';
 import '../../../services/logo_cache_service.dart';
 
-
 class PrinterSettingsPage extends StatefulWidget {
   const PrinterSettingsPage({super.key});
 
@@ -95,7 +94,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
 
   Future<void> _refreshPermStatus() async {
     try {
-      final hasPerm = await ThermalPrinterService.instance.hasPrintingPermissions();
+      final hasPerm =
+          await ThermalPrinterService.instance.hasPrintingPermissions();
       if (!mounted) return;
       setState(() {
         _hasPrinterPermissions = hasPerm;
@@ -129,7 +129,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
           const SnackBar(content: Text('ตัดการเชื่อมต่อเครื่องพิมพ์แล้ว')),
         );
       } else {
-        final ok = await ThermalPrinterService.instance.connectWithPicker(context);
+        final ok = await ThermalPrinterService.instance.connectWithPicker(
+          context,
+        );
         if (!mounted) return;
         if (ok) {
           setState(() {
@@ -139,9 +141,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
       }
     } finally {
       await _refreshPermStatus();
@@ -153,7 +155,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   Future<void> _loadClinicHeader() async {
     try {
       final svc = ClinicSettingsService();
-      final data = await svc.getClinicInfo(clinicId: ClinicContext.activeClinicId);
+      final data = await svc.getClinicInfo(
+        clinicId: ClinicContext.activeClinicId,
+      );
       _applyClinicData(data);
     } catch (_) {}
   }
@@ -161,22 +165,27 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   void _subscribeClinic() {
     _clinicSub?.cancel();
     final svc = ClinicSettingsService();
-    _clinicSub = svc.watchClinicInfo(clinicId: ClinicContext.activeClinicId).listen((data) async {
-      if (!mounted) return;
-      setState(() {
-        _applyClinicData(data);
-        _lastPng = null; // force re-capture
-      });
-      final newLogo = await _loadLogo();
-      if (!mounted) return;
-      setState(() { _logo = newLogo; });
-    });
+    _clinicSub = svc
+        .watchClinicInfo(clinicId: ClinicContext.activeClinicId)
+        .listen((data) async {
+          if (!mounted) return;
+          setState(() {
+            _applyClinicData(data);
+            _lastPng = null; // force re-capture
+          });
+          final newLogo = await _loadLogo();
+          if (!mounted) return;
+          setState(() {
+            _logo = newLogo;
+          });
+        });
   }
 
   void _applyClinicData(Map<String, dynamic>? data) {
-    _clinicName = ((data?['name'] as String?)?.trim().isNotEmpty == true)
-        ? (data!['name'] as String)
-        : ClinicDefaults.defaultClinicName;
+    _clinicName =
+        ((data?['name'] as String?)?.trim().isNotEmpty == true)
+            ? (data!['name'] as String)
+            : ClinicDefaults.defaultClinicName;
     _clinicAddress = (data?['address'] as String?)?.trim() ?? '';
     _clinicPhone = (data?['phone'] as String?)?.trim() ?? '';
     final showLine = (data?['showLineId'] ?? true) as bool;
@@ -198,7 +207,11 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       }
       return await rootBundle.load(ClinicDefaults.defaultLogoAsset);
     } catch (_) {
-      try { return await rootBundle.load(ClinicDefaults.defaultLogoAsset); } catch (_) { return null; }
+      try {
+        return await rootBundle.load(ClinicDefaults.defaultLogoAsset);
+      } catch (_) {
+        return null;
+      }
     }
   }
 
@@ -237,7 +250,11 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     _browserAutoClose = settings.browserAutoClose;
   }
 
-  PrintSettings _buildPrintSettings({double? scale, int? postFeed, int? headerSpace}) {
+  PrintSettings _buildPrintSettings({
+    double? scale,
+    int? postFeed,
+    int? headerSpace,
+  }) {
     return PrintSettings(
       scale: scale ?? _printingScale,
       postFeed: postFeed ?? _printingPostFeed,
@@ -278,7 +295,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       body: Builder(
         builder: (bodyContext) {
           return MediaQuery(
-            data: MediaQuery.of(bodyContext).copyWith(textScaler: TextScaler.linear(_printingScale)),
+            data: MediaQuery.of(
+              bodyContext,
+            ).copyWith(textScaler: TextScaler.linear(_printingScale)),
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(12.0),
@@ -312,9 +331,30 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
             children: [
               Row(
                 children: [
-                  Expanded(child: _buildSettingControl('ขนาด', _printingScale.toStringAsFixed(1), () => _updateScale(_printingScale - 0.1), () => _updateScale(_printingScale + 0.1))),
-                  Expanded(child: _buildSettingControl('ท้ายกระดาษ', '$_printingPostFeed', () => _updatePostFeed(_printingPostFeed - 1), () => _updatePostFeed(_printingPostFeed + 1))),
-                  Expanded(child: _buildSettingControl('หัวกระดาษ', '$_printingHeaderSpace', () => _updateHeaderSpace(_printingHeaderSpace - 5), () => _updateHeaderSpace(_printingHeaderSpace + 5))),
+                  Expanded(
+                    child: _buildSettingControl(
+                      'ขนาด',
+                      _printingScale.toStringAsFixed(1),
+                      () => _updateScale(_printingScale - 0.1),
+                      () => _updateScale(_printingScale + 0.1),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSettingControl(
+                      'ท้ายกระดาษ',
+                      '$_printingPostFeed',
+                      () => _updatePostFeed(_printingPostFeed - 1),
+                      () => _updatePostFeed(_printingPostFeed + 1),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSettingControl(
+                      'หัวกระดาษ',
+                      '$_printingHeaderSpace',
+                      () => _updateHeaderSpace(_printingHeaderSpace - 5),
+                      () => _updateHeaderSpace(_printingHeaderSpace + 5),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -345,7 +385,12 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   // 💖 NEW: ฟังก์ชันสร้างปุ่มสวยๆ เหมือนหน้าพรีวิวค่ะ
-  Widget _buildIconButton({required VoidCallback? onPressed, required Color bgColor, required String iconAsset, Key? widgetKey}) {
+  Widget _buildIconButton({
+    required VoidCallback? onPressed,
+    required Color bgColor,
+    required String iconAsset,
+    Key? widgetKey,
+  }) {
     return SizedBox(
       width: 110,
       height: 72,
@@ -363,8 +408,13 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       ),
     );
   }
-  
-  Widget _buildSettingControl(String label, String value, VoidCallback onDecrement, VoidCallback onIncrement) {
+
+  Widget _buildSettingControl(
+    String label,
+    String value,
+    VoidCallback onDecrement,
+    VoidCallback onIncrement,
+  ) {
     return Column(
       children: [
         Text(label, style: const TextStyle(fontSize: 14)),
@@ -373,7 +423,14 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
           children: [
             _buildSmallScaleButton(Icons.remove, onDecrement),
             Flexible(
-              child: Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
             _buildSmallScaleButton(Icons.add, onIncrement),
           ],
@@ -386,11 +443,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     return SizedBox(
       width: 40,
       height: 40,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon),
-        iconSize: 20,
-      ),
+      child: IconButton(onPressed: onPressed, icon: Icon(icon), iconSize: 20),
     );
   }
 
@@ -400,28 +453,43 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     setState(() => _busyCapture = true);
     try {
       final obj = _boundaryKey.currentContext?.findRenderObject();
-      if (obj is! RenderRepaintBoundary) throw Exception('ไม่พบ RepaintBoundary');
-      
+      if (obj is! RenderRepaintBoundary)
+        throw Exception('ไม่พบ RepaintBoundary');
+
       final ui.Image image = await obj.toImage(pixelRatio: 2.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) throw Exception('ไม่สามารถแปลงภาพเป็นข้อมูลได้');
-      
+
       final pngBytes = byteData.buffer.asUint8List();
       setState(() => _lastPng = pngBytes);
 
-      final fileName = 'MyDent-TestPrint-${DateTime.now().millisecondsSinceEpoch}.png';
-      final bool success = await ImageSaverService.saveImage(pngBytes, fileName);
+      final fileName =
+          'MyDent-TestPrint-${DateTime.now().millisecondsSinceEpoch}.png';
+      final bool success = await ImageSaverService.saveImage(
+        pngBytes,
+        fileName,
+      );
 
       if (!mounted) return;
 
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพตัวอย่างลงในแกลเลอรีเรียบร้อย')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('บันทึกภาพตัวอย่างลงในแกลเลอรีเรียบร้อย'),
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกภาพไม่สำเร็จ! โปรดตรวจสอบการอนุญาต')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('บันทึกภาพไม่สำเร็จ! โปรดตรวจสอบการอนุญาต'),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
       }
     } finally {
       if (mounted) setState(() => _busyCapture = false);
@@ -445,29 +513,48 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         if (byteData == null) return;
         _lastPng = byteData.buffer.asUint8List();
       }
-      
+
       if (_lastPng != null) {
-        final fileName = 'MyDent-PrinterSample-${DateTime.now().millisecondsSinceEpoch}.png';
+        final fileName =
+            'MyDent-PrinterSample-${DateTime.now().millisecondsSinceEpoch}.png';
         final saved = await ImageSaverService.saveImage(_lastPng!, fileName);
         if (!saved) {
           if (!mounted) return;
           messenger.showSnackBar(
-            const SnackBar(content: Text('ไม่สามารถบันทึกรูปภาพตัวอย่างได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์')),
+            const SnackBar(
+              content: Text(
+                'ไม่สามารถบันทึกรูปภาพตัวอย่างได้ โปรดอนุญาตให้แอปเข้าถึงรูปภาพก่อนพิมพ์',
+              ),
+            ),
           );
           return;
         }
 
         if (!mounted) return;
-        await ThermalPrinterService.I.ensureConnectAndPrintPng(context, _lastPng!, feed: _printingPostFeed, cut: true);
+        final int feedLines = PrintSettings.feedLinesFromSetting(
+          _printingPostFeed,
+        );
+        await ThermalPrinterService.I.ensureConnectAndPrintPng(
+          context,
+          _lastPng!,
+          feed: feedLines,
+          cut: true,
+        );
         if (!mounted) return;
-        messenger.showSnackBar(const SnackBar(content: Text('ส่งคำสั่งพิมพ์ตัวอย่างแล้ว')));
+        messenger.showSnackBar(
+          const SnackBar(content: Text('ส่งคำสั่งพิมพ์ตัวอย่างแล้ว')),
+        );
       } else {
         if (!mounted) return;
-        messenger.showSnackBar(const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')));
+        messenger.showSnackBar(
+          const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $e')),
+      );
     } finally {
       if (mounted) {
         setState(() => _busyCapture = false);
@@ -492,13 +579,14 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       heroTag: 'permFab',
       backgroundColor: bg,
       onPressed: _busyPermissionAction ? null : _handlePermissionButton,
-      child: _busyPermissionAction
-          ? const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Image.asset('assets/icons/printer.png', width: 26, height: 26),
+      child:
+          _busyPermissionAction
+              ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+              : Image.asset('assets/icons/printer.png', width: 26, height: 26),
     );
   }
 
@@ -515,14 +603,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
         address: 'หมอกุสุมาภรณ์',
         phone: '094-5639334',
       ),
-      bill: BillInfo(
-        billNo: 'XX-XXXX',
-        issuedAt: DateTime.now(),
-      ),
-      patient: const PatientInfo(
-        name: 'คุณ ตัวอย่าง การพิมพ์',
-        hn: 'HNXXXXX',
-      ),
+      bill: BillInfo(billNo: 'XX-XXXX', issuedAt: DateTime.now()),
+      patient: const PatientInfo(name: 'คุณ ตัวอย่าง การพิมพ์', hn: 'HNXXXXX'),
       lines: const [
         ReceiptLine(name: 'รายการทดสอบ 1', qty: 1, price: 500),
         ReceiptLine(name: 'รายการทดสอบ 2', qty: 1, price: 500),
@@ -585,15 +667,35 @@ class _CombinedSlipWidget extends StatelessWidget {
           children: [
             SizedBox(height: headerSpace),
             if (logoBytes != null) ...[
-              Image.memory(logoBytes!.buffer.asUint8List(), width: 180, filterQuality: FilterQuality.medium),
+              Image.memory(
+                logoBytes!.buffer.asUint8List(),
+                width: 180,
+                filterQuality: FilterQuality.medium,
+              ),
               const SizedBox(height: 6),
             ],
-            Text(clinicName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            Text(
+              clinicName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 2),
-            if (clinicAddress.trim().isNotEmpty) Text(clinicAddress, textAlign: TextAlign.center),
-            if (clinicPhone.trim().isNotEmpty) Text('โทร: $clinicPhone', textAlign: TextAlign.center),
-            if ((clinicTaxId ?? '').isNotEmpty) Text('เลขผู้เสียภาษี: $clinicTaxId', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
-            if ((clinicLineId ?? '').isNotEmpty) Text('Line ID: $clinicLineId', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
+            if (clinicAddress.trim().isNotEmpty)
+              Text(clinicAddress, textAlign: TextAlign.center),
+            if (clinicPhone.trim().isNotEmpty)
+              Text('โทร: $clinicPhone', textAlign: TextAlign.center),
+            if ((clinicTaxId ?? '').isNotEmpty)
+              Text(
+                'เลขผู้เสียภาษี: $clinicTaxId',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18),
+              ),
+            if ((clinicLineId ?? '').isNotEmpty)
+              Text(
+                'Line ID: $clinicLineId',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18),
+              ),
             const SizedBox(height: 6),
             const Text('*********************'),
             const SizedBox(height: 8),
@@ -601,23 +703,44 @@ class _CombinedSlipWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _kv('เลขที่', receipt.bill.billNo),
-                _kv('วันที่', ThFormat.dateThai(receipt.bill.issuedAt, shortYear: false)),
+                _kv(
+                  'วันที่',
+                  ThFormat.dateThai(receipt.bill.issuedAt, shortYear: false),
+                ),
                 _kv('เวลา', ThFormat.timeThai(receipt.bill.issuedAt)),
                 _kv('ชื่อ', ''),
-                Padding(padding: const EdgeInsets.only(bottom: 2), child: Align(alignment: Alignment.centerRight, child: Text(receipt.patient.name, textAlign: TextAlign.right))),
-                _kv('หัตถการ:', receipt.lines.isNotEmpty ? receipt.lines.first.name : '-'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      receipt.patient.name,
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ),
+                _kv(
+                  'หัตถการ:',
+                  receipt.lines.isNotEmpty ? receipt.lines.first.name : '-',
+                ),
                 _kv('ค่าบริการ', ThFormat.baht(receipt.totals.grandTotal)),
               ],
             ),
             const SizedBox(height: 18),
             const Divider(height: 20, thickness: 1, color: Colors.black),
             const SizedBox(height: 10),
-            const Text('นัดครั้งต่อไป', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24)),
+            const Text(
+              'นัดครั้งต่อไป',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24),
+            ),
             const SizedBox(height: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _kv('วันที่นัด', ThFormat.dateThai(nextAppointment.startAt, shortYear: false)),
+                _kv(
+                  'วันที่นัด',
+                  ThFormat.dateThai(nextAppointment.startAt, shortYear: false),
+                ),
                 _kv('เวลานัด', ThFormat.timeThai(nextAppointment.startAt)),
                 if ((nextAppointment.note ?? '').trim().isNotEmpty)
                   _kv('หัตถการ', nextAppointment.note!.trim()),
@@ -626,9 +749,20 @@ class _CombinedSlipWidget extends StatelessWidget {
             const SizedBox(height: 24),
             Column(
               children: const [
-                Text('กรุณามาก่อนเวลานัด 10-15 นาที', style: TextStyle(fontSize: 16)),
-                Text('หากไม่สะดวกในวัน/เวลาดังกล่าว', style: TextStyle(fontSize: 16), textAlign: TextAlign.center),
-                Text('กรุณาติดต่อขอรับคิวใหม่', style: TextStyle(fontSize: 16), textAlign: TextAlign.center),
+                Text(
+                  'กรุณามาก่อนเวลานัด 10-15 นาที',
+                  style: TextStyle(fontSize: 16),
+                ),
+                Text(
+                  'หากไม่สะดวกในวัน/เวลาดังกล่าว',
+                  style: TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  'กรุณาติดต่อขอรับคิวใหม่',
+                  style: TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ],

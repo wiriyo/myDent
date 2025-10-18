@@ -44,6 +44,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
+  BrowserPrintMode _browserMode = PrintSettings.defaultBrowserMode;
+  int _browserPixelWidth = PrintSettings.defaultBrowserPixelWidth;
+  bool _browserAutoClose = PrintSettings.defaultBrowserAutoClose;
   final PrintSettingsService _printSettingsService = PrintSettingsService();
 
   // --- Clinic header state (live from settings) ---
@@ -229,6 +232,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     _printingScale = settings.scale;
     _printingPostFeed = settings.postFeed;
     _printingHeaderSpace = settings.headerSpace;
+    _browserMode = settings.browserMode;
+    _browserPixelWidth = settings.browserPixelWidth;
+    _browserAutoClose = settings.browserAutoClose;
   }
 
   PrintSettings _buildPrintSettings({double? scale, int? postFeed, int? headerSpace}) {
@@ -236,6 +242,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       scale: scale ?? _printingScale,
       postFeed: postFeed ?? _printingPostFeed,
       headerSpace: headerSpace ?? _printingHeaderSpace,
+      browserMode: _browserMode,
+      browserPixelWidth: _browserPixelWidth,
+      browserAutoClose: _browserAutoClose,
     );
   }
 

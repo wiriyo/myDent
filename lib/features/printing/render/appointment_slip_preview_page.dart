@@ -1,6 +1,7 @@
 // lib/features/printing/render/appointment_slip_preview_page.dart
 // v1.8.1 - เพิ่ม debugPngOverride สำหรับ widget tests (ข้ามขั้นตอน capture)
 
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,8 @@ import '../utils/th_format.dart';
 import '../../../services/logo_cache_service.dart';
 import '../services/print_settings_service.dart';
 import '../services/qz_print_service.dart';
-import '../services/web_print_service.dart';
+import '../services/browser_print_service.dart';
+import 'browser_print_payload.dart';
 import 'png_postprocessor.dart';
 import 'qz_status_ui.dart';
 import 'qz_diagnostics_sheet.dart';
@@ -61,6 +63,10 @@ class _AppointmentSlipPreviewPageState
   double _printingScale = 1.0;
   int _printingPostFeed = 3;
   int _printingHeaderSpace = 0;
+  BrowserPrintMode _browserMode = PrintSettings.defaultBrowserMode;
+  int _browserPixelWidth = PrintSettings.defaultBrowserPixelWidth;
+  bool _browserAutoClose = PrintSettings.defaultBrowserAutoClose;
+  String? _cachedPngBase64;
   late final PrintSettingsService _printSettingsService;
   final QzPrintService _qzService = QzPrintService.I;
   String? _savedQzPrinter;
@@ -92,6 +98,10 @@ class _AppointmentSlipPreviewPageState
           _printingScale = settings.scale;
           _printingPostFeed = settings.postFeed;
           _printingHeaderSpace = settings.headerSpace;
+          _browserMode = settings.browserMode;
+          _browserPixelWidth = settings.browserPixelWidth;
+          _browserAutoClose = settings.browserAutoClose;
+          _cachedPngBase64 = null;
           _data = data;
           _logo = logo;
         });
@@ -156,15 +166,22 @@ class _AppointmentSlipPreviewPageState
   }
 
   Future<Uint8List?> _ensurePng({bool forceRecapture = false}) async {
-    if (!forceRecapture && _lastPng != null) {
+    if (forceRecapture) {
+      _cachedPngBase64 = null;
+      _lastPng = null;
+    }
+
+    if (_lastPng != null) {
+      _cachedPngBase64 ??= base64Encode(_lastPng!);
       return _lastPng;
     }
-    if (!forceRecapture &&
-        _lastPng == null &&
-        widget.debugPngOverride != null) {
+
+    if (widget.debugPngOverride != null) {
       _lastPng = await ThermalPngPostProcessor.process(
         widget.debugPngOverride!,
+        targetWidth: _browserPixelWidth,
       );
+      _cachedPngBase64 = base64Encode(_lastPng!);
       return _lastPng;
     }
 
@@ -183,7 +200,11 @@ class _AppointmentSlipPreviewPageState
     }
 
     final Uint8List rawBytes = byteData.buffer.asUint8List();
-    _lastPng = await ThermalPngPostProcessor.process(rawBytes);
+    _lastPng = await ThermalPngPostProcessor.process(
+      rawBytes,
+      targetWidth: _browserPixelWidth,
+    );
+    _cachedPngBase64 = base64Encode(_lastPng!);
     return _lastPng;
   }
 
@@ -425,6 +446,7 @@ class _AppointmentSlipPreviewPageState
               ListTile(
                 leading: const Icon(Icons.print_outlined),
                 title: const Text('พิมพ์ผ่านเบราว์เซอร์'),
+                subtitle: Text(_browserModeLabel),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _printWithBrowser();
@@ -477,19 +499,57 @@ class _AppointmentSlipPreviewPageState
     );
   }
 
+  String get _browserModeLabel {
+    if (_browserMode == BrowserPrintMode.html) {
+      return 'โหมด HTML (ตัวหนังสือคม)';
+    }
+    return 'โหมด PNG (${_browserPixelWidth}px)';
+  }
+
   Future<void> _printWithBrowser({bool forceRecapture = false}) async {
     if (_busyCapture) return;
     setState(() => _busyCapture = true);
     try {
-      final png = await _ensurePng(forceRecapture: forceRecapture);
-      if (!context.mounted) return;
-      if (png == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')),
+      if (_browserMode == BrowserPrintMode.png) {
+        final png = await _ensurePng(forceRecapture: forceRecapture);
+        if (!context.mounted) return;
+        if (png == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ยังไม่มีภาพสำหรับพิมพ์')),
+          );
+          return;
+        }
+        final String base64 = _cachedPngBase64 ?? base64Encode(png);
+        await BrowserPrintService.I.printPng(
+          base64,
+          pixelWidth: _browserPixelWidth,
+          autoClose: _browserAutoClose,
         );
-        return;
+      } else {
+        final slip = _data;
+        if (slip == null) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ยังไม่มีข้อมูลสำหรับพิมพ์')),
+          );
+          return;
+        }
+        final payload = BrowserPrintPayloadBuilder.appointment(
+          slip: slip,
+          clinicName: _clinicName,
+          clinicAddress: _clinicAddress,
+          clinicPhone: _clinicPhone,
+          clinicTaxId: _clinicTaxId,
+          clinicLineId: _clinicLineId,
+          headerSpace: _printingHeaderSpace,
+          pixelWidth: _browserPixelWidth,
+          logoBytes: _logo,
+        );
+        await BrowserPrintService.I.printHtml(
+          payload,
+          autoClose: _browserAutoClose,
+        );
       }
-      await WebPrintService.I.printPng(png);
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

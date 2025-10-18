@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 // Printing Preview pages
 import '../features/printing/render/preview_pages.dart' as pv;
+import 'browser_print_profile_page.dart';
 
 // Domain models needed for creating sample data
 import '../features/printing/domain/appointment_slip_model.dart';
@@ -119,6 +120,18 @@ class DevEntry extends StatelessWidget {
                 );
               },
               child: const Text('พรีวิวสลิปรวม (ใบเสร็จ+ใบนัด)'),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.tonal(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const BrowserPrintProfilePage(),
+                  ),
+                );
+              },
+              child: const Text('ตั้งค่าโปรไฟล์พิมพ์ (Browser)'),
             ),
           ],
         ),

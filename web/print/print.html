@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>MyDent Browser Print</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+    body {
+      font-family: 'Noto Sans Thai', 'Sarabun', 'TH Sarabun New', 'Leelawadee',
+        'Tahoma', sans-serif;
+      font-size: 13px;
+      line-height: 1.32;
+      color: #000000;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .status {
+      margin-top: 24px;
+      color: #555555;
+      text-align: center;
+      font-size: 14px;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .print-wrapper {
+      width: 80mm;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    #png-container img {
+      width: 80mm;
+      height: auto;
+      display: block;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+    }
+    #html-root {
+      width: 80mm;
+      box-sizing: border-box;
+      padding: 6mm 4mm;
+    }
+    .header-space {
+      width: 100%;
+    }
+    .clinic-logo {
+      max-width: 48mm;
+      max-height: 36mm;
+      display: block;
+      margin: 0 auto 8px;
+    }
+    .clinic-name {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      white-space: pre-wrap;
+    }
+    .clinic-info,
+    .clinic-meta {
+      text-align: center;
+      white-space: pre-wrap;
+      margin: 2px 0;
+    }
+    .section-title {
+      text-align: center;
+      font-weight: 600;
+      font-size: 15px;
+      margin: 12px 0 8px;
+    }
+    .bill-info,
+    .patient-info,
+    .appointment-info {
+      margin-bottom: 8px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 2px 0;
+    }
+    .info-label {
+      font-weight: 500;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8px;
+    }
+    .items-table th,
+    .items-table td {
+      padding: 2px 0;
+      font-size: 13px;
+    }
+    .items-table th {
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px dashed #bbbbbb;
+    }
+    .items-table td.qty,
+    .items-table td.price,
+    .items-table td.total {
+      text-align: right;
+      white-space: nowrap;
+      padding-left: 6px;
+    }
+    .totals {
+      margin-top: 8px;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 2px 0;
+      font-size: 13px;
+    }
+    .total-row.emphasis {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .divider {
+      border: 0;
+      border-top: 1px dashed #bbbbbb;
+      margin: 12px 0;
+    }
+    .note {
+      white-space: pre-wrap;
+      margin-top: 4px;
+    }
+    .footer-hint {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    @media print {
+      body {
+        background: #ffffff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .status {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-wrapper">
+    <div id="png-container" class="hidden">
+      <img id="print-image" alt="MyDent thermal document" />
+    </div>
+    <div id="html-container" class="hidden">
+      <div id="html-root"></div>
+    </div>
+    <div id="status" class="status">กำลังรอข้อมูลการพิมพ์...</div>
+  </div>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const requestedMode = params.get('mode') === 'html' ? 'html' : 'png';
+      const autoClose = params.get('autoClose') === '0' ? false : true;
+      const pngContainer = document.getElementById('png-container');
+      const htmlContainer = document.getElementById('html-container');
+      const htmlRoot = document.getElementById('html-root');
+      const imageEl = document.getElementById('print-image');
+      const statusEl = document.getElementById('status');
+      let printed = false;
+
+      function hideStatus() {
+        if (statusEl) {
+          statusEl.classList.add('hidden');
+        }
+      }
+
+      function triggerPrint() {
+        if (printed) return;
+        printed = true;
+        window.focus();
+        setTimeout(() => {
+          window.print();
+          if (autoClose) {
+            const closeWindow = () => window.close();
+            window.addEventListener('afterprint', closeWindow, { once: true });
+            setTimeout(closeWindow, 1500);
+          }
+        }, 120);
+      }
+
+      function setMode(mode) {
+        if (mode === 'png') {
+          pngContainer.classList.remove('hidden');
+          htmlContainer.classList.add('hidden');
+        } else {
+          htmlContainer.classList.remove('hidden');
+          pngContainer.classList.add('hidden');
+        }
+      }
+
+      function renderClinicHeader(root, clinic, logo, headerSpace) {
+        if (headerSpace && headerSpace > 0) {
+          const spacer = document.createElement('div');
+          spacer.className = 'header-space';
+          spacer.style.height = headerSpace + 'px';
+          root.appendChild(spacer);
+        }
+        if (logo) {
+          const img = document.createElement('img');
+          img.className = 'clinic-logo';
+          img.src = 'data:image/png;base64,' + logo;
+          img.alt = 'Clinic Logo';
+          root.appendChild(img);
+        }
+        if (clinic?.name) {
+          const nameEl = document.createElement('div');
+          nameEl.className = 'clinic-name';
+          nameEl.textContent = clinic.name;
+          root.appendChild(nameEl);
+        }
+        const infoLines = [];
+        if (clinic?.address) infoLines.push(clinic.address);
+        if (clinic?.phone) infoLines.push('โทร ' + clinic.phone);
+        if (infoLines.length) {
+          const infoEl = document.createElement('div');
+          infoEl.className = 'clinic-info';
+          infoEl.textContent = infoLines.join('\n');
+          root.appendChild(infoEl);
+        }
+        const metaLines = [];
+        if (clinic?.taxId) metaLines.push('เลขผู้เสียภาษี ' + clinic.taxId);
+        if (clinic?.lineId) metaLines.push('LINE: ' + clinic.lineId);
+        if (metaLines.length) {
+          const metaEl = document.createElement('div');
+          metaEl.className = 'clinic-meta';
+          metaEl.textContent = metaLines.join('  ');
+          root.appendChild(metaEl);
+        }
+      }
+
+      function renderReceipt(root, data) {
+        const title = document.createElement('div');
+        title.className = 'section-title';
+        title.textContent = 'ใบเสร็จรับเงิน';
+        root.appendChild(title);
+
+        const bill = document.createElement('div');
+        bill.className = 'bill-info';
+        const billRows = [
+          ['เลขที่ใบเสร็จ', data?.bill?.number || '-'],
+          ['วันที่ออกใบเสร็จ', data?.bill?.issuedDate || '-'],
+          ['เวลา', data?.bill?.issuedTime || '-'],
+        ];
+        billRows.forEach((row) => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'info-row';
+          const label = document.createElement('div');
+          label.className = 'info-label';
+          label.textContent = row[0];
+          const value = document.createElement('div');
+          value.textContent = row[1];
+          rowEl.append(label, value);
+          bill.appendChild(rowEl);
+        });
+        root.appendChild(bill);
+
+        const patient = document.createElement('div');
+        patient.className = 'patient-info';
+        const patientRows = [
+          ['ผู้รับบริการ', data?.patient?.name || '-'],
+        ];
+        const hn = data?.patient?.hn;
+        if (hn) {
+          patientRows.push(['HN', hn]);
+        }
+        patientRows.forEach((row) => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'info-row';
+          const label = document.createElement('div');
+          label.className = 'info-label';
+          label.textContent = row[0];
+          const value = document.createElement('div');
+          value.textContent = row[1];
+          rowEl.append(label, value);
+          patient.appendChild(rowEl);
+        });
+        root.appendChild(patient);
+
+        const table = document.createElement('table');
+        table.className = 'items-table';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['รายการ', 'จำนวน', 'ราคา', 'รวม'].forEach((text, index) => {
+          const th = document.createElement('th');
+          th.textContent = text;
+          if (index > 0) th.style.textAlign = 'right';
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        (data?.items || []).forEach((item) => {
+          const row = document.createElement('tr');
+          const name = document.createElement('td');
+          name.textContent = item?.name || '-';
+          const qty = document.createElement('td');
+          qty.className = 'qty';
+          qty.textContent = String(item?.qty ?? '');
+          const price = document.createElement('td');
+          price.className = 'price';
+          price.textContent = item?.priceText ? item.priceText + ' บาท' : '';
+          const total = document.createElement('td');
+          total.className = 'total';
+          total.textContent = item?.totalText ? item.totalText + ' บาท' : '';
+          row.append(name, qty, price, total);
+          tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        root.appendChild(table);
+
+        const totals = document.createElement('div');
+        totals.className = 'totals';
+        const totalRows = [
+          ['รวม', data?.totals?.subTotal],
+          ['ส่วนลด', data?.totals?.discount, data?.totals?.discountValue > 0],
+          ['ภาษีมูลค่าเพิ่ม', data?.totals?.vat],
+          ['ยอดสุทธิ', data?.totals?.grandTotal, true],
+        ];
+        totalRows.forEach((row, index) => {
+          if (!row[1]) return;
+          if (index === 1 && Number(row[2]) <= 0) {
+            return;
+          }
+          const rowEl = document.createElement('div');
+          rowEl.className = 'total-row';
+          if (row[2]) {
+            rowEl.classList.add('emphasis');
+          }
+          const label = document.createElement('div');
+          label.textContent = row[0];
+          const value = document.createElement('div');
+          value.textContent = row[1] + ' บาท';
+          rowEl.append(label, value);
+          totals.appendChild(rowEl);
+        });
+        root.appendChild(totals);
+      }
+
+      function renderAppointment(root, data) {
+        const title = document.createElement('div');
+        title.className = 'section-title';
+        title.textContent = 'ใบนัดครั้งถัดไป';
+        root.appendChild(title);
+
+        const patient = document.createElement('div');
+        patient.className = 'patient-info';
+        const patientRows = [
+          ['ชื่อผู้ป่วย', data?.patient?.name || '-'],
+        ];
+        const hn = data?.patient?.hn;
+        if (hn) {
+          patientRows.push(['HN', hn]);
+        }
+        patientRows.forEach((row) => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'info-row';
+          const label = document.createElement('div');
+          label.className = 'info-label';
+          label.textContent = row[0];
+          const value = document.createElement('div');
+          value.textContent = row[1];
+          rowEl.append(label, value);
+          patient.appendChild(rowEl);
+        });
+        root.appendChild(patient);
+
+        const appt = document.createElement('div');
+        appt.className = 'appointment-info';
+        const apptRows = [
+          ['วันที่นัด', data?.appointment?.date || '-'],
+          ['เวลา', data?.appointment?.time || '-'],
+        ];
+        apptRows.forEach((row) => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'info-row';
+          const label = document.createElement('div');
+          label.className = 'info-label';
+          label.textContent = row[0];
+          const value = document.createElement('div');
+          value.textContent = row[1];
+          rowEl.append(label, value);
+          appt.appendChild(rowEl);
+        });
+        root.appendChild(appt);
+
+        const note = data?.appointment?.note;
+        if (note) {
+          const noteEl = document.createElement('div');
+          noteEl.className = 'note';
+          noteEl.textContent = 'หมายเหตุ: ' + note;
+          root.appendChild(noteEl);
+        }
+
+        const footer = document.createElement('div');
+        footer.className = 'footer-hint';
+        footer.textContent = 'กรุณามาตามเวลานัด หากมาสายเกิน 15 นาทีอาจต้องนัดหมายใหม่';
+        root.appendChild(footer);
+      }
+
+      function renderDocument(payload) {
+        htmlRoot.textContent = '';
+        const clinic = payload?.clinic || {};
+        const logo = payload?.logo || '';
+        const headerSpace = Number(payload?.headerSpace ?? 0);
+        if (payload?.document === 'receipt') {
+          renderClinicHeader(htmlRoot, clinic, logo, headerSpace);
+          renderReceipt(htmlRoot, payload);
+        } else if (payload?.document === 'appointment') {
+          renderClinicHeader(htmlRoot, clinic, logo, headerSpace);
+          renderAppointment(htmlRoot, payload);
+        } else if (payload?.document === 'combined') {
+          renderClinicHeader(htmlRoot, clinic, logo, headerSpace);
+          renderReceipt(htmlRoot, payload?.receipt);
+          const divider = document.createElement('hr');
+          divider.className = 'divider';
+          htmlRoot.appendChild(divider);
+          renderAppointment(htmlRoot, payload?.appointment);
+        } else {
+          htmlRoot.textContent = 'ไม่สามารถอ่านข้อมูลเอกสารเพื่อพิมพ์ได้';
+        }
+        hideStatus();
+        requestAnimationFrame(() => triggerPrint());
+      }
+
+      function handleMessage(raw) {
+        let message = raw;
+        if (typeof raw === 'string') {
+          try {
+            message = JSON.parse(raw);
+          } catch (error) {
+            console.error('Invalid message payload', error);
+            return;
+          }
+        }
+        if (!message || message.type !== 'mydent-print') {
+          return;
+        }
+        if (message.mode !== requestedMode) {
+          return;
+        }
+        const payload = message.payload || {};
+        if (requestedMode === 'png') {
+          const base64 = payload.base64;
+          if (!base64) {
+            statusEl.textContent = 'ไม่พบข้อมูลภาพสำหรับพิมพ์';
+            return;
+          }
+          setMode('png');
+          hideStatus();
+          imageEl.onload = () => triggerPrint();
+          imageEl.onerror = () => {
+            statusEl.textContent = 'โหลดภาพไม่สำเร็จ';
+          };
+          imageEl.src = 'data:image/png;base64,' + base64;
+        } else {
+          setMode('html');
+          renderDocument(payload);
+        }
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.origin !== window.location.origin) {
+          return;
+        }
+        handleMessage(event.data);
+      });
+
+      if (window.opener) {
+        window.opener.postMessage(
+          JSON.stringify({ type: 'mydent-print-ready', mode: requestedMode }),
+          window.location.origin
+        );
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -453,12 +453,14 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     setState(() => _busyCapture = true);
     try {
       final obj = _boundaryKey.currentContext?.findRenderObject();
-      if (obj is! RenderRepaintBoundary)
+      if (obj is! RenderRepaintBoundary) {
         throw Exception('ไม่พบ RepaintBoundary');
-
+      }
       final ui.Image image = await obj.toImage(pixelRatio: 2.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) throw Exception('ไม่สามารถแปลงภาพเป็นข้อมูลได้');
+      if (byteData == null) {
+        throw Exception('ไม่สามารถแปลงภาพเป็นข้อมูลได้');
+      }
 
       final pngBytes = byteData.buffer.asUint8List();
       setState(() => _lastPng = pngBytes);

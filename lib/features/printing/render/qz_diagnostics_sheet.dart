@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../services/qz_models.dart';
 import '../services/qz_print_service.dart';
 
 Future<void> retryQzBridge(
@@ -135,7 +134,7 @@ Future<void> showQzDiagnosticsSheet(
                     _StatusChip(label: 'Trusted', value: trusted),
                     _StatusChip(
                       label: 'Certificate',
-                      value: certificateValid == null ? null : certificateValid,
+                      value: certificateValid,
                     ),
                     _StatusChip(label: 'Whitelist', value: whitelistOk),
                   ],
@@ -257,7 +256,7 @@ class _StatusChip extends StatelessWidget {
     late final String text;
 
     if (value == null) {
-      background = theme.colorScheme.surfaceVariant;
+      background = theme.colorScheme.surfaceContainerHighest;
       icon = Icons.help_outline;
       text = '$label: ไม่ทราบ';
     } else if (value!) {

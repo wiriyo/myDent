@@ -46,18 +46,19 @@ Future<void> _openPrintWindow({
   required bool autoClose,
   required Map<String, dynamic> payload,
 }) async {
-  final String origin = html.window.location.origin ?? '';
-  final Uri baseUri = Uri.parse(html.window.location.href ?? '/');
+  final String origin = html.window.location.origin;
+  final Uri baseUri = Uri.parse(html.window.location.href);
   final Uri resolved = baseUri.resolve(
     'print/print.html?mode=$mode&autoClose=${autoClose ? '1' : '0'}',
   );
 
-  final html.WindowBase? popup = html.window.open(
+  final popup = html.window.open(
     resolved.toString(),
     '_blank',
     'noopener,noreferrer,width=480,height=800',
   );
 
+  // ignore: unnecessary_null_comparison
   if (popup == null) {
     throw StateError(
       'Unable to open browser print window. Please allow pop-ups for this site.',

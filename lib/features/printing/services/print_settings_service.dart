@@ -1,11 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../../config/clinic_context.dart';
-import '../../../config/feature_flags.dart';
 
 enum BrowserPrintMode { png, html }
 
@@ -147,10 +143,7 @@ class PrintSettings {
 }
 
 class PrintSettingsService {
-  PrintSettingsService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
-
-  final FirebaseFirestore _firestore;
+  const PrintSettingsService();
 
   static const String scalePrefKey = 'mydent.printing.scale';
   static const String postFeedPrefKey = 'mydent.printing.postfeed';
@@ -160,104 +153,18 @@ class PrintSettingsService {
   static const String browserAutoClosePrefKey =
       'mydent.printing.browser.autoclose';
 
-  DocumentReference<Map<String, dynamic>> _primaryDoc(String clinicId) {
-    if (FeatureFlags.useNestedCollections && clinicId.isNotEmpty) {
-      return _firestore
-          .collection('clinics')
-          .doc(clinicId)
-          .collection('settings')
-          .doc('printerSettings');
-    }
-    return _rootDoc();
-  }
-
-  DocumentReference<Map<String, dynamic>> _rootDoc() {
-    return _firestore.collection('settings').doc('printerSettings');
-  }
-
-  String _effectiveClinicId(String? provided) {
-    final id = provided ?? ClinicContext.activeClinicId;
-    return id ?? '';
-  }
-
   Future<PrintSettings> load({String? clinicId}) async {
-    final id = _effectiveClinicId(clinicId);
-    PrintSettings? firestoreSettings;
-
-    if (id.isNotEmpty) {
-      firestoreSettings = await _fetchFromFirestore(id);
-      if (firestoreSettings == null && FeatureFlags.dualReadFallbackEnabled) {
-        firestoreSettings = await _fetchFromRoot();
-      }
-    }
-
-    if (firestoreSettings != null) {
-      await _saveToLocal(firestoreSettings);
-      return firestoreSettings;
-    }
-
     final local = await _loadFromLocal();
     if (local != null) {
-      if (id.isNotEmpty) {
-        try {
-          await _writeToFirestore(id, local);
-        } catch (e) {
-          debugPrint('Failed to sync local print settings to Firestore: $e');
-        }
-      }
       return local;
     }
-
-    return const PrintSettings.defaults();
+    const defaults = PrintSettings.defaults();
+    await _saveToLocal(defaults);
+    return defaults;
   }
 
   Future<void> save(PrintSettings settings, {String? clinicId}) async {
     await _saveToLocal(settings);
-    final id = _effectiveClinicId(clinicId);
-    if (id.isEmpty) {
-      return;
-    }
-    await _writeToFirestore(id, settings);
-  }
-
-  Future<PrintSettings?> _fetchFromFirestore(String clinicId) async {
-    try {
-      final snap = await _primaryDoc(clinicId).get();
-      if (!snap.exists) return null;
-      return PrintSettings.fromMap(snap.data());
-    } catch (e) {
-      debugPrint('Error loading print settings from Firestore: $e');
-      return null;
-    }
-  }
-
-  Future<PrintSettings?> _fetchFromRoot() async {
-    try {
-      final snap = await _rootDoc().get();
-      if (!snap.exists) return null;
-      return PrintSettings.fromMap(snap.data());
-    } catch (e) {
-      debugPrint('Error loading fallback print settings: $e');
-      return null;
-    }
-  }
-
-  Future<void> _writeToFirestore(
-    String clinicId,
-    PrintSettings settings,
-  ) async {
-    final payload = <String, dynamic>{
-      ...settings.toMap(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    final futures = <Future<void>>[
-      _primaryDoc(clinicId).set(payload, SetOptions(merge: true)),
-    ];
-    if (FeatureFlags.dualWriteEnabled) {
-      futures.add(_rootDoc().set(payload, SetOptions(merge: true)));
-    }
-    await Future.wait(futures);
   }
 
   Future<PrintSettings?> _loadFromLocal() async {

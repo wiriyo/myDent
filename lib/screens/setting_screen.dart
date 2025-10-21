@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-// 💖 NEW: import หน้าตั้งค่าการพิมพ์ที่เราเพิ่งสร้างเข้ามา
+﻿import 'package:flutter/material.dart';
 import '../features/printing/render/printer_settings_page.dart';
-import 'manual_webview_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -14,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   int _selectedIndex = 4;
+  static final Uri _manualUri = Uri.parse('https://wiriyo.github.io/mydentManual/');
 
   void _onItemTapped(int index) {
     setState(() {
@@ -31,12 +31,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Laila's new logout function
+  Future<void> _openManualGuide() async {
+    final launched = await launchUrl(
+      _manualUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถเปิดคู่มือได้ กรุณาลองอีกครั้ง'),
+        ),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     try {
       await FirebaseAuth.instance.signOut();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('skipLogin'); // Clear skip login flag
+      await prefs.remove('skipLogin');
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -59,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFEFE0FF),
       appBar: AppBar(
-        title: const Text("ตั้งค่า"),
+        title: const Text('ตั้งค่า'),
         backgroundColor: const Color(0xFFE0BBFF),
         elevation: 0,
       ),
@@ -70,8 +83,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingCard(
               context,
               icon: Icons.healing,
-              title: "รายการหัตถการ",
-              subtitle: "ตั้งค่ารายการรักษาที่คลินิกมี",
+              title: 'รายการหัตถการ',
+              subtitle: 'ตั้งค่ารายการรักษาที่คลินิกมี',
               onTap: () {
                 Navigator.pushNamed(context, '/treatment_list');
               },
@@ -79,8 +92,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingCard(
               context,
               icon: Icons.access_time,
-              title: "เวลาทำการ",
-              subtitle: "ตั้งค่าเวลาเปิด-ปิดคลินิกแต่ละวัน",
+              title: 'เวลาทำการ',
+              subtitle: 'ตั้งค่าเวลาเปิด-ปิดคลินิกแต่ละวัน',
               onTap: () {
                 Navigator.pushNamed(context, '/working_hours');
               },
@@ -88,8 +101,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingCard(
               context,
               icon: Icons.local_hospital_outlined,
-              title: "ข้อมูลคลินิก",
-              subtitle: "โลโก้ / ที่อยู่ / เบอร์โทร / Line ID",
+              title: 'ข้อมูลคลินิก',
+              subtitle: 'โลโก้ / ที่อยู่ / เบอร์โทร / Line ID',
               onTap: () {
                 Navigator.pushNamed(context, '/clinic_settings');
               },
@@ -97,20 +110,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingCard(
               context,
               icon: Icons.badge_outlined,
-              title: "คำนำหน้านาม",
-              subtitle: "เพิ่ม/แก้ไข/ลบคำนำหน้านามของคลินิก",
+              title: 'คำนำหน้านาม',
+              subtitle: 'เพิ่ม/แก้ไข/ลบคำนำหน้านามของคลินิก',
               onTap: () {
                 Navigator.pushNamed(context, '/prefix_settings');
               },
             ),
-            // 💖 NEW: เพิ่มเมนู "ตั้งค่าการพิมพ์" เข้าไปตรงนี้เลยค่า
             _buildSettingCard(
               context,
-              icon: Icons.print, // ไอคอนรูปเครื่องพิมพ์น่ารักๆ
-              title: "ตั้งค่าการพิมพ์",
-              subtitle: "ปรับขนาดและระยะห่างของสลิป",
+              icon: Icons.print,
+              title: 'ตั้งค่าการพิมพ์',
+              subtitle: 'ปรับขนาดและระยะห่างของสลิป',
               onTap: () {
-                // ใช้ Navigator.push ธรรมดาเพื่อเปิดหน้าใหม่ขึ้นมาทับ
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -122,19 +133,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingCard(
               context,
               icon: Icons.menu_book_outlined,
-              title: "คู่มือการใช้งาน",
-              subtitle: "เปิดดูวิธีใช้งานระบบ MyDent",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ManualWebViewScreen(),
-                  ),
-                );
-              },
+              title: 'คู่มือการใช้งาน',
+              subtitle: 'เปิดดูคู่มือบน GitHub',
+              onTap: _openManualGuide,
             ),
             const SizedBox(height: 32),
-            // 💖 NEW: Laila's logout button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -168,35 +171,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.calendar_today, size: 30),
-                color:
-                    _selectedIndex == 0
-                        ? Colors.purple
-                        : Colors.purple.shade200,
+                color: _selectedIndex == 0
+                    ? Colors.purple
+                    : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(0),
               ),
               IconButton(
                 icon: const Icon(Icons.people_alt, size: 30),
-                color:
-                    _selectedIndex == 1
-                        ? Colors.purple
-                        : Colors.purple.shade200,
+                color: _selectedIndex == 1
+                    ? Colors.purple
+                    : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(1),
               ),
               const SizedBox(width: 40),
               IconButton(
                 icon: const Icon(Icons.search_rounded, size: 30),
-                color:
-                    _selectedIndex == 3
-                        ? Colors.purple
-                        : Colors.purple.shade200,
+                color: _selectedIndex == 3
+                    ? Colors.purple
+                    : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(3),
               ),
               IconButton(
                 icon: const Icon(Icons.settings, size: 30),
-                color:
-                    _selectedIndex == 4
-                        ? Colors.purple
-                        : Colors.purple.shade200,
+                color: _selectedIndex == 4
+                    ? Colors.purple
+                    : Colors.purple.shade200,
                 onPressed: () => _onItemTapped(4),
               ),
             ],

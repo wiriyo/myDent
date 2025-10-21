@@ -99,32 +99,36 @@ class _BrowserPrintProfilePageState extends State<BrowserPrintProfilePage> {
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RadioListTile<BrowserPrintMode>(
-                  value: BrowserPrintMode.png,
-                  groupValue: settings.browserMode,
-                  onChanged: _saving
-                      ? null
-                      : (mode) => _updateSettings(mode: mode),
-                  title: const Text('โหมด PNG (ง่าย/เร็ว)'),
-                  subtitle: const Text(
-                    'เหมาะกับการเรนเดอร์จากหน้า Preview เดิม และรองรับโลโก้/ภาพประกอบได้ทันที',
-                  ),
+            child: IgnorePointer(
+              ignoring: _saving,
+              child: RadioGroup<BrowserPrintMode>(
+                groupValue: settings.browserMode,
+                onChanged: (BrowserPrintMode? mode) {
+                  if (_saving || mode == null) {
+                    return;
+                  }
+                  _updateSettings(mode: mode);
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<BrowserPrintMode>(
+                      value: BrowserPrintMode.png,
+                      title: const Text('???? PNG (????/????)'),
+                      subtitle: const Text(
+                        '?????????????????????????? Preview ???? ??????????????/?????????????????',
+                      ),
+                    ),
+                    RadioListTile<BrowserPrintMode>(
+                      value: BrowserPrintMode.html,
+                      title: const Text('???? HTML (????????????)'),
+                      subtitle: const Text(
+                        '??? HTML+CSS ???????????????????????????? ??????????????????????????????????????',
+                      ),
+                    ),
+                  ],
                 ),
-                RadioListTile<BrowserPrintMode>(
-                  value: BrowserPrintMode.html,
-                  groupValue: settings.browserMode,
-                  onChanged: _saving
-                      ? null
-                      : (mode) => _updateSettings(mode: mode),
-                  title: const Text('โหมด HTML (ตัวหนังสือคม)'),
-                  subtitle: const Text(
-                    'ใช้ HTML+CSS เพื่อให้ข้อความคมชัดกว่าเดิม เหมาะสำหรับใบเสร็จที่ต้องการความชัดสูง',
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -134,7 +138,7 @@ class _BrowserPrintProfilePageState extends State<BrowserPrintProfilePage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<int>(
-            value: settings.browserPixelWidth,
+            initialValue: settings.browserPixelWidth,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'เลือกความกว้าง (พิกเซล)',

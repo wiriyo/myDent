@@ -2,7 +2,6 @@
 // v1.1.0 - ปรับปรุงการเว้นบรรทัดท้ายกระดาษ (Post-Print Feed)
 
 import 'dart:io' show Platform;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -216,10 +215,11 @@ class ThermalPrinterService implements PrinterClient {
           macPrinterAddress: trimmedMac,
         );
       } catch (e, st) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
             'ThermalPrinterService.connectByMac failure (attempt ${attempt + 1}): $e\n$st',
           );
+        }
         connected = false;
       }
 

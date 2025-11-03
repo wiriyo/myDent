@@ -91,7 +91,9 @@ class _CombinedSlipPreviewPageState extends State<CombinedSlipPreviewPage> {
   }
 
   Future<void> _prepare() async {
-    final settings = await _printSettingsService.load();
+    final settings = await _printSettingsService.load(
+      clinicId: ClinicContext.activeClinicId,
+    );
 
     try {
       await _loadClinicHeader();

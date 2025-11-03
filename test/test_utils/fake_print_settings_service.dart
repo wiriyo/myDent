@@ -7,15 +7,17 @@ class FakePrintSettingsService implements PrintSettingsService {
   @override
   Future<PrintSettings> load({String? clinicId}) async {
     final prefs = await SharedPreferences.getInstance();
-    final scale = prefs.getDouble(PrintSettingsService.scalePrefKey) ?? PrintSettings.defaultScale;
-    final postFeed = prefs.getInt(PrintSettingsService.postFeedPrefKey) ?? PrintSettings.defaultPostFeed;
-    final headerSpace = prefs.getInt(PrintSettingsService.headerSpacePrefKey) ?? PrintSettings.defaultHeaderSpace;
-    final String? modeRaw = prefs.getString(PrintSettingsService.browserModePrefKey);
+    final keys = PrintSettingsService.storageKeysForTesting(clinicId: clinicId);
+    final scale = prefs.getDouble(keys.scale) ?? PrintSettings.defaultScale;
+    final postFeed = prefs.getInt(keys.postFeed) ?? PrintSettings.defaultPostFeed;
+    final headerSpace =
+        prefs.getInt(keys.headerSpace) ?? PrintSettings.defaultHeaderSpace;
+    final String? modeRaw = prefs.getString(keys.browserMode);
     final BrowserPrintMode mode =
         modeRaw == BrowserPrintMode.html.name ? BrowserPrintMode.html : BrowserPrintMode.png;
-    final int width = prefs.getInt(PrintSettingsService.browserWidthPrefKey) ??
+    final int width = prefs.getInt(keys.browserPixelWidth) ??
         PrintSettings.defaultBrowserPixelWidth;
-    final bool autoClose = prefs.getBool(PrintSettingsService.browserAutoClosePrefKey) ??
+    final bool autoClose = prefs.getBool(keys.browserAutoClose) ??
         PrintSettings.defaultBrowserAutoClose;
     return PrintSettings(
       scale: scale,
@@ -30,11 +32,12 @@ class FakePrintSettingsService implements PrintSettingsService {
   @override
   Future<void> save(PrintSettings settings, {String? clinicId}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(PrintSettingsService.scalePrefKey, settings.scale);
-    await prefs.setInt(PrintSettingsService.postFeedPrefKey, settings.postFeed);
-    await prefs.setInt(PrintSettingsService.headerSpacePrefKey, settings.headerSpace);
-    await prefs.setString(PrintSettingsService.browserModePrefKey, settings.browserMode.name);
-    await prefs.setInt(PrintSettingsService.browserWidthPrefKey, settings.browserPixelWidth);
-    await prefs.setBool(PrintSettingsService.browserAutoClosePrefKey, settings.browserAutoClose);
+    final keys = PrintSettingsService.storageKeysForTesting(clinicId: clinicId);
+    await prefs.setDouble(keys.scale, settings.scale);
+    await prefs.setInt(keys.postFeed, settings.postFeed);
+    await prefs.setInt(keys.headerSpace, settings.headerSpace);
+    await prefs.setString(keys.browserMode, settings.browserMode.name);
+    await prefs.setInt(keys.browserPixelWidth, settings.browserPixelWidth);
+    await prefs.setBool(keys.browserAutoClose, settings.browserAutoClose);
   }
 }

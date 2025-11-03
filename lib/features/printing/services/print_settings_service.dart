@@ -145,77 +145,267 @@ class PrintSettings {
 class PrintSettingsService {
   const PrintSettingsService();
 
-  static const String scalePrefKey = 'mydent.printing.scale';
-  static const String postFeedPrefKey = 'mydent.printing.postfeed';
-  static const String headerSpacePrefKey = 'mydent.printing.headerspace';
-  static const String browserModePrefKey = 'mydent.printing.browser.mode';
-  static const String browserWidthPrefKey = 'mydent.printing.browser.width';
+  static const String _legacyPrefix = 'mydent.printing';
+  static const String scalePrefKey = '$_legacyPrefix.scale';
+  static const String postFeedPrefKey = '$_legacyPrefix.postfeed';
+  static const String headerSpacePrefKey = '$_legacyPrefix.headerspace';
+  static const String browserModePrefKey = '$_legacyPrefix.browser.mode';
+  static const String browserWidthPrefKey = '$_legacyPrefix.browser.width';
   static const String browserAutoClosePrefKey =
-      'mydent.printing.browser.autoclose';
+      '$_legacyPrefix.browser.autoclose';
+
+  static const _LegacyKeys _legacyKeys = _LegacyKeys();
 
   Future<PrintSettings> load({String? clinicId}) async {
-    final local = await _loadFromLocal();
+    final local = await _loadFromLocal(clinicId: clinicId);
     if (local != null) {
       return local;
     }
     const defaults = PrintSettings.defaults();
-    await _saveToLocal(defaults);
+    await _saveToLocal(defaults, clinicId: clinicId);
     return defaults;
   }
 
   Future<void> save(PrintSettings settings, {String? clinicId}) async {
-    await _saveToLocal(settings);
+    await _saveToLocal(settings, clinicId: clinicId);
   }
 
-  Future<PrintSettings?> _loadFromLocal() async {
+  Future<PrintSettings?> _loadFromLocal({String? clinicId}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (!prefs.containsKey(scalePrefKey) &&
-          !prefs.containsKey(postFeedPrefKey) &&
-          !prefs.containsKey(headerSpacePrefKey) &&
-          !prefs.containsKey(browserModePrefKey)) {
-        return null;
+      final _ScopedKeys scoped = _scopedKeys(clinicId: clinicId);
+      if (_prefsContains(prefs, scoped)) {
+        return _readSettings(prefs, scoped);
       }
-      final scale = prefs.getDouble(scalePrefKey) ?? PrintSettings.defaultScale;
-      final postFeed =
-          prefs.getInt(postFeedPrefKey) ?? PrintSettings.defaultPostFeed;
-      final headerSpace =
-          prefs.getInt(headerSpacePrefKey) ?? PrintSettings.defaultHeaderSpace;
-      final String? modeRaw = prefs.getString(browserModePrefKey);
-      final BrowserPrintMode mode = _modeFromRaw(modeRaw);
-      final int browserWidth =
-          prefs.getInt(browserWidthPrefKey) ??
-          PrintSettings.defaultBrowserPixelWidth;
-      final bool autoClose =
-          prefs.getBool(browserAutoClosePrefKey) ??
-          PrintSettings.defaultBrowserAutoClose;
-      return PrintSettings(
-        scale: scale,
-        postFeed: postFeed,
-        headerSpace: headerSpace,
-        browserMode: mode,
-        browserPixelWidth: browserWidth,
-        browserAutoClose: autoClose,
-      );
+      if (_prefsContains(prefs, _legacyKeys)) {
+        final PrintSettings migrated = _readSettings(prefs, _legacyKeys);
+        await _writeSettings(prefs, migrated, scoped);
+        await _clearLegacy(prefs);
+        return migrated;
+      }
+      return null;
     } catch (e) {
       debugPrint('Error loading cached print settings: $e');
       return null;
     }
   }
 
-  Future<void> _saveToLocal(PrintSettings settings) async {
+  Future<void> _saveToLocal(
+    PrintSettings settings, {
+    String? clinicId,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble(scalePrefKey, settings.scale);
-      await prefs.setInt(postFeedPrefKey, settings.postFeed);
-      await prefs.setInt(headerSpacePrefKey, settings.headerSpace);
-      await prefs.setString(browserModePrefKey, settings.browserMode.name);
-      await prefs.setInt(browserWidthPrefKey, settings.browserPixelWidth);
-      await prefs.setBool(browserAutoClosePrefKey, settings.browserAutoClose);
+      final _ScopedKeys scoped = _scopedKeys(clinicId: clinicId);
+      await _writeSettings(prefs, settings, scoped);
+      await _clearLegacy(prefs);
     } catch (e) {
       debugPrint('Error caching print settings locally: $e');
     }
   }
+
+  static String _platformSegment() {
+    if (kIsWeb) return 'web';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.windows:
+        return 'windows';
+    }
+  }
+
+  static String _clinicSegment(String? clinicId) {
+    final String trimmed = clinicId?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return 'default';
+    }
+    final sanitized =
+        trimmed.replaceAll(RegExp(r'[^A-Za-z0-9_\-]'), '_').toLowerCase();
+    return 'clinic_$sanitized';
+  }
+
+  static String _scopedPrefix({String? clinicId}) {
+    return '$_legacyPrefix.${_platformSegment()}.${_clinicSegment(clinicId)}';
+  }
+
+  static _ScopedKeys _scopedKeys({String? clinicId}) =>
+      _ScopedKeys(_scopedPrefix(clinicId: clinicId));
+
+  static bool _prefsContains(SharedPreferences prefs, _KeySet keys) {
+    for (final key in keys.values) {
+      if (prefs.containsKey(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static PrintSettings _readSettings(
+    SharedPreferences prefs,
+    _KeySet keys,
+  ) {
+    final scale =
+        prefs.getDouble(keys.scale) ?? PrintSettings.defaultScale;
+    final postFeed =
+        prefs.getInt(keys.postFeed) ?? PrintSettings.defaultPostFeed;
+    final headerSpace =
+        prefs.getInt(keys.headerSpace) ?? PrintSettings.defaultHeaderSpace;
+    final String? modeRaw = prefs.getString(keys.browserMode);
+    final BrowserPrintMode mode = _modeFromRaw(modeRaw);
+    final int browserWidth =
+        prefs.getInt(keys.browserPixelWidth) ??
+        PrintSettings.defaultBrowserPixelWidth;
+    final bool autoClose =
+        prefs.getBool(keys.browserAutoClose) ??
+        PrintSettings.defaultBrowserAutoClose;
+    return PrintSettings(
+      scale: scale,
+      postFeed: postFeed,
+      headerSpace: headerSpace,
+      browserMode: mode,
+      browserPixelWidth: browserWidth,
+      browserAutoClose: autoClose,
+    );
+  }
+
+  static Future<void> _writeSettings(
+    SharedPreferences prefs,
+    PrintSettings settings,
+    _KeySet keys,
+  ) async {
+    await prefs.setDouble(keys.scale, settings.scale);
+    await prefs.setInt(keys.postFeed, settings.postFeed);
+    await prefs.setInt(keys.headerSpace, settings.headerSpace);
+    await prefs.setString(keys.browserMode, settings.browserMode.name);
+    await prefs.setInt(keys.browserPixelWidth, settings.browserPixelWidth);
+    await prefs.setBool(keys.browserAutoClose, settings.browserAutoClose);
+  }
+
+  static Future<void> _clearLegacy(SharedPreferences prefs) async {
+    if (!_prefsContains(prefs, _legacyKeys)) {
+      return;
+    }
+    await prefs.remove(scalePrefKey);
+    await prefs.remove(postFeedPrefKey);
+    await prefs.remove(headerSpacePrefKey);
+    await prefs.remove(browserModePrefKey);
+    await prefs.remove(browserWidthPrefKey);
+    await prefs.remove(browserAutoClosePrefKey);
+  }
+
+  @visibleForTesting
+  static PrintSettingsStorageKeys storageKeysForTesting({String? clinicId}) {
+    final _ScopedKeys keys = _scopedKeys(clinicId: clinicId);
+    return PrintSettingsStorageKeys._(
+      scale: keys.scale,
+      postFeed: keys.postFeed,
+      headerSpace: keys.headerSpace,
+      browserMode: keys.browserMode,
+      browserPixelWidth: keys.browserPixelWidth,
+      browserAutoClose: keys.browserAutoClose,
+    );
+  }
+}
+
+abstract class _KeySet {
+  String get scale;
+  String get postFeed;
+  String get headerSpace;
+  String get browserMode;
+  String get browserPixelWidth;
+  String get browserAutoClose;
+
+  Iterable<String> get values => <String>[
+        scale,
+        postFeed,
+        headerSpace,
+        browserMode,
+        browserPixelWidth,
+        browserAutoClose,
+      ];
+}
+
+class _ScopedKeys implements _KeySet {
+  _ScopedKeys(String prefix) : _prefix = prefix;
+
+  final String _prefix;
+
+  @override
+  String get scale => '$_prefix.scale';
+  @override
+  String get postFeed => '$_prefix.postfeed';
+  @override
+  String get headerSpace => '$_prefix.headerspace';
+  @override
+  String get browserMode => '$_prefix.browser.mode';
+  @override
+  String get browserPixelWidth => '$_prefix.browser.width';
+  @override
+  String get browserAutoClose => '$_prefix.browser.autoclose';
+
+  @override
+  Iterable<String> get values => <String>[
+        scale,
+        postFeed,
+        headerSpace,
+        browserMode,
+        browserPixelWidth,
+        browserAutoClose,
+      ];
+}
+
+class _LegacyKeys implements _KeySet {
+  const _LegacyKeys();
+
+  @override
+  String get scale => PrintSettingsService.scalePrefKey;
+  @override
+  String get postFeed => PrintSettingsService.postFeedPrefKey;
+  @override
+  String get headerSpace => PrintSettingsService.headerSpacePrefKey;
+  @override
+  String get browserMode => PrintSettingsService.browserModePrefKey;
+  @override
+  String get browserPixelWidth => PrintSettingsService.browserWidthPrefKey;
+  @override
+  String get browserAutoClose =>
+      PrintSettingsService.browserAutoClosePrefKey;
+
+  @override
+  Iterable<String> get values => <String>[
+        scale,
+        postFeed,
+        headerSpace,
+        browserMode,
+        browserPixelWidth,
+        browserAutoClose,
+      ];
+}
+
+class PrintSettingsStorageKeys {
+  const PrintSettingsStorageKeys._({
+    required this.scale,
+    required this.postFeed,
+    required this.headerSpace,
+    required this.browserMode,
+    required this.browserPixelWidth,
+    required this.browserAutoClose,
+  });
+
+  final String scale;
+  final String postFeed;
+  final String headerSpace;
+  final String browserMode;
+  final String browserPixelWidth;
+  final String browserAutoClose;
 }
 
 BrowserPrintMode _modeFromRaw(String? raw) {

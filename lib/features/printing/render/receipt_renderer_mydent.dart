@@ -96,7 +96,9 @@ class _ReceiptPreviewPageState extends State<ReceiptPreviewPage> {
   }
 
   Future<void> _prepare() async {
-    final settings = await _printSettingsService.load();
+    final settings = await _printSettingsService.load(
+      clinicId: ClinicContext.activeClinicId,
+    );
 
     try {
       final data =

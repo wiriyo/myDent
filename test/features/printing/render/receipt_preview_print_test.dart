@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:mydent_app/features/printing/render/receipt_renderer_mydent.dart';
 import 'package:mydent_app/features/printing/render/receipt_mapper.dart';
 import 'package:mydent_app/features/printing/services/thermal_printer_service.dart';
+import 'package:mydent_app/features/printing/services/print_settings_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../test_utils/fake_print_settings_service.dart';
 
 class _FakePrinter implements PrinterClient {
@@ -24,11 +24,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
+    final keys = PrintSettingsService.storageKeysForTesting();
     SharedPreferences.setMockInitialValues({
-      'mydent.printing.scale': 1.0,
+      keys.scale: 1.0,
       // set a non-default feed to verify it is passed to printer
-      'mydent.printing.postfeed': 5,
-      'mydent.printing.headerspace': 0,
+      keys.postFeed: 5,
+      keys.headerSpace: 0,
     });
   });
 

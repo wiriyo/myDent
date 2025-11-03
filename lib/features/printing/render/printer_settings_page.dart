@@ -71,7 +71,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   Future<void> _prepare() async {
-    final settings = await _printSettingsService.load();
+    final settings = await _printSettingsService.load(
+      clinicId: ClinicContext.activeClinicId,
+    );
 
     try {
       // Load initial clinic header and subscribe for updates
@@ -267,7 +269,10 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
 
   Future<void> _persistSettings(PrintSettings settings) async {
     try {
-      await _printSettingsService.save(settings);
+      await _printSettingsService.save(
+        settings,
+        clinicId: ClinicContext.activeClinicId,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -22,8 +22,6 @@ import '../services/qz_print_service.dart';
 import '../services/browser_print_service.dart';
 import 'browser_print_payload.dart';
 import 'png_postprocessor.dart';
-import 'qz_status_ui.dart';
-import 'qz_diagnostics_sheet.dart';
 
 class AppointmentSlipPreviewPage extends StatefulWidget {
   final AppointmentSlipModel? slip;
@@ -378,7 +376,7 @@ class _AppointmentSlipPreviewPageState
   Future<void> _print() async {
     if (_busyCapture) return;
     if (kIsWeb) {
-      await _showPrintMenu();
+      await _printWeb();
       return;
     }
 
@@ -431,97 +429,51 @@ class _AppointmentSlipPreviewPageState
     }
   }
 
-  Future<void> _showPrintMenu() async {
-    if (_busyCapture || !mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_qzService.isEnabled)
-                ValueListenableBuilder<QzStatusSnapshot>(
-                  valueListenable: _qzService.statusNotifier,
-                  builder: (context, status, _) {
-                    return ListTile(
-                      leading: Text(
-                        qzStatusEmoji(status),
-                        style: const TextStyle(fontSize: 24),
-                      ),
-                      title: const Text('พิมพ์ (QZ Tray)'),
-                      subtitle: Text(qzStatusMessage(status)),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        _printWithQz();
-                      },
-                    );
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.print_outlined),
-                title: const Text('พิมพ์ผ่านเบราว์เซอร์'),
-                subtitle: Text(_browserModeLabel),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _printWithBrowser();
-                },
-              ),
-              if (_qzService.isEnabled)
-                ListTile(
-                  leading: const Icon(Icons.play_circle_outline),
-                  title: const Text('เปิด QZ Tray'),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _launchQzTray();
-                  },
-                ),
-              if (_qzService.isEnabled)
-                ListTile(
-                  leading: const Icon(Icons.fact_check_outlined),
-                  title: const Text('Self-test (QZ Tray)'),
-                  subtitle: const Text(
-                    'ตรวจสอบสถานะ/เวอร์ชัน และแก้ไขปัญหา QZ Tray',
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _runQzSelfTest();
-                  },
-                ),
-              if (_qzService.isEnabled)
-                ListTile(
-                  leading: const Icon(Icons.refresh_outlined),
-                  title: const Text('ลองโหลดบริดจ์ใหม่'),
-                  subtitle: const Text(
-                    'รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง',
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    retryQzBridge(context, _qzService);
-                  },
-                ),
-              if (_qzService.isEnabled)
-                ListTile(
-                  leading: const Icon(Icons.analytics_outlined),
-                  title: const Text('QZ Diagnostics'),
-                  subtitle: const Text('ดู origin ปัจจุบันและสถานะความปลอดภัย'),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    showQzDiagnosticsSheet(context, _qzService);
-                  },
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  String get _browserModeLabel {
-    if (_browserMode == BrowserPrintMode.html) {
-      return 'โหมด HTML (ตัวหนังสือคม)';
+  Future<void> _printWeb() async {
+    if (!_qzService.isEnabled) {
+      await _printWithBrowser(forceRecapture: true);
+      return;
     }
-    return 'โหมด PNG (${_browserPixelWidth}px)';
+    if (!mounted) return;
+    setState(() => _busyCapture = true);
+    var releaseBusy = true;
+    try {
+      QzStatusSnapshot status = _qzService.statusNotifier.value;
+      if (!status.isReady) {
+        try {
+          await _qzService.ensureReady();
+        } on QzPrintException catch (error) {
+          if (mounted) {
+            _showQzErrorSnackBar(error);
+          }
+        } catch (error) {
+          if (mounted) {
+            _showSnackBarSafe(
+              SnackBar(content: Text('เชื่อมต่อ QZ Tray ไม่สำเร็จ: $error')),
+            );
+          }
+        }
+        status = _qzService.statusNotifier.value;
+      }
+      if (status.isReady) {
+        if (mounted) setState(() => _busyCapture = false);
+        releaseBusy = false;
+        await _printWithQz(forceRecapture: true);
+        return;
+      }
+      if (!mounted) return;
+      _showSnackBarSafe(
+        const SnackBar(
+          content: Text(
+            'ยังไม่ได้เชื่อมต่อ QZ Tray โปรดไปที่หน้า "ตั้งค่าเครื่องพิมพ์" แล้วกด "เชื่อมต่อเครื่องพิมพ์"',
+          ),
+        ),
+      );
+    } finally {
+      if (releaseBusy && mounted) {
+        setState(() => _busyCapture = false);
+      }
+    }
   }
 
   Future<void> _printWithBrowser({bool forceRecapture = false}) async {
@@ -1067,32 +1019,6 @@ class _AppointmentSlipPreviewPageState
     return 'พร้อมใช้งาน';
   }
 
-  Future<void> _launchQzTray() async {
-    if (!_qzService.isEnabled) {
-      _showSnackBarSafe(
-        const SnackBar(content: Text('ฟีเจอร์ QZ Tray ใช้ได้เฉพาะบนเว็บ')),
-      );
-      return;
-    }
-
-    try {
-      await _qzService.launchQzTray();
-      await Future<void>.delayed(const Duration(seconds: 2));
-      await _qzService.ensureReady();
-      _showSnackBarSafe(
-        const SnackBar(
-          content: Text('พยายามเปิด QZ Tray แล้ว โปรดลองพิมพ์อีกครั้ง'),
-        ),
-      );
-    } on QzPrintException catch (error) {
-      _showQzErrorSnackBar(error);
-    } catch (error) {
-      if (!mounted) return;
-      _showSnackBarSafe(
-        SnackBar(content: Text('เปิด QZ Tray ไม่สำเร็จ: $error')),
-      );
-    }
-  }
 }
 
 class _PrinterChoice {

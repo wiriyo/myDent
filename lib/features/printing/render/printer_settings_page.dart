@@ -17,11 +17,14 @@ import '../domain/appointment_slip_model.dart';
 import '../services/image_saver_service.dart';
 import '../services/thermal_printer_service.dart';
 import '../services/print_settings_service.dart';
+import '../services/qz_print_service.dart';
 import '../../../services/clinic_settings_service.dart';
 import '../../../config/clinic_context.dart';
 import '../../../config/clinic_defaults.dart';
 import 'dart:async';
 import '../../../services/logo_cache_service.dart';
+import 'qz_status_ui.dart';
+import 'qz_diagnostics_sheet.dart';
 
 class PrinterSettingsPage extends StatefulWidget {
   const PrinterSettingsPage({super.key});
@@ -47,6 +50,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   int _browserPixelWidth = PrintSettings.defaultBrowserPixelWidth;
   bool _browserAutoClose = PrintSettings.defaultBrowserAutoClose;
   final PrintSettingsService _printSettingsService = PrintSettingsService();
+  final QzPrintService _qzService = QzPrintService.I;
 
   // --- Clinic header state (live from settings) ---
   String _clinicName = ClinicDefaults.defaultClinicName;
@@ -68,6 +72,9 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     _prepare();
     _refreshPermStatus();
     _refreshConnectionStatus();
+    if (kIsWeb && _qzService.isEnabled) {
+      unawaited(_qzService.ensureWhitelist());
+    }
   }
 
   Future<void> _prepare() async {
@@ -569,7 +576,261 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     }
   }
 
+  Color _qzStatusColor(QzStatusSnapshot status) {
+    if (status.isReady) {
+      return Colors.green.shade400;
+    }
+    if (status.state == QzConnectionState.connecting) {
+      return Colors.amber.shade400;
+    }
+    if (status.lastErrorCode != null && status.lastErrorCode!.isNotEmpty) {
+      return Colors.red.shade300;
+    }
+    return Colors.blueGrey.shade300;
+  }
+
+  Future<void> _showWebPrinterMenu() async {
+    if (!mounted) return;
+    if (!_qzService.isEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ฟีเจอร์ QZ Tray ใช้ได้เฉพาะบนเว็บ')),
+      );
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<QzStatusSnapshot>(
+                valueListenable: _qzService.statusNotifier,
+                builder: (context, status, _) {
+                  return ListTile(
+                    leading: Text(
+                      qzStatusEmoji(status),
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    title: const Text('เชื่อมต่อ QZ Tray'),
+                    subtitle: Text(qzStatusMessage(status)),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      _connectQzFromSettings();
+                    },
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.play_circle_outline),
+                title: const Text('เปิด QZ Tray'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _launchQzTrayFromSettings();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.refresh_outlined),
+                title: const Text('ลองโหลดบริดจ์ใหม่'),
+                subtitle: const Text(
+                  'รีโหลดสคริปต์ QZ Tray และลองเชื่อมต่ออีกครั้ง',
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  retryQzBridge(context, _qzService);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('Self-test (QZ Tray)'),
+                subtitle: const Text('ส่งคำสั่งทดสอบการเชื่อมต่อ'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _runQzSelfTestFromSettings();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.analytics_outlined),
+                title: const Text('QZ Diagnostics'),
+                subtitle: const Text('ดู origin ปัจจุบันและสถานะความปลอดภัย'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  showQzDiagnosticsSheet(context, _qzService);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _connectQzFromSettings() async {
+    if (!_qzService.isEnabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ฟีเจอร์ QZ Tray ใช้ได้เฉพาะบนเว็บ')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _qzService.ensureReady();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('เชื่อมต่อ QZ Tray เรียบร้อย')),
+      );
+    } on QzPrintException catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('เชื่อมต่อ QZ Tray ไม่สำเร็จ: $error')),
+      );
+    }
+  }
+
+  Future<void> _launchQzTrayFromSettings() async {
+    if (!_qzService.isEnabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ฟีเจอร์ QZ Tray ใช้ได้เฉพาะบนเว็บ')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _qzService.launchQzTray();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('สั่งเปิด QZ Tray แล้ว')),
+      );
+    } on QzPrintException catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('เปิด QZ Tray ไม่สำเร็จ: $error')),
+      );
+    }
+  }
+
+  Future<void> _runQzSelfTestFromSettings() async {
+    if (!_qzService.isEnabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ฟีเจอร์ QZ Tray ใช้ได้เฉพาะบนเว็บ')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await _qzService.runSelfTestWithPrints();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 10),
+          content: Text(_summarizeSelfTestResult(result)),
+        ),
+      );
+    } on QzPrintException catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Self-test ไม่สำเร็จ: $error')),
+      );
+    }
+  }
+
+  String _summarizeSelfTestResult(QzSelfTestRunResult result) {
+    final lines = <String>[
+      _summarizeSelfTestReport(result.report),
+      _formatSelfTestTaskSummary('RAW', result.raw),
+      _formatSelfTestTaskSummary('PNG', result.image),
+    ];
+    if (result.printerName != null && result.printerName!.isNotEmpty) {
+      lines.add('เครื่องพิมพ์: ${result.printerName}');
+    }
+    return lines.join('\n');
+  }
+
+  String _summarizeSelfTestReport(QzSelfTestReport report) {
+    final parts = <String>[
+      report.isActive ? 'QZ Tray พร้อมใช้งาน' : 'QZ Tray ไม่ตอบสนอง',
+    ];
+    if (report.version != null && report.version!.isNotEmpty) {
+      parts.add('เวอร์ชัน ${report.version}');
+    }
+    if (report.printersCount != null) {
+      parts.add('เครื่องพิมพ์ ${report.printersCount}');
+    }
+    if (report.lastError != null) {
+      parts.add('ข้อผิดพลาด: ${report.lastError!.code}');
+    }
+    return parts.join(' • ');
+  }
+
+  String _formatSelfTestTaskSummary(String label, QzSelfTestTaskResult task) {
+    if (task.skipped) {
+      final String detail = task.message.trim().isEmpty ? '' : ' - ${task.message.trim()}';
+      return '$label: ข้าม$detail';
+    }
+    final String status = task.success ? 'สำเร็จ' : 'ล้มเหลว';
+    final String code =
+        (task.errorCode == null || task.errorCode!.isEmpty) ? '' : ' (${task.errorCode})';
+    final String detail = task.message.trim().isEmpty ? '' : ' - ${task.message.trim()}';
+    return '$label: $status$code$detail';
+  }
+
   Widget _buildPermFab() {
+    if (kIsWeb && _qzService.isEnabled) {
+      return ValueListenableBuilder<QzStatusSnapshot>(
+        valueListenable: _qzService.statusNotifier,
+        builder: (context, status, _) {
+          final bool busy = status.state == QzConnectionState.connecting;
+          final Color bg = _qzStatusColor(status);
+          final Widget iconWidget =
+              busy
+                  ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                  )
+                  : Icon(
+                    status.isReady ? Icons.check_circle_outline : Icons.print_outlined,
+                    color: Colors.white,
+                  );
+          final String label = status.isReady ? 'พร้อมพิมพ์แล้ว' : 'เชื่อมต่อเครื่องพิมพ์';
+          return FloatingActionButton.extended(
+            heroTag: 'permFab',
+            backgroundColor: bg,
+            onPressed: _showWebPrinterMenu,
+            icon: iconWidget,
+            label: Text(label),
+          );
+        },
+      );
+    }
+
+    if (kIsWeb) {
+      return FloatingActionButton.extended(
+        heroTag: 'permFab',
+        backgroundColor: Colors.blueGrey.shade300,
+        onPressed: null,
+        icon: const Icon(Icons.print_disabled, color: Colors.white),
+        label: const Text('ปิดการใช้งาน QZ Tray'),
+      );
+    }
+
     final bool hasPermission = _hasPrinterPermissions == true;
     final bool connected = _isPrinterConnected == true;
 

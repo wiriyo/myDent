@@ -1,7 +1,7 @@
 // lib/screens/medical_image_gallery.dart
 
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/adaptive_network_image.dart';
 
 class MedicalImageGallery extends StatelessWidget {
   final Stream<List<Map<String, dynamic>>>? imageStream;
@@ -10,7 +10,8 @@ class MedicalImageGallery extends StatelessWidget {
     required List<Map<String, dynamic>> images,
     required int startIndex,
     required String patientId,
-  }) onImageTap;
+  })
+  onImageTap;
   final String patientId;
 
   const MedicalImageGallery({
@@ -63,17 +64,17 @@ class MedicalImageGallery extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     child: AspectRatio(
                       aspectRatio: 3 / 4,
-                      child: CachedNetworkImage(
-                        imageUrl: image['url'] ?? '',
+                      child: AdaptiveNetworkImage(
+                        url: image['url'] ?? '',
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
+                        placeholder: Container(
                           color: Colors.purple.shade50,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          alignment: Alignment.center,
+                          child: const CircularProgressIndicator(),
                         ),
-                        errorWidget: (context, url, error) => Container(
+                        error: Container(
                           color: Colors.grey.shade200,
+                          alignment: Alignment.center,
                           child: const Icon(Icons.broken_image, size: 40),
                         ),
                       ),

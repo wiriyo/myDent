@@ -1,0 +1,7 @@
+[
+  {
+    "origin": ["https://mydentv1.web.app", "https://mydentv1.firebaseapp.com"],
+    "method": ["GET", "HEAD", "OPTIONS"],
+    "maxAgeSeconds": 3600
+  }
+]

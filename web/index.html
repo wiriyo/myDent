@@ -1682,7 +1682,28 @@
         return createError('qz_print_failed', 'สั่งพิมพ์ผ่าน QZ Tray ไม่สำเร็จ', error);
       };
 
-      const ensureDataUrl = (base64Value) => {
+      const detectImageMimeFromBase64 = (value) => {
+        if (typeof value !== 'string') {
+          return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return null;
+        }
+        if (trimmed.startsWith('data:image')) {
+          const match = trimmed.match(/^data:([^;,]+);base64,/i);
+          return match && match[1] ? match[1].toLowerCase() : null;
+        }
+        const upper = trimmed.slice(0, 12).toUpperCase();
+        if (upper.startsWith('/9J/')) return 'image/jpeg';
+        if (upper.startsWith('IVBOR')) return 'image/png';
+        if (upper.startsWith('R0LGOD')) return 'image/gif';
+        if (upper.startsWith('UKLGR')) return 'image/webp';
+        if (upper.startsWith('QK')) return 'image/bmp';
+        return null;
+      };
+
+      const ensureDataUrl = (base64Value, fallbackMime = 'image/png') => {
         const trimmed = String(base64Value || '').trim();
         if (!trimmed) {
           return null;
@@ -1690,7 +1711,8 @@
         if (trimmed.startsWith('data:image')) {
           return trimmed;
         }
-        return `data:image/png;base64,${trimmed}`;
+        const mime = detectImageMimeFromBase64(trimmed) || fallbackMime;
+        return `data:${mime};base64,${trimmed}`;
       };
 
 
@@ -2581,6 +2603,11 @@
       };
       log('info', 'Registered MyDent QZ bridge functions on window');
     })();
+  </script>
+    <script>
+    window.flutterConfiguration = {
+      renderer: "html",
+    };
   </script>
   <script src="flutter_bootstrap.js" async></script>
 

@@ -14,6 +14,7 @@ import '../services/patient_service.dart';
 import '../services/tooth_history_service.dart';
 import '../styles/app_theme.dart';
 import '../utils/upload_image_payload.dart';
+import '../widgets/adaptive_network_image.dart';
 
 import '../features/printing/render/receipt_mapper.dart'
     show ReceiptLineInput, buildReceiptModel;
@@ -349,7 +350,8 @@ class _TreatmentFormState extends State<TreatmentForm> {
             final textTheme = Theme.of(context).textTheme;
             final bool disableConfirm = selection == null;
 
-            void updateSelection(bool? newValue) => setState(() => selection = newValue);
+            void updateSelection(bool? newValue) =>
+                setState(() => selection = newValue);
 
             Widget buildOption({
               required bool value,
@@ -429,10 +431,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
                           ],
                         ),
                       ),
-                      Radio<bool>(
-                        value: value,
-                        activeColor: AppTheme.primary,
-                      ),
+                      Radio<bool>(value: value, activeColor: AppTheme.primary),
                     ],
                   ),
                 ),
@@ -518,13 +517,15 @@ class _TreatmentFormState extends State<TreatmentForm> {
                           value: true,
                           icon: Icons.event_available_rounded,
                           title: 'นัดหมายครั้งต่อไป',
-                          subtitle: 'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
+                          subtitle:
+                              'พาไปที่หน้าปฏิทินเพื่อสร้างนัดใหม่ต่อได้เลย',
                         ),
                         buildOption(
                           value: false,
                           icon: Icons.insert_drive_file_rounded,
                           title: 'ไม่มีนัดหมาย',
-                          subtitle: 'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
+                          subtitle:
+                              'กลับไปดูใบเสร็จและสรุปรายการรักษาที่บันทึกไว้',
                         ),
                       ],
                     ),
@@ -706,13 +707,11 @@ class _TreatmentFormState extends State<TreatmentForm> {
       return;
     } else {
       _showErrorSnackBar(
-
         'มีบางอย่างผิดพลาดค่ะ',
 
         isError: true,
 
         messenger: messenger,
-
       );
 
       setState(() => _isSaveButtonLocked = false);
@@ -1022,7 +1021,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: AppTheme.primary.withValues(alpha: 0.25),
+                                  color: AppTheme.primary.withValues(
+                                    alpha: 0.25,
+                                  ),
                                 ),
                               ),
                               child: SizedBox(
@@ -1157,29 +1158,35 @@ class _TreatmentFormState extends State<TreatmentForm> {
                       onPressed: () async {
                         final navigator = Navigator.of(context);
                         final messenger = ScaffoldMessenger.of(context);
-                        final shouldDelete = await showDialog<bool>(
+                        final shouldDelete =
+                            await showDialog<bool>(
                               context: context,
-                              builder: (dialogContext) => AlertDialog(
-                                title: const Text('ยืนยันการลบ'),
-                                content: const Text(
-                                  'คุณต้องการลบประวัติการรักษานี้หรือไม่?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(dialogContext).pop(false),
-                                    child: const Text('ยกเลิก'),
-                                  ),
-                                  FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.redAccent,
+                              builder:
+                                  (dialogContext) => AlertDialog(
+                                    title: const Text('ยืนยันการลบ'),
+                                    content: const Text(
+                                      'คุณต้องการลบประวัติการรักษานี้หรือไม่?',
                                     ),
-                                    onPressed: () =>
-                                        Navigator.of(dialogContext).pop(true),
-                                    child: const Text('ลบ'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed:
+                                            () => Navigator.of(
+                                              dialogContext,
+                                            ).pop(false),
+                                        child: const Text('ยกเลิก'),
+                                      ),
+                                      FilledButton(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                        ),
+                                        onPressed:
+                                            () => Navigator.of(
+                                              dialogContext,
+                                            ).pop(true),
+                                        child: const Text('ลบ'),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
                             ) ??
                             false;
                         if (shouldDelete != true) {
@@ -1289,7 +1296,23 @@ class _TreatmentFormState extends State<TreatmentForm> {
                 if (index < _existingImageUrls.length) {
                   final imageUrl = _existingImageUrls[index];
                   return _buildImageThumbnail(
-                    imageProvider: NetworkImage(imageUrl),
+                    child: AdaptiveNetworkImage(
+                      url: imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: Container(
+                        color: Colors.purple.shade50,
+                        alignment: Alignment.center,
+                        child: const CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      error: Container(
+                        color: Colors.grey.shade200,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
                     onRemove:
                         _isEditing
                             ? () => _handleDeleteExistingImage(imageUrl)
@@ -1299,7 +1322,19 @@ class _TreatmentFormState extends State<TreatmentForm> {
                   final imageIndex = index - _existingImageUrls.length;
                   final imagePayload = _newImages[imageIndex];
                   return _buildImageThumbnail(
-                    imageProvider: MemoryImage(imagePayload.bytes),
+                    child: Image.memory(
+                      imagePayload.bytes,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (context, error, stackTrace) => Container(
+                            color: Colors.grey.shade300,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.broken_image,
+                              color: Colors.white,
+                            ),
+                          ),
+                    ),
                     onRemove:
                         () => setState(() => _newImages.removeAt(imageIndex)),
                   );
@@ -1313,42 +1348,39 @@ class _TreatmentFormState extends State<TreatmentForm> {
   }
 
   Widget _buildImageThumbnail({
-    required ImageProvider imageProvider,
+    required Widget child,
     required VoidCallback? onRemove,
   }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12.0),
-      child: Stack(
-        children: [
-          Image(
-            image: imageProvider,
-            width: 100,
-            height: 100,
-            fit: BoxFit.cover,
-            errorBuilder:
-                (context, error, stackTrace) => Container(
-                  width: 100,
-                  height: 100,
-                  color: Colors.grey.shade300,
-                  child: const Icon(Icons.broken_image, color: Colors.white),
-                ),
-          ),
-          if (onRemove != null)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: GestureDetector(
-                onTap: onRemove,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    shape: BoxShape.circle,
+    return SizedBox(
+      width: 100,
+      height: 100,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12.0),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            child,
+            if (onRemove != null)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: GestureDetector(
+                  onTap: onRemove,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
-                  child: const Icon(Icons.close, color: Colors.white, size: 18),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

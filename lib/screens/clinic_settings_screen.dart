@@ -11,6 +11,7 @@ import '../services/logo_cache_service.dart';
 import '../config/clinic_defaults.dart';
 import '../config/feature_flags.dart';
 import '../utils/upload_image_payload.dart';
+import '../widgets/adaptive_network_image.dart';
 
 class ClinicSettingsScreen extends StatefulWidget {
   const ClinicSettingsScreen({super.key});
@@ -44,7 +45,8 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
   }
 
   Future<void> _load() async {
-    final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+    final clinicId =
+        Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
     if (clinicId == null || clinicId.isEmpty) {
       setState(() => _loading = false);
       return;
@@ -53,17 +55,25 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
     if (data != null) {
       _logoUrl = data['logoUrl'] as String?;
       final loadedName = (data['name'] ?? '') as String;
-      _nameCtrl.text = loadedName.isEmpty ? ClinicDefaults.defaultClinicName : loadedName;
+      _nameCtrl.text =
+          loadedName.isEmpty ? ClinicDefaults.defaultClinicName : loadedName;
       _addressCtrl.text = (data['address'] ?? '') as String;
-      _phoneCtrl.text = _PhoneDashFormatter.format((data['phone'] ?? '') as String);
+      _phoneCtrl.text = _PhoneDashFormatter.format(
+        (data['phone'] ?? '') as String,
+      );
       _lineCtrl.text = (data['lineId'] ?? '') as String;
       _showLine = (data['showLineId'] ?? true) as bool;
       _taxCtrl.text = (data['taxId'] ?? '') as String;
       _showTax = (data['showTaxId'] ?? false) as bool;
-      _welcomeScreenEnabled = (data['welcomeScreenEnabled'] ?? FeatureFlags.showInAppSplash) as bool;
+      _welcomeScreenEnabled =
+          (data['welcomeScreenEnabled'] ?? FeatureFlags.showInAppSplash)
+              as bool;
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('mydent.welcomeScreenEnabled', _welcomeScreenEnabled);
+        await prefs.setBool(
+          'mydent.welcomeScreenEnabled',
+          _welcomeScreenEnabled,
+        );
       } catch (_) {}
     }
     setState(() => _loading = false);
@@ -71,18 +81,61 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
 
   Future<void> _pickLogo() async {
     final picker = ImagePicker();
-    final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1024);
+    final x = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1024,
+    );
     final payload = await UploadImagePayload.fromXFile(x);
     if (payload != null) {
       setState(() => _logoImage = payload);
     }
   }
 
+  Widget _buildLogoPreview() {
+    if (_logoImage != null) {
+      return Image.memory(
+        _logoImage!.bytes,
+        fit: BoxFit.cover,
+        errorBuilder:
+            (context, error, stackTrace) => Container(
+              color: Colors.grey.shade200,
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.broken_image,
+                size: 40,
+                color: Colors.grey,
+              ),
+            ),
+      );
+    }
+
+    if (_logoUrl != null && _logoUrl!.isNotEmpty) {
+      return AdaptiveNetworkImage(
+        url: _logoUrl!,
+        fit: BoxFit.cover,
+        placeholder: Container(
+          color: Colors.purple.shade50,
+          alignment: Alignment.center,
+          child: const CircularProgressIndicator(strokeWidth: 2),
+        ),
+        error: Container(
+          color: Colors.grey.shade200,
+          alignment: Alignment.center,
+          child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+        ),
+      );
+    }
+
+    return Image.asset(ClinicDefaults.defaultLogoAsset, fit: BoxFit.cover);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+      final clinicId =
+          Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
       String? logoUrl = _logoUrl;
       if (_logoImage != null) {
         logoUrl = await _service.uploadLogo(_logoImage!, clinicId: clinicId);
@@ -110,14 +163,21 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       );
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('mydent.welcomeScreenEnabled', _welcomeScreenEnabled);
+        await prefs.setBool(
+          'mydent.welcomeScreenEnabled',
+          _welcomeScreenEnabled,
+        );
       } catch (_) {}
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกข้อมูลคลินิกแล้ว')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('บันทึกข้อมูลคลินิกแล้ว')));
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -136,169 +196,252 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ข้อมูลคลินิก'), backgroundColor: AppTheme.primaryLight, elevation: 0),
+      appBar: AppBar(
+        title: const Text('ข้อมูลคลินิก'),
+        backgroundColor: AppTheme.primaryLight,
+        elevation: 0,
+      ),
       backgroundColor: AppTheme.background,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Welcome Screen',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Switch(
-                            value: _welcomeScreenEnabled,
-                            onChanged: (val) => setState(() => _welcomeScreenEnabled = val),
-                          ),
-                        ],
+      body:
+          _loading
+              ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary),
+              )
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Welcome Screen',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Switch(
+                              value: _welcomeScreenEnabled,
+                              onChanged:
+                                  (val) => setState(
+                                    () => _welcomeScreenEnabled = val,
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          InkWell(
-                            onTap: _saving ? null : _pickLogo,
-                            borderRadius: BorderRadius.circular(80),
-                            child: Container(
-                              width: 140,
-                              height: 140,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-                              image: _logoImage != null
-                                  ? DecorationImage(image: MemoryImage(_logoImage!.bytes), fit: BoxFit.cover)
-                                    : (_logoUrl != null && _logoUrl!.isNotEmpty)
-                                        ? DecorationImage(image: NetworkImage(_logoUrl!), fit: BoxFit.cover)
-                                        : const DecorationImage(image: AssetImage(ClinicDefaults.defaultLogoAsset), fit: BoxFit.cover),
-                          ),
-                              // มีโลโก้ default เสมอ ไม่แสดง placeholder แล้ว
-                              child: null,
-                          ),
-                          ),
-                          if (_logoImage != null || (_logoUrl != null && _logoUrl!.isNotEmpty))
-                            Positioned(
-                              top: -6,
-                              right: -6,
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: _saving
-                                      ? null
-                                      : () async {
-                                          final messenger = ScaffoldMessenger.of(context);
-                                          if (_logoImage != null) {
-                                            setState(() => _logoImage = null);
-                                          } else if (_logoUrl != null && _logoUrl!.isNotEmpty) {
-                                            final url = _logoUrl!;
-                                            setState(() => _logoUrl = null);
-                                            try {
-                                              await _service.deleteLogo(logoUrl: url);
-                                              await LogoCacheService.clear();
-                                              if (!mounted) return;
-                                              messenger.showSnackBar(const SnackBar(content: Text('ลบโลโก้แล้ว')));
-                                            } catch (e) {
-                                              if (!mounted) return;
-                                              messenger.showSnackBar(SnackBar(content: Text('ลบโลโก้ไม่สำเร็จ: $e')));
-                                            }
-                                          }
-                                        },
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
-                                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            InkWell(
+                              onTap: _saving ? null : _pickLogo,
+                              borderRadius: BorderRadius.circular(80),
+                              child: Container(
+                                width: 140,
+                                height: 140,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipOval(child: _buildLogoPreview()),
+                              ),
+                            ),
+                            if (_logoImage != null ||
+                                (_logoUrl != null && _logoUrl!.isNotEmpty))
+                              Positioned(
+                                top: -6,
+                                right: -6,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap:
+                                        _saving
+                                            ? null
+                                            : () async {
+                                              final messenger =
+                                                  ScaffoldMessenger.of(context);
+                                              if (_logoImage != null) {
+                                                setState(
+                                                  () => _logoImage = null,
+                                                );
+                                              } else if (_logoUrl != null &&
+                                                  _logoUrl!.isNotEmpty) {
+                                                final url = _logoUrl!;
+                                                setState(() => _logoUrl = null);
+                                                try {
+                                                  await _service.deleteLogo(
+                                                    logoUrl: url,
+                                                  );
+                                                  await LogoCacheService.clear();
+                                                  if (!mounted) return;
+                                                  messenger.showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'ลบโลโก้แล้ว',
+                                                      ),
+                                                    ),
+                                                  );
+                                                } catch (e) {
+                                                  if (!mounted) return;
+                                                  messenger.showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        'ลบโลโก้ไม่สำเร็จ: $e',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.redAccent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'ชื่อคลินิก',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _nameCtrl,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: _inputDecoration('ระบุชื่อคลินิก'),
+                        // อนุญาตให้ว่างได้ (ระบบจะแสดงค่า default เมื่ออ่านเพื่อใช้งาน)
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'ที่อยู่คลินิก',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _addressCtrl,
+                        maxLines: 3,
+                        decoration: _inputDecoration('กรอกที่อยู่คลินิก'),
+                        validator: (_) => null,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'เลขที่ผู้เสียภาษี',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
+                          ),
+                          Switch(
+                            value: _showTax,
+                            onChanged: (val) => setState(() => _showTax = val),
+                          ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('ชื่อคลินิก', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _nameCtrl,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      minLines: 1,
-                      maxLines: 3,
-                      decoration: _inputDecoration('ระบุชื่อคลินิก'),
-                      // อนุญาตให้ว่างได้ (ระบบจะแสดงค่า default เมื่ออ่านเพื่อใช้งาน)
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('ที่อยู่คลินิก', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _addressCtrl,
-                      maxLines: 3,
-                      decoration: _inputDecoration('กรอกที่อยู่คลินิก'),
-                      validator: (_) => null,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Expanded(child: Text('เลขที่ผู้เสียภาษี', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Switch(value: _showTax, onChanged: (val) => setState(() => _showTax = val)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _taxCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: _inputDecoration('ระบุเลขที่ผู้เสียภาษี (ไม่บังคับ)'),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('เบอร์โทร', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [_PhoneDashFormatter()],
-                      decoration: _inputDecoration('เช่น 0812345678'),
-                      validator: (_) => null,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Expanded(child: Text('Line ID', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Switch(value: _showLine, onChanged: (val) => setState(() => _showLine = val)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _lineCtrl,
-                      decoration: _inputDecoration('ระบุ Line ID (ไม่บังคับ)'),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: _saving
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.save_outlined),
-                        label: const Text('บันทึก'),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _taxCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: _inputDecoration(
+                          'ระบุเลขที่ผู้เสียภาษี (ไม่บังคับ)',
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      const Text(
+                        'เบอร์โทร',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [_PhoneDashFormatter()],
+                        decoration: _inputDecoration('เช่น 0812345678'),
+                        validator: (_) => null,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Line ID',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Switch(
+                            value: _showLine,
+                            onChanged: (val) => setState(() => _showLine = val),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _lineCtrl,
+                        decoration: _inputDecoration(
+                          'ระบุ Line ID (ไม่บังคับ)',
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _saving ? null : _save,
+                          icon:
+                              _saving
+                                  ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                  : const Icon(Icons.save_outlined),
+                          label: const Text('บันทึก'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
     );
   }
 
@@ -307,11 +450,15 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
       hintText: hint,
       filled: true,
       fillColor: Colors.white,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
 }
+
 class _PhoneDashFormatter extends TextInputFormatter {
   static String format(String input) {
     final digits = input.replaceAll(RegExp(r'[^0-9]'), '');
@@ -326,18 +473,23 @@ class _PhoneDashFormatter extends TextInputFormatter {
   }
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final formatted = format(newValue.text);
-    final int digitsBeforeCursor = newValue.selection.end <= 0
-        ? 0
-        : newValue.text
-            .substring(0, newValue.selection.end)
-            .replaceAll(RegExp(r'[^0-9]'), '')
-            .length;
+    final int digitsBeforeCursor =
+        newValue.selection.end <= 0
+            ? 0
+            : newValue.text
+                .substring(0, newValue.selection.end)
+                .replaceAll(RegExp(r'[^0-9]'), '')
+                .length;
 
     int cursorPosition = 0;
     int digitCount = 0;
-    while (cursorPosition < formatted.length && digitCount < digitsBeforeCursor) {
+    while (cursorPosition < formatted.length &&
+        digitCount < digitsBeforeCursor) {
       if (formatted[cursorPosition] != '-') {
         digitCount++;
       }

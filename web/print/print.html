@@ -180,6 +180,38 @@
       const statusEl = document.getElementById('status');
       let printed = false;
 
+      function detectImageMimeFromBase64(raw) {
+        if (!raw) return null;
+        const value = raw.trim();
+        if (!value) return null;
+        if (value.startsWith('data:image')) {
+          const match = value.match(/^data:([^;,]+);base64,/i);
+          return match && match[1] ? match[1].toLowerCase() : null;
+        }
+        const upper = value.slice(0, 12).toUpperCase();
+        if (upper.startsWith('/9J/')) return 'image/jpeg';
+        if (upper.startsWith('IVBOR')) return 'image/png';
+        if (upper.startsWith('R0LGOD')) return 'image/gif';
+        if (upper.startsWith('UKLGR')) return 'image/webp';
+        if (upper.startsWith('QK')) return 'image/bmp';
+        return null;
+      }
+
+      function buildImageDataUrl(rawValue, fallbackMime) {
+        if (typeof rawValue !== 'string') {
+          return null;
+        }
+        const trimmed = rawValue.trim();
+        if (!trimmed) {
+          return null;
+        }
+        if (trimmed.startsWith('data:image')) {
+          return trimmed;
+        }
+        const mime = detectImageMimeFromBase64(trimmed) || fallbackMime || 'image/png';
+        return 'data:' + mime + ';base64,' + trimmed;
+      }
+
       function hideStatus() {
         if (statusEl) {
           statusEl.classList.add('hidden');
@@ -218,11 +250,14 @@
           root.appendChild(spacer);
         }
         if (logo) {
-          const img = document.createElement('img');
-          img.className = 'clinic-logo';
-          img.src = 'data:image/png;base64,' + logo;
-          img.alt = 'Clinic Logo';
-          root.appendChild(img);
+          const logoUrl = buildImageDataUrl(logo, 'image/png');
+          if (logoUrl) {
+            const img = document.createElement('img');
+            img.className = 'clinic-logo';
+            img.src = logoUrl;
+            img.alt = 'Clinic Logo';
+            root.appendChild(img);
+          }
         }
         if (clinic?.name) {
           const nameEl = document.createElement('div');
@@ -469,12 +504,17 @@
             return;
           }
           setMode('png');
+          const dataUrl = buildImageDataUrl(base64, 'image/png');
+          if (!dataUrl) {
+            statusEl.textContent = 'ไม่พบข้อมูลรูปภาพที่พร้อมสำหรับการพิมพ์';
+            return;
+          }
           hideStatus();
           imageEl.onload = () => triggerPrint();
           imageEl.onerror = () => {
             statusEl.textContent = 'โหลดภาพไม่สำเร็จ';
           };
-          imageEl.src = 'data:image/png;base64,' + base64;
+          imageEl.src = dataUrl;
         } else {
           setMode('html');
           renderDocument(payload);

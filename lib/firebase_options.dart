@@ -54,7 +54,7 @@ class DefaultFirebaseOptions {
     appId: '1:1060356216356:android:7856f0f30ff1e148786ab1',
     messagingSenderId: '1060356216356',
     projectId: 'mydentv1',
-    storageBucket: 'mydentv1.firebasestorage.app',
+    storageBucket: 'mydentv1.appspot.app',
   );
 
   static const FirebaseOptions web = FirebaseOptions(
@@ -63,7 +63,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1060356216356',
     projectId: 'mydentv1',
     authDomain: 'mydentv1.firebaseapp.com',
-    storageBucket: 'mydentv1.firebasestorage.app',
+    storageBucket: 'mydentv1.appspot.app',
   );
 
 }

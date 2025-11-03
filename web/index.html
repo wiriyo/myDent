@@ -115,6 +115,8 @@
       const LOG_PREFIX = '[MyDent|QZ]';
       const DEV_CERTIFICATE_PATH = 'assets/qz/mydent.crt';
       const DEV_PRIVATE_KEY_PATH = 'assets/qz/mydent.pem';
+      const PROD_CERTIFICATE_PATH = 'assets/qz/mydentv1.crt';
+      const PROD_PRIVATE_KEY_PATH = 'assets/qz/mydentv1.key';
       const REQUIRED_WHITELIST = [
         'localhost',
         '127.0.0.1',
@@ -437,6 +439,9 @@
       let demoSignatureWarned = false;
       let cachedDevCertificatePem = null;
       let cachedDevPrivateKeyPem = null;
+      let cachedProdCertificatePem = null;
+      let cachedProdPrivateKeyPem = null;
+      let prodPrivateKeySigner = null;
       let lastSecurityState = {
         certificateValid: null,
         certificateSubject: null,
@@ -632,6 +637,37 @@
         return (match ? match[0] : raw).trim();
       };
 
+      const extractPrivateKeyBlock = (input) => {
+        const raw = String(input || '');
+        const match = raw.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA )?PRIVATE KEY-----/);
+        return (match ? match[0] : raw).trim();
+      };
+
+      const createPrivateKeySigner = (privateKeyPem) => {
+        const normalized = String(privateKeyPem || '').trim();
+        if (!normalized) {
+          throw new Error('Private key PEM is required for signing');
+        }
+        let cachedKey = null;
+        return async (toSign) => {
+          if (typeof window.KEYUTIL === 'undefined' || !window.KJUR || !window.KJUR.crypto || typeof window.KJUR.crypto.Signature === 'undefined') {
+            throw new Error('jsrsasign ยังไม่พร้อมใช้งานสำหรับลงนามข้อความ');
+          }
+          try {
+            if (!cachedKey) {
+              cachedKey = window.KEYUTIL.getKey(normalized);
+            }
+            const signature = new window.KJUR.crypto.Signature({ alg: 'SHA512withRSA' });
+            signature.init(cachedKey);
+            signature.updateString(toSign);
+            return hexToBase64(signature.sign());
+          } catch (err) {
+            log('error', 'ลงนามข้อความด้วย private key ล้มเหลว', err);
+            throw err;
+          }
+        };
+      };
+
       const loadDevCredentials = async () => {
         if (cachedDevCertificatePem && cachedDevPrivateKeyPem) {
           return {
@@ -652,6 +688,38 @@
           certificate: cachedDevCertificatePem,
           privateKey: cachedDevPrivateKeyPem,
           mode: 'dev',
+        };
+      };
+
+      const loadHostedProductionMaterial = async () => {
+        if (cachedProdCertificatePem && cachedProdPrivateKeyPem && prodPrivateKeySigner) {
+          return {
+            certificate: cachedProdCertificatePem,
+            privateKey: cachedProdPrivateKeyPem,
+            signer: prodPrivateKeySigner,
+          };
+        }
+        const [certificatePem, privateKeyPem] = await Promise.all([
+          fetchTextAsset(PROD_CERTIFICATE_PATH),
+          fetchTextAsset(PROD_PRIVATE_KEY_PATH),
+        ]);
+        const certificate = extractPemBlock(certificatePem);
+        const privateKey = extractPrivateKeyBlock(privateKeyPem);
+        if (!certificate) {
+          throw new Error('ไม่พบ production certificate ใน assets');
+        }
+        if (!privateKey) {
+          throw new Error('ไม่พบ production private key ใน assets');
+        }
+        cachedProdCertificatePem = certificate;
+        cachedProdPrivateKeyPem = privateKey;
+        prodPrivateKeySigner = createPrivateKeySigner(privateKey);
+        recordCertificateMeta(certificate);
+        log('info', 'โหลด production certificate/key จาก assets/qz สำเร็จ');
+        return {
+          certificate,
+          privateKey,
+          signer: prodPrivateKeySigner,
         };
       };
 
@@ -679,11 +747,7 @@
 
       const loadProductionCredentials = async () => {
         const config = window.mydentQzConfig || {};
-        const certificatePem = extractPemBlock(config.productionCertificatePem || config.certificatePem || '');
-        if (!certificatePem) {
-          throw new Error('Production certificate ไม่ได้ถูกกำหนด');
-        }
-        recordCertificateMeta(certificatePem);
+        let certificatePem = extractPemBlock(config.productionCertificatePem || config.certificatePem || '');
         let signer = null;
         if (typeof config.productionSigner === 'function') {
           signer = config.productionSigner;
@@ -692,9 +756,42 @@
         } else if (config.signatureEndpoint) {
           signer = (toSign) => callSignatureEndpoint(config.signatureEndpoint, toSign);
         }
-        if (!signer) {
-          throw new Error('Production signature provider ไม่พร้อมใช้งาน (ต้องกำหนด productionSigner/signMessage/signatureEndpoint)');
+
+        if (!certificatePem || !signer) {
+          try {
+            const hostedMaterial = await loadHostedProductionMaterial();
+            if (!certificatePem) {
+              certificatePem = hostedMaterial.certificate;
+            }
+            if (!signer && hostedMaterial.signer) {
+              signer = hostedMaterial.signer;
+            }
+          } catch (fallbackError) {
+            log('warn', 'โหลด production certificate/key จาก assets/qz ไม่สำเร็จ', fallbackError);
+          }
         }
+
+        if (!certificatePem) {
+          throw new Error('Production certificate ไม่ได้ถูกกำหนด');
+        }
+
+        recordCertificateMeta(certificatePem);
+
+        if (!signer) {
+          const keyFromConfig = extractPrivateKeyBlock(config.productionPrivateKeyPem || config.privateKeyPem || '');
+          if (keyFromConfig && keyFromConfig.includes('PRIVATE KEY')) {
+            try {
+              signer = createPrivateKeySigner(keyFromConfig);
+            } catch (keyError) {
+              log('warn', 'สร้าง production signer จาก private key ไม่สำเร็จ', keyError);
+            }
+          }
+        }
+
+        if (!signer) {
+          throw new Error('Production signature provider ไม่พร้อมใช้งาน (ต้องกำหนด productionSigner/signMessage/signatureEndpoint หรือ private key)');
+        }
+
         return {
           certificate: certificatePem,
           signer,

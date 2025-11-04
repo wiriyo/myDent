@@ -842,6 +842,23 @@
           if (!qz.configs || !qz.print) {
             throw new Error('ไม่สามารถเรียก qz.configs หรือ qz.print');
           }
+          await ensureLoaded();
+          if (!qz.websocket || typeof qz.websocket.isActive !== 'function') {
+            throw new Error('ไม่พบสถานะการเชื่อมต่อของ QZ Tray');
+          }
+          if (!qz.websocket.isActive()) {
+            try {
+              await ensureConnected({
+                autoLaunch: true,
+                allowInsecure: !isSecureOrigin(),
+              });
+            } catch (connectError) {
+              throw new Error(`ยังไม่เชื่อมต่อกับ QZ Tray: ${connectError?.message || connectError}`);
+            }
+          }
+          if (!qz.websocket.isActive()) {
+            throw new Error('ยังไม่เชื่อมต่อกับ QZ Tray');
+          }
           const payload = whitelistPayload();
           const config = qz.configs.create(whitelistFileUri, { copies: 1, colorType: 'grayscale', encoding: 'utf8' });
           const data = [
@@ -2701,7 +2718,342 @@
       log('info', 'Registered MyDent QZ bridge functions on window');
     })();
   </script>
-    <script>
+  <script>
+    (function () {
+      'use strict';
+
+      const LOG_PREFIX = '[MyDent|Saver]';
+      const DB_NAME = 'mydent-image-saver';
+      const STORE_NAME = 'handles';
+      const HANDLE_KEY = 'mydentDir';
+      const HAS_INDEXED_DB = 'indexedDB' in window;
+
+      const bytesFromBase64 = (base64) => {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+      };
+
+      const openDb = () => new Promise((resolve, reject) => {
+        if (!HAS_INDEXED_DB) {
+          reject(new Error('IndexedDB not supported'));
+          return;
+        }
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('IndexedDB open error'));
+      });
+
+      const getStoredHandle = async () => {
+        if (!HAS_INDEXED_DB) {
+          return null;
+        }
+        try {
+          const db = await openDb();
+          return await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.get(HANDLE_KEY);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error || new Error('IndexedDB get failed'));
+            tx.oncomplete = () => db.close();
+            tx.onabort = () => db.close();
+          });
+        } catch (error) {
+          console.warn(`${LOG_PREFIX} Failed to read stored directory handle`, error);
+          return null;
+        }
+      };
+
+      const storeHandle = async (handle) => {
+        if (!HAS_INDEXED_DB) {
+          return false;
+        }
+        try {
+          const db = await openDb();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.put(handle, HANDLE_KEY);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error || new Error('IndexedDB put failed'));
+            tx.oncomplete = () => db.close();
+            tx.onabort = () => db.close();
+          });
+          return true;
+        } catch (error) {
+          console.warn(`${LOG_PREFIX} Failed to persist directory handle`, error);
+          return false;
+        }
+      };
+
+      const clearStoredHandleEntry = async () => {
+        if (!HAS_INDEXED_DB) {
+          return false;
+        }
+        try {
+          const db = await openDb();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.delete(HANDLE_KEY);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error || new Error('IndexedDB delete failed'));
+            tx.oncomplete = () => db.close();
+            tx.onabort = () => db.close();
+          });
+          return true;
+        } catch (error) {
+          console.warn(`${LOG_PREFIX} Failed to clear stored directory handle`, error);
+          return false;
+        }
+      };
+
+      const verifyPermission = async (handle, requestWrite) => {
+        if (!handle) {
+          return false;
+        }
+        const options = { mode: 'readwrite' };
+        try {
+          if (typeof handle.queryPermission === 'function') {
+            let status = await handle.queryPermission(options);
+            if (status === 'granted') {
+              return true;
+            }
+            if (!requestWrite) {
+              return false;
+            }
+          }
+          if (requestWrite && typeof handle.requestPermission === 'function') {
+            const status = await handle.requestPermission(options);
+            return status === 'granted';
+          }
+        } catch (error) {
+          console.warn(`${LOG_PREFIX} Permission check failed`, error);
+          return false;
+        }
+        return false;
+      };
+
+      const requestDirectoryHandle = async () => {
+        if (typeof window.showDirectoryPicker !== 'function') {
+          console.warn(`${LOG_PREFIX} showDirectoryPicker API not supported`);
+          return null;
+        }
+        const primaryOptions = { mode: 'readwrite', id: 'mydent-image-saver', startIn: 'pictures' };
+        try {
+          return await window.showDirectoryPicker(primaryOptions);
+        } catch (error) {
+          if (error && error.name === 'AbortError') {
+            return null;
+          }
+          if (error && error.name === 'TypeError') {
+            try {
+              const fallbackOptions = { mode: 'readwrite', id: 'mydent-image-saver' };
+              return await window.showDirectoryPicker(fallbackOptions);
+            } catch (fallbackError) {
+              if (fallbackError && fallbackError.name === 'AbortError') {
+                return null;
+              }
+              throw fallbackError;
+            }
+          }
+          throw error;
+        }
+      };
+
+      const ensureMyDentDirectory = async (handle) => {
+        if (!handle) {
+          return null;
+        }
+        const name = (handle.name || '').toLowerCase();
+        if (name === 'mydent') {
+          return handle;
+        }
+        try {
+          return await handle.getDirectoryHandle('myDent', { create: true });
+        } catch (error) {
+          console.error(`${LOG_PREFIX} Unable to access myDent directory`, error);
+          return null;
+        }
+      };
+
+      const ensureDayDirectory = async (parentHandle, dayFolder) => {
+        if (!parentHandle) {
+          return null;
+        }
+        try {
+          return await parentHandle.getDirectoryHandle(dayFolder, { create: true });
+        } catch (error) {
+          console.error(`${LOG_PREFIX} Failed to create day folder ${dayFolder}`, error);
+          return null;
+        }
+      };
+
+      const fileExists = async (dirHandle, name) => {
+        try {
+          await dirHandle.getFileHandle(name);
+          return true;
+        } catch (error) {
+          if (error && (error.name === 'NotFoundError' || error.code === 8)) {
+            return false;
+          }
+          throw error;
+        }
+      };
+
+      const ensureUniqueFilename = async (dirHandle, fileBase) => {
+        let candidate = `${fileBase}.png`;
+        let counter = 1;
+        while (await fileExists(dirHandle, candidate)) {
+          candidate = `${fileBase}_${counter}.png`;
+          counter += 1;
+        }
+        return candidate;
+      };
+
+      const writeFile = async (fileHandle, bytes) => {
+        const writable = await fileHandle.createWritable();
+        await writable.write(bytes);
+        await writable.close();
+      };
+
+      const resolveHandle = async () => {
+        let handle = await getStoredHandle();
+        if (handle) {
+          const allowed = await verifyPermission(handle, true);
+          if (!allowed) {
+            await clearStoredHandleEntry();
+            handle = null;
+          }
+        }
+        if (!handle) {
+          const picked = await requestDirectoryHandle();
+          if (!picked) {
+            return { cancelled: true, handle: null };
+          }
+          const permitted = await verifyPermission(picked, true);
+          if (!permitted) {
+            return { error: 'permission-denied', handle: null };
+          }
+          const myDentHandle = await ensureMyDentDirectory(picked);
+          if (!myDentHandle) {
+            return { error: 'mydent-directory', handle: null };
+          }
+          handle = myDentHandle;
+          await storeHandle(handle);
+        }
+        return { handle };
+      };
+
+      window.mydentImageSaver = {
+        async saveImage(options) {
+          if (!options || typeof options.base64Data !== 'string' || typeof options.dayFolder !== 'string' || typeof options.fileBase !== 'string') {
+            return { success: false, error: 'invalid-arguments' };
+          }
+          if (typeof window.showDirectoryPicker !== 'function') {
+            console.warn(`${LOG_PREFIX} File System Access API unavailable`);
+            return { success: false, error: 'unsupported' };
+          }
+          try {
+            const { handle, error, cancelled } = await resolveHandle();
+            if (cancelled) {
+              return { success: false, cancelled: true };
+            }
+            if (error) {
+              return { success: false, error };
+            }
+            if (!handle) {
+              return { success: false, error: 'handle-missing' };
+            }
+            const dayHandle = await ensureDayDirectory(handle, options.dayFolder);
+            if (!dayHandle) {
+              return { success: false, error: 'day-directory' };
+            }
+            const fileName = await ensureUniqueFilename(dayHandle, options.fileBase);
+            const fileHandle = await dayHandle.getFileHandle(fileName, { create: true });
+            await writeFile(fileHandle, bytesFromBase64(options.base64Data));
+            return { success: true, fileName };
+          } catch (error) {
+            console.error(`${LOG_PREFIX} Failed to save image`, error);
+            return { success: false, error: error && error.message ? error.message : String(error) };
+          }
+        },
+        async ensurePermission() {
+          if (typeof window.showDirectoryPicker !== 'function') {
+            return false;
+          }
+          const handle = await getStoredHandle();
+          if (!handle) {
+            return false;
+          }
+          const permitted = await verifyPermission(handle, true);
+          if (!permitted) {
+            await clearStoredHandleEntry();
+          }
+          return permitted;
+        },
+        async clearStoredHandle() {
+          await clearStoredHandleEntry();
+          return true;
+        },
+      };
+    })();
+  </script>
+  <script>
+    (function () {
+      'use strict';
+
+      const LOG_PREFIX = '[MyDent|Firestore]';
+      const MAX_ATTEMPTS = 40;
+      const INTERVAL_MS = 100;
+
+      const applySettings = () => {
+        try {
+          if (!window.firebase || typeof window.firebase.firestore !== 'function') {
+            return false;
+          }
+          const firestore = window.firebase.firestore();
+          if (!firestore) {
+            return false;
+          }
+          firestore.settings({
+            experimentalForceLongPolling: true,
+            experimentalAutoDetectLongPolling: true,
+          });
+          console.info(`${LOG_PREFIX} Applied long-polling settings for Firestore.`);
+          return true;
+        } catch (error) {
+          // If settings were already applied, treat as success to avoid repeated logs.
+          const message = error && error.message ? String(error.message) : String(error);
+          if (message.includes('settings() can only be called once')) {
+            console.info(`${LOG_PREFIX} Firestore settings already applied earlier.`);
+            return true;
+          }
+          console.warn(`${LOG_PREFIX} Failed to apply Firestore settings`, error);
+          return false;
+        }
+      };
+
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts += 1;
+        if (applySettings() || attempts >= MAX_ATTEMPTS) {
+          clearInterval(timer);
+        }
+      }, INTERVAL_MS);
+    })();
+  </script>
+  <script>
     window.flutterConfiguration = {
       renderer: "html",
     };

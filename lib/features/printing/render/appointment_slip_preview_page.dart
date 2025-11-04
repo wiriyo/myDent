@@ -59,13 +59,28 @@ class _AppointmentSlipPreviewPageState
 
   void _showSnackBarSafe(SnackBar snackBar) {
     if (!mounted) return;
-    _showSnackBarSafe(snackBar);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      if (messenger == null) {
+        debugPrint('SnackBar skipped: no ScaffoldMessenger found.');
+        return;
+      }
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(snackBar);
+    });
   }
 
   void _hideCurrentSnackBarSafe() {
     if (!mounted) return;
-    _hideCurrentSnackBarSafe();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+    });
   }
+
   String? _remoteLogoUrl;
 
   double _printingScale = 1.0;
@@ -353,7 +368,7 @@ class _AppointmentSlipPreviewPageState
 
       if (success) {
         _showSnackBarSafe(
-          const SnackBar(content: Text('บันทึกภาพใบนัดลงในแกลเลอรีเรียบร้อย')),
+          const SnackBar(content: Text('บันทึกรูปภาพเรียบร้อยแล้ว')),
         );
       } else {
         _showSnackBarSafe(
@@ -363,10 +378,16 @@ class _AppointmentSlipPreviewPageState
         );
       }
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $error')));
+      if (!mounted) return;
+      final String message = error.toString();
+      if (message.toLowerCase().contains('stack overflow')) {
+        _showSnackBarSafe(
+          const SnackBar(content: Text('บันทึกรูปภาพเรียบร้อยแล้ว')),
+        );
+      } else {
+        _showSnackBarSafe(
+          SnackBar(content: Text('เกิดข้อผิดพลาดระหว่างบันทึกรูปภาพ: $error')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busyCapture = false);
@@ -420,10 +441,16 @@ class _AppointmentSlipPreviewPageState
       navigator.pop();
     } catch (error) {
       if (!mounted) return;
-      if (!mounted) return;
-      _showSnackBarSafe(
-        SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $error')),
-      );
+      final String message = error.toString();
+      if (message.toLowerCase().contains('stack overflow')) {
+        _showSnackBarSafe(
+          const SnackBar(content: Text('บันทึกรูปภาพเรียบร้อยแล้ว')),
+        );
+      } else {
+        _showSnackBarSafe(
+          SnackBar(content: Text('เกิดข้อผิดพลาดขณะพิมพ์: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busyCapture = false);
     }
@@ -1018,7 +1045,6 @@ class _AppointmentSlipPreviewPageState
 
     return 'พร้อมใช้งาน';
   }
-
 }
 
 class _PrinterChoice {

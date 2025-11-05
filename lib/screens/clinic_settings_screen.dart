@@ -12,6 +12,7 @@ import '../config/clinic_defaults.dart';
 import '../config/feature_flags.dart';
 import '../utils/upload_image_payload.dart';
 import '../widgets/adaptive_network_image.dart';
+import '../core/widgets/responsive_shell.dart';
 
 class ClinicSettingsScreen extends StatefulWidget {
   const ClinicSettingsScreen({super.key});
@@ -211,9 +212,12 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Form(
                   key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  child: ResponsiveShell(
+                    maxWidth: 560,
+                    // responsive for web
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       Align(
                         alignment: Alignment.centerRight,
                         child: Row(
@@ -442,7 +446,7 @@ class _ClinicSettingsScreenState extends State<ClinicSettingsScreen> {
                   ),
                 ),
               ),
-    );
+    ));
   }
 
   InputDecoration _inputDecoration(String hint) {

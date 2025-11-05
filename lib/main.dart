@@ -36,6 +36,7 @@ import 'home/home_guest.dart';
 import 'home/home_super_admin.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 
+import 'core/widgets/responsive_shell.dart';
 import 'firebase_web_loader.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
@@ -197,6 +198,11 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  bool _shouldBypassResponsiveShell(Widget widget) {
+    // Allow dialogs to retain their built-in dimensions
+    return widget is Dialog || widget is AlertDialog || widget is SimpleDialog;
+  }
+
   @override
   Widget build(BuildContext context) {
     // 1. ✨ เราจะดึง Provider มาแค่ครั้งเดียว โดยไม่ต้อง "ฟัง" แล้ว
@@ -210,7 +216,6 @@ class _MyAppState extends State<MyApp> {
 
         return MaterialApp(
           key: ValueKey(authProvider.status),
-
           title: 'MyDent',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: scaffoldMessengerKey,
@@ -245,6 +250,30 @@ class _MyAppState extends State<MyApp> {
               bodyMedium: TextStyle(color: Colors.black87),
             ),
           ),
+
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            final clampedTextScaler = media.textScaler.clamp(1.0, 1.2);
+            final mediaWithClamp = media.copyWith(
+              textScaler: clampedTextScaler,
+            );
+            final effectiveChild = child ?? const SizedBox.shrink();
+
+            if (_shouldBypassResponsiveShell(effectiveChild)) {
+              return MediaQuery(
+                data: mediaWithClamp,
+                child: effectiveChild,
+              );
+            }
+
+            return MediaQuery(
+              data: mediaWithClamp,
+              child: ResponsiveShell(
+                // responsive for web
+                child: effectiveChild,
+              ),
+            );
+          },
 
           home: _showSplash ? const SplashScreen() : homeScreen,
 

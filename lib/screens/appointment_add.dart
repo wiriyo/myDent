@@ -2,6 +2,8 @@
 // 📁 lib/screens/appointment_add.dart (v1.8 - 💖 Laila's Treatment Info Upgrade!)
 // ----------------------------------------------------------------
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/appointment_model.dart';
@@ -39,6 +41,37 @@ class AppointmentAddDialog extends StatefulWidget {
 
   @override
   State<AppointmentAddDialog> createState() => _AppointmentAddDialogState();
+}
+
+class _WebOneStepFixedExtentScrollPhysics extends FixedExtentScrollPhysics {
+  const _WebOneStepFixedExtentScrollPhysics({
+    required this.itemExtent,
+    super.parent,
+  });
+
+  final double itemExtent;
+
+  @override
+  _WebOneStepFixedExtentScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _WebOneStepFixedExtentScrollPhysics(
+      itemExtent: itemExtent,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    if (!kIsWeb || itemExtent <= 0 || offset == 0) {
+      return super.applyPhysicsToUserOffset(position, offset);
+    }
+
+    final magnitude = offset.abs();
+    if (magnitude <= itemExtent) {
+      return super.applyPhysicsToUserOffset(position, offset);
+    }
+
+    return 0.0;
+  }
 }
 
 class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
@@ -235,6 +268,72 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
     }
   }
 
+  Widget _buildTimeWheel({
+    required FixedExtentScrollController controller,
+    required int itemCount,
+    required String Function(int index) labelBuilder,
+  }) {
+    const itemExtent = 68.0;
+    Widget wheel = ListWheelScrollView.useDelegate(
+      controller: controller,
+      itemExtent: itemExtent,
+      perspective: 0.005,
+      diameterRatio: 0.8,
+      physics: kIsWeb
+          ? const _WebOneStepFixedExtentScrollPhysics(itemExtent: itemExtent)
+          : const FixedExtentScrollPhysics(),
+      childDelegate: ListWheelChildBuilderDelegate(
+        childCount: itemCount,
+        builder: (context, index) {
+          return Center(
+            child: Text(
+              labelBuilder(index),
+              style: const TextStyle(
+                fontSize: 24,
+                fontFamily: AppTheme.fontFamily,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (!kIsWeb) {
+      return wheel;
+    }
+
+    return Listener(
+      onPointerSignal: (PointerSignalEvent event) {
+        if (event is! PointerScrollEvent) return;
+        GestureBinding.instance.pointerSignalResolver.register(
+          event,
+          (PointerSignalEvent resolvedEvent) {
+            if (resolvedEvent is! PointerScrollEvent) return;
+            if (!controller.hasClients || itemCount <= 0) return;
+
+            final dy = resolvedEvent.scrollDelta.dy;
+            if (dy == 0) return;
+
+            final direction = dy > 0 ? 1 : -1;
+            final currentIndex = controller.selectedItem;
+            final nextIndex = (currentIndex + direction)
+                .clamp(0, itemCount - 1)
+                .toInt();
+
+            if (nextIndex == currentIndex) return;
+
+            controller.animateToItem(
+              nextIndex,
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOutCubic,
+            );
+          },
+        );
+      },
+      child: wheel,
+    );
+  }
+
   void _setInteractionLocked(bool value) {
     if (_isInteractionLocked == value) return;
     if (mounted) {
@@ -301,26 +400,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Expanded(
-                  child: ListWheelScrollView.useDelegate(
+                  child: _buildTimeWheel(
                     controller: hourController,
-                    itemExtent: 50,
-                    perspective: 0.005,
-                    diameterRatio: 1.2,
-                    physics: const FixedExtentScrollPhysics(),
-                    childDelegate: ListWheelChildBuilderDelegate(
-                      childCount: hours.length,
-                      builder: (context, index) {
-                        return Center(
-                          child: Text(
-                            hours[index].toString().padLeft(2, '0'),
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontFamily: AppTheme.fontFamily,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    itemCount: hours.length,
+                    labelBuilder: (index) =>
+                        hours[index].toString().padLeft(2, '0'),
                   ),
                 ),
                 const Padding(
@@ -331,26 +415,11 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                   ),
                 ),
                 Expanded(
-                  child: ListWheelScrollView.useDelegate(
+                  child: _buildTimeWheel(
                     controller: minuteController,
-                    itemExtent: 50,
-                    perspective: 0.005,
-                    diameterRatio: 1.2,
-                    physics: const FixedExtentScrollPhysics(),
-                    childDelegate: ListWheelChildBuilderDelegate(
-                      childCount: minutes.length,
-                      builder: (context, index) {
-                        return Center(
-                          child: Text(
-                            minutes[index].toString().padLeft(2, '0'),
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontFamily: AppTheme.fontFamily,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    itemCount: minutes.length,
+                    labelBuilder: (index) =>
+                        minutes[index].toString().padLeft(2, '0'),
                   ),
                 ),
               ],

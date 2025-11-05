@@ -106,6 +106,59 @@
       });
     })();
   </script>
+  <script>
+    (function () {
+      'use strict';
+
+      const LOG_PREFIX = '[MyDent|Firebase]';
+      const firebaseScripts = [
+        'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+        'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
+        'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js',
+        'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js',
+      ];
+
+      const firebaseConfig = {
+        apiKey: 'AIzaSyCW4tWvs_SerUM6y2fQh9I8HmUN2jQxwxY',
+        appId: '1:1060356216356:web:50916f9a75508b28786ab1',
+        messagingSenderId: '1060356216356',
+        projectId: 'mydentv1',
+        authDomain: 'mydentv1.firebaseapp.com',
+        storageBucket: 'mydentv1.appspot.com',
+      };
+
+      const loadScript = (url) => new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.async = false;
+        script.defer = false;
+        script.setAttribute('data-mydent-firebase', url);
+        script.onload = () => resolve();
+        script.onerror = (error) => reject(error || new Error(`Failed to load Firebase script: ${url}`));
+        document.head.appendChild(script);
+      });
+
+      const ensureFirebaseInit = async () => {
+        for (const url of firebaseScripts) {
+          await loadScript(url);
+        }
+        if (window.firebase && typeof window.firebase.initializeApp === 'function') {
+          const apps = window.firebase.apps;
+          if (!apps || apps.length === 0) {
+            window.firebase.initializeApp(firebaseConfig);
+            console.info(`${LOG_PREFIX} Initialized Firebase default app via index.html preloader.`);
+          }
+        } else {
+          throw new Error('Firebase namespace is unavailable after loading scripts.');
+        }
+      };
+
+      window.__mydentFirebaseReady = ensureFirebaseInit().catch((error) => {
+        console.error(`${LOG_PREFIX} Failed to prepare Firebase`, error);
+        throw error;
+      });
+    })();
+  </script>
   <!-- NOTE: Changes in this file require a full restart (e.g. stop flutter run -d chrome and start again).
        Hot reload does not reload index.html. -->
   <script>
@@ -3016,20 +3069,28 @@
       const LOG_PREFIX = '[MyDent|Firestore]';
       const MAX_ATTEMPTS = 40;
       const INTERVAL_MS = 100;
+      let settingsApplied = false;
 
       const applySettings = () => {
         try {
           if (!window.firebase || typeof window.firebase.firestore !== 'function') {
             return false;
           }
+          const apps = window.firebase.apps;
+          if (!Array.isArray(apps) || apps.length === 0) {
+            return false;
+          }
           const firestore = window.firebase.firestore();
           if (!firestore) {
             return false;
           }
+          if (settingsApplied) {
+            return true;
+          }
           firestore.settings({
-            experimentalForceLongPolling: true,
             experimentalAutoDetectLongPolling: true,
           });
+          settingsApplied = true;
           console.info(`${LOG_PREFIX} Applied long-polling settings for Firestore.`);
           return true;
         } catch (error) {
@@ -3052,11 +3113,6 @@
         }
       }, INTERVAL_MS);
     })();
-  </script>
-  <script>
-    window.flutterConfiguration = {
-      renderer: "html",
-    };
   </script>
   <script src="flutter_bootstrap.js" async></script>
 

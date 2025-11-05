@@ -1345,7 +1345,7 @@ class _AppointmentAddDialogState extends State<AppointmentAddDialog> {
                     keyboardType: TextInputType.text,
                     textCapitalization: TextCapitalization.characters,
                     decoration: _buildInputDecoration(
-                      '?,<?,?1^?,Y?,?,T',
+                      'ซี่ฟัน',
                       prefixIcon: Image.asset(
                         'assets/icons/tooth.png',
                         width: 24,

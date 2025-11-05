@@ -34,7 +34,9 @@ import 'home/home_dentist.dart';
 import 'home/home_officer.dart';
 import 'home/home_guest.dart';
 import 'home/home_super_admin.dart';
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
+
+import 'firebase_web_loader.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
@@ -42,7 +44,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _ensureFirebaseInitialized();
 
   bool? welcomeScreenEnabled;
   try {
@@ -56,6 +58,63 @@ void main() async {
       child: MyApp(initialWelcomeScreenEnabled: welcomeScreenEnabled),
     ),
   );
+}
+
+Future<void> _ensureFirebaseInitialized() async {
+  if (kIsWeb) {
+    await ensureFirebaseWebLoaded();
+    await _initializeFirebase(ignoreDuplicateApp: true);
+    return;
+  }
+
+  if (Firebase.apps.isNotEmpty) {
+    return;
+  }
+
+  await _initializeFirebase(ignoreDuplicateApp: false);
+}
+
+Future<void> _initializeFirebase({required bool ignoreDuplicateApp}) async {
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (ignoreDuplicateApp && e.code == 'duplicate-app') {
+      return;
+    }
+    rethrow;
+  } catch (error) {
+    if (ignoreDuplicateApp && _shouldIgnoreFirebaseAppsError(error)) {
+      return;
+    }
+    rethrow;
+  }
+}
+
+bool _shouldIgnoreFirebaseAppsError(Object error) {
+  if (!kIsWeb) {
+    return false;
+  }
+  final message = error.toString().toLowerCase();
+  if (message.isEmpty) {
+    return false;
+  }
+  if (message.contains('firebase_core is not defined')) {
+    return true;
+  }
+  if (message.contains("cannot read properties of undefined") &&
+      message.contains('getapps')) {
+    return true;
+  }
+  if (message.contains('firebase_core.getapps') &&
+      (message.contains('is not a function') || message.contains('is undefined'))) {
+    return true;
+  }
+  if (message.contains('no firebase app') && message.contains('initializeapp')) {
+    return true;
+  }
+  return false;
 }
 
 class MyApp extends StatefulWidget {

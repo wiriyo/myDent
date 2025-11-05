@@ -94,7 +94,7 @@ private val WINDOWS_ABSOLUTE_PATH_PATTERN = Regex("""^[a-zA-Z]:[\\/].*""")
 
 android {
     namespace = "com.example.mydent_app"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -108,7 +108,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.mydent_app"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = 35
         versionCode = flutterVersionCode
         versionName = flutterVersionName
@@ -145,8 +145,9 @@ android {
                 signingConfigs.getByName("debug")
             }
 
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Disable code/resource shrinking because Flutter assets can be removed incorrectly otherwise.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

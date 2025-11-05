@@ -46,6 +46,7 @@ dependencies:
   file_selector: ^1.0.3
   path: ^1.9.0
   url_launcher: ^6.2.5
+  js: ^0.6.7
   image_picker: ^1.1.1 
   firebase_storage: ^11.7.0
   uuid: ^4.3.3

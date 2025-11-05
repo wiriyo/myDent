@@ -6,6 +6,7 @@
 // v4.1: นำตัวเลขจำนวนนัดกลับมาแสดงแล้วค่ะ!
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -426,18 +427,25 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   // 💖 UPDATED: Marker builder now shows the count!
                   markerBuilder: (context, day, events) {
                     if (events.isNotEmpty) {
+                      final bool isWeb = kIsWeb;
+                      final double rightInset = 1.0;
+                      final double bottomInset = 1.0;
+                      final double horizontalShift = isWeb ? -35.0 : 0.0; // responsive for web
                       return Positioned(
-                        right: 1,
-                        bottom: 1,
-                        child: Container(
-                          padding: const EdgeInsets.all(1.0),
-                          decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Center(
-                            child: Text(
-                              '${events.first}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
+                        right: rightInset,
+                        bottom: bottomInset,
+                        child: Transform.translate(
+                          offset: Offset(horizontalShift, 0),
+                          child: Container(
+                            padding: const EdgeInsets.all(1.0),
+                            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            child: Center(
+                              child: Text(
+                                '${events.first}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
+                              ),
                             ),
                           ),
                         ),

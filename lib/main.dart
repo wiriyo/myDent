@@ -214,7 +214,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, _) {
         final homeScreen = _buildHomeScreen(authProvider);
 
-        return MaterialApp(
+        final app = MaterialApp(
           key: ValueKey(authProvider.status),
           title: 'MyDent',
           debugShowCheckedModeBanner: false,
@@ -309,6 +309,21 @@ class _MyAppState extends State<MyApp> {
             '/home_guest': (context) => const HomeGuestScreen(),
           },
         );
+
+        if (kIsWeb) {
+          return Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/web_bg.png'),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
+            ),
+            child: app,
+          );
+        }
+
+        return app;
       },
     );
   }

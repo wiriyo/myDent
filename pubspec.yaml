@@ -132,6 +132,7 @@ flutter:
       - assets/images/circle_logo1.png
       - assets/icons/printer.png
       - assets/icons/picture.png
+      - assets/images/web_bg.png
 
   #   - images/a_dot_ham.jpeg
 

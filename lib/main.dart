@@ -253,7 +253,10 @@ class _MyAppState extends State<MyApp> {
 
           builder: (context, child) {
             final media = MediaQuery.of(context);
-            final clampedTextScaler = media.textScaler.clamp(1.0, 1.2);
+            final clampedTextScaler = media.textScaler.clamp(
+              minScaleFactor: 1.0,
+              maxScaleFactor: 1.2,
+            );
             final mediaWithClamp = media.copyWith(
               textScaler: clampedTextScaler,
             );

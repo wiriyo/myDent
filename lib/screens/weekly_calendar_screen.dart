@@ -52,6 +52,178 @@ class _WeeklyAppointmentLayoutInfo {
   }
 }
 
+class _FloatingHorizontalScrollbar extends StatefulWidget {
+  final ScrollController controller;
+  final double thickness;
+  final double minThumbLength;
+  final EdgeInsets margin;
+
+  const _FloatingHorizontalScrollbar({
+    required this.controller,
+    this.thickness = 6.0,
+    this.minThumbLength = 48.0,
+    this.margin = const EdgeInsets.symmetric(horizontal: 24),
+  });
+
+  @override
+  State<_FloatingHorizontalScrollbar> createState() =>
+      _FloatingHorizontalScrollbarState();
+}
+
+class _FloatingHorizontalScrollbarState
+    extends State<_FloatingHorizontalScrollbar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleScroll);
+    _ensureClientSync();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FloatingHorizontalScrollbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleScroll);
+      widget.controller.addListener(_handleScroll);
+      _ensureClientSync();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleScroll);
+    super.dispose();
+  }
+
+  void _ensureClientSync() {
+    if (!mounted) return;
+    if (widget.controller.hasClients) {
+      setState(() {});
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _ensureClientSync();
+      });
+    }
+  }
+
+  void _handleScroll() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _jumpToPosition({
+    required double localDx,
+    required double thumbWidth,
+    required double trackWidth,
+    required double maxExtent,
+  }) {
+    if (!widget.controller.hasClients ||
+        maxExtent <= 0 ||
+        trackWidth <= thumbWidth) {
+      return;
+    }
+    final available = trackWidth - thumbWidth;
+    final thumbLeft = (localDx - thumbWidth / 2).clamp(0.0, available);
+    final scrollFraction = available == 0 ? 0 : thumbLeft / available;
+    widget.controller.jumpTo(scrollFraction * maxExtent);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scrollbarTheme = ScrollbarTheme.of(context);
+    const states = <WidgetState>{};
+    final resolvedThumbColor = scrollbarTheme.thumbColor?.resolve(states);
+    final resolvedTrackColor = scrollbarTheme.trackColor?.resolve(states);
+    final resolvedThickness =
+        scrollbarTheme.thickness?.resolve(states) ?? widget.thickness;
+    final resolvedRadius =
+        scrollbarTheme.radius ?? Radius.circular(resolvedThickness / 2);
+    final thumbColor = resolvedThumbColor ??
+        Theme.of(context).colorScheme.outline.withValues(alpha: 0.45);
+    final trackColor = resolvedTrackColor ??
+        Theme.of(context).colorScheme.outline.withValues(alpha: 0.12);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!widget.controller.hasClients) {
+          return const SizedBox.shrink();
+        }
+
+        final position = widget.controller.position;
+        final maxExtent = position.maxScrollExtent;
+        final viewport = position.viewportDimension;
+        final trackWidth =
+            max(0.0, constraints.maxWidth - widget.margin.horizontal);
+
+        if (maxExtent <= 0 || trackWidth <= 0) {
+          return const SizedBox.shrink();
+        }
+
+        final totalExtent = maxExtent + viewport;
+        final thumbFraction = viewport / totalExtent;
+        final thumbWidth = max(widget.minThumbLength, trackWidth * thumbFraction);
+        final maxThumbTravel = max(0.0, trackWidth - thumbWidth);
+        final scrollFraction =
+            maxExtent == 0 ? 0 : (position.pixels / maxExtent).clamp(0.0, 1.0);
+        final thumbOffset = maxThumbTravel * scrollFraction;
+
+        return Padding(
+          padding: widget.margin,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTapDown: (details) => _jumpToPosition(
+              localDx: details.localPosition.dx,
+              thumbWidth: thumbWidth,
+              trackWidth: trackWidth,
+              maxExtent: maxExtent,
+            ),
+            onHorizontalDragUpdate: (details) => _jumpToPosition(
+              localDx: details.localPosition.dx,
+              thumbWidth: thumbWidth,
+              trackWidth: trackWidth,
+              maxExtent: maxExtent,
+            ),
+            child: SizedBox(
+              height: resolvedThickness + 10,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: trackColor,
+                  borderRadius: BorderRadius.all(resolvedRadius),
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Transform.translate(
+                      offset: Offset(thumbOffset, 0),
+                      child: Container(
+                        width: thumbWidth,
+                        height: resolvedThickness,
+                        decoration: BoxDecoration(
+                          color: thumbColor,
+                          borderRadius: BorderRadius.all(resolvedRadius),
+                          boxShadow: [
+                            BoxShadow(
+                              color: thumbColor.withValues(alpha: 0.25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class WeeklyViewScreen extends StatefulWidget {
   final DateTime focusedDate;
   final Patient? initialPatient;
@@ -596,12 +768,13 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         elevation: 0,
         title: const Text('ภาพรวมสัปดาห์'),
       ),
-      body:
-          _isLoading
-              ? const Center(
-                child: CircularProgressIndicator(color: AppTheme.primary),
-              )
-              : SingleChildScrollView(
+      body: _isLoading
+          ? const Center(
+            child: CircularProgressIndicator(color: AppTheme.primary),
+          )
+          : Stack(
+            children: [
+              SingleChildScrollView(
                 child: Column(
                   children: [
                     Padding(
@@ -681,9 +854,23 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 120),
                   ],
                 ),
               ),
+              Positioned(
+                left: 16 + _timeAxisWidth,
+                right: 16,
+                bottom: _scrollbarBottomOffset(context),
+                child: _FloatingHorizontalScrollbar(
+                  controller: _bodyScrollController,
+                  margin: EdgeInsets.zero,
+                  thickness: 6,
+                  minThumbLength: _resolveMinThumbLength(context),
+                ),
+              ),
+            ],
+          ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _handleAddAppointment(day: _selectedDay ?? DateTime.now()),
         backgroundColor: AppTheme.primary,
@@ -1079,5 +1266,19 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         ],
       ),
     );
+  }
+
+  double _scrollbarBottomOffset(BuildContext context) {
+    final viewPadding = MediaQuery.of(context).viewPadding.bottom;
+    // Keep the scrollbar above the bottom navigation bar and safe area.
+    return viewPadding + kBottomNavigationBarHeight - 50;
+  }
+
+  double _resolveMinThumbLength(BuildContext context) {
+    final minLength = ScrollbarTheme.of(context).minThumbLength;
+    if (minLength != null) {
+      return minLength;
+    }
+    return 48;
   }
 }

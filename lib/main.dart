@@ -72,7 +72,7 @@ Future<void> _ensureFirebaseInitialized() async {
     return;
   }
 
-  await _initializeFirebase(ignoreDuplicateApp: false);
+  await _initializeFirebase(ignoreDuplicateApp: true);
 }
 
 Future<void> _initializeFirebase({required bool ignoreDuplicateApp}) async {

@@ -1,7 +1,22 @@
 [
   {
-    "origin": ["https://mydentv1.web.app", "https://mydentv1.firebaseapp.com"],
-    "method": ["GET", "HEAD", "OPTIONS"],
+    "origin": [
+      "https://mydentv1.web.app",
+      "https://mydentv1.firebaseapp.com",
+      "http://localhost",
+      "http://localhost:5000",
+      "http://localhost:55314",
+      "http://127.0.0.1",
+      "http://127.0.0.1:5000"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "x-goog-meta-*",
+      "Origin",
+      "Accept",
+      "Authorization"
+    ],
+    "method": ["GET", "HEAD", "OPTIONS", "DELETE"],
     "maxAgeSeconds": 3600
   }
 ]

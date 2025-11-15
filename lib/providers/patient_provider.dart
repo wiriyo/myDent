@@ -47,19 +47,26 @@ class PatientProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> deletePatient(String patientId) async {
+  Future<bool> deletePatient(String patientId, {String? clinicIdOverride}) async {
     _setLoading(true);
     _setError(null);
 
     try {
-      // ✨ ตอนนี้เมธอดนี้ฉลาดขึ้นแล้วค่ะ!
-      await _patientService.deletePatient(patientId);
+      final String? normalizedClinicId = clinicIdOverride != null && clinicIdOverride.trim().isNotEmpty
+          ? clinicIdOverride.trim()
+          : null;
+      final PatientService service = normalizedClinicId != null
+          ? PatientService(clinicId: normalizedClinicId)
+          : _patientService;
+      await service.deletePatient(patientId);
       _setLoading(false);
       return true;
     } catch (e) {
-      _setError('เกิดข้อผิดพลาดในการลบข้อมูล: $e');
+      _setError('???????????????????????????: ');
       _setLoading(false);
       return false;
     }
   }
+
+
 }

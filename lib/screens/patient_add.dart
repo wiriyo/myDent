@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../auth/auth_provider.dart';
+import '../config/clinic_context.dart';
 import '../models/patient.dart';
 import '../models/prefix.dart';
 import '../providers/patient_provider.dart';
-import '../auth/auth_provider.dart';
 import '../services/prefix_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
@@ -243,11 +244,14 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) {
-        final clinicId =
-            Provider.of<AppAuthProvider>(
-              context,
-              listen: false,
-            ).verifiedClinicId;
+        final authProvider = Provider.of<AppAuthProvider>(
+          context,
+          listen: false,
+        );
+        final candidate = authProvider.verifiedClinicId;
+        final normalized =
+            candidate != null && candidate.trim().isNotEmpty ? candidate.trim() : null;
+        final clinicId = normalized ?? ClinicContext.activeClinicId;
         return PatientProvider(clinicId: clinicId);
       },
       child: Scaffold(
@@ -573,6 +577,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
                             _editingPatient!.patientId.isNotEmpty) {
                           final success = await provider.deletePatient(
                             _editingPatient!.patientId,
+                            clinicIdOverride: _editingPatient!.clinicId,
                           );
 
                           if (!mounted) return;

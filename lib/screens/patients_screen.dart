@@ -5,10 +5,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/patient.dart';
-import '../services/patient_service.dart';
 import 'package:provider/provider.dart';
 import '../auth/auth_provider.dart';
+import '../config/clinic_context.dart';
+import '../models/patient.dart';
+import '../services/patient_service.dart';
 import '../styles/app_theme.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 
@@ -22,11 +23,58 @@ class PatientsScreen extends StatefulWidget {
 class _PatientsScreenState extends State<PatientsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PatientService _patientService = PatientService();
+  PatientService? _scopedPatientService;
+  String? _cachedClinicId;
 
   List<Patient> _allPatients = [];
   List<Patient> _searchResults = [];
   bool _isLoading = true;
   Timer? _searchDebounce;
+
+  PatientService _resolvePatientService({String? clinicIdOverride}) {
+    final String? normalizedOverride =
+        clinicIdOverride != null && clinicIdOverride.isNotEmpty
+            ? clinicIdOverride.trim()
+            : null;
+
+    if (normalizedOverride != null) {
+      if (_cachedClinicId != normalizedOverride ||
+          _scopedPatientService == null) {
+        _cachedClinicId = normalizedOverride;
+        _scopedPatientService = PatientService(clinicId: normalizedOverride);
+      }
+      return _scopedPatientService!;
+    }
+
+    final String? normalizedClinicId = _resolveClinicId();
+    if (normalizedClinicId == null) {
+      _cachedClinicId = null;
+      _scopedPatientService = null;
+      return _patientService;
+    }
+
+    if (_cachedClinicId != normalizedClinicId ||
+        _scopedPatientService == null) {
+      _cachedClinicId = normalizedClinicId;
+      _scopedPatientService = PatientService(clinicId: normalizedClinicId);
+    }
+    return _scopedPatientService!;
+  }
+
+  String? _resolveClinicId() {
+    String? clinicId;
+    try {
+      clinicId =
+          Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
+    } catch (_) {
+      clinicId = null;
+    }
+    clinicId ??= ClinicContext.activeClinicId;
+    if (clinicId == null) return null;
+    final trimmed = clinicId.trim();
+    if (trimmed.isEmpty) return null;
+    return trimmed;
+  }
 
   @override
   void initState() {
@@ -55,10 +103,8 @@ class _PatientsScreenState extends State<PatientsScreen> {
       _isLoading = true;
     });
     try {
-      final clinicId = Provider.of<AppAuthProvider>(context, listen: false).verifiedClinicId;
-      final result = (clinicId != null && clinicId.isNotEmpty)
-          ? await PatientService(clinicId: clinicId).fetchPatientsOnce()
-          : await _patientService.fetchPatientsOnce();
+      final service = _resolvePatientService();
+      final result = await service.fetchPatientsOnce();
       setState(() {
         _allPatients = result;
         _allPatients.sort((a, b) => a.name.compareTo(b.name));
@@ -70,6 +116,16 @@ class _PatientsScreenState extends State<PatientsScreen> {
         _isLoading = false;
       });
       debugPrint("Error fetching patients: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'เกิดข้อผิดพลาดในการโหลดข้อมูล: $e',
+              style: const TextStyle(fontFamily: AppTheme.fontFamily),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -127,8 +183,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                 patient: patient,
                                 onCall: () => _makeCall(patient.telephone),
                                 onEdit: () => _navigateToEdit(patient),
-                                onDelete: () =>
-                                    _confirmDelete(patient.patientId),
+                                onDelete: () => _confirmDelete(patient),
                                 onTap: () => _navigateToDetail(patient),
                               );
                             },
@@ -266,8 +321,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
     }
   }
 
-  Future<void> _confirmDelete(String? docId) async {
-    if (docId == null) return;
+  Future<void> _confirmDelete(Patient patient) async {
+    final docId = patient.patientId;
+    if (docId.isEmpty) return;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -293,9 +349,23 @@ class _PatientsScreenState extends State<PatientsScreen> {
     if (!mounted) return;
 
     if (confirm == true) {
-      await _patientService.deletePatient(docId);
-      if (!mounted) return;
-      await _fetchAllPatients();
+      try {
+        final service =
+            _resolvePatientService(clinicIdOverride: patient.clinicId);
+        await service.deletePatient(docId);
+        if (!mounted) return;
+        await _fetchAllPatients();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'เกิดข้อผิดพลาดในการลบข้อมูล: $e',
+              style: const TextStyle(fontFamily: AppTheme.fontFamily),
+            ),
+          ),
+        );
+      }
     }
   }
 }

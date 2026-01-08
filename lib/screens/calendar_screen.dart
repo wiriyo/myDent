@@ -428,7 +428,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   markerBuilder: (context, day, events) {
                     if (events.isNotEmpty) {
                       final bool isWeb = kIsWeb;
-                      final double rightInset = 1.0;
+                      final double rightInset = 1.0; 
                       final double bottomInset = 1.0;
                       final double horizontalShift = isWeb ? -35.0 : 0.0; // responsive for web
                       return Positioned(

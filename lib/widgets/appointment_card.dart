@@ -37,6 +37,12 @@ class AppointmentCard extends StatelessWidget {
         return (cardColor: AppTheme.rating3StarAndBelow, borderColor: Colors.red.shade200);
       }
     }
+    if (status == '\u0e1b\u0e34\u0e14\u0e17\u0e33\u0e01\u0e32\u0e23') {
+      return (
+        cardColor: AppTheme.rating3StarAndBelow,
+        borderColor: AppTheme.rating3StarAndBelowBorder
+      );
+    }
     return switch (status) {
       'ยืนยันแล้ว' => (
           cardColor: const Color(0xFFE8F5E9),

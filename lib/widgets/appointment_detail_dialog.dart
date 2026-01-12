@@ -57,6 +57,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
     'ไม่มาตามนัด',
     'ปฏิเสธนัด',
     'เลื่อนนัด',
+    '\u0e1b\u0e34\u0e14\u0e17\u0e33\u0e01\u0e32\u0e23',
   ];
 
   @override

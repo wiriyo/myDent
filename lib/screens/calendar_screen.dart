@@ -823,7 +823,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                           }
                         }
                         if (selectedDate != null && mounted) {
-                          final resolvedDate = selectedDate!;
+                          final resolvedDate = selectedDate;
                           setState(() {
                             _selectedDay = resolvedDate;
                             _focusedDay = resolvedDate;
@@ -841,7 +841,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                       }
                     },
                     onDailyViewTapped: () async {
-                      final result = await Navigator.of(context).push(
+                      final navigator = Navigator.of(context);
+                      final result = await navigator.push(
                         MaterialPageRoute(builder: (context) => DailyCalendarScreen(
                           selectedDate: _selectedDay,
                           returnFormatOnPop: CalendarFormat.month,
@@ -851,7 +852,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                       );
 
                       if (!mounted) return;
-                      final navigator = Navigator.of(context);
 
                       DateTime? selectedDate;
                       CalendarFormat? format;
@@ -869,7 +869,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                       }
 
                       if (selectedDate != null && mounted) {
-                        final resolvedDate = selectedDate!;
+                        final resolvedDate = selectedDate;
                         setState(() {
                           _selectedDay = resolvedDate;
                           _focusedDay = resolvedDate;

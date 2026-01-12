@@ -784,13 +784,14 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
         Navigator.pop(context, {
           'format': widget.returnFormatOnPop,
           'selectedDate': _currentDate,
         });
-        return false;
       },
       child: Scaffold(
       backgroundColor: AppTheme.background,

@@ -1341,7 +1341,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                 }
                               },
                               onDailyViewTapped: () async {
-                                final result = await Navigator.of(context).push(
+                                final navigator = Navigator.of(context);
+                                final result = await navigator.push(
                                   MaterialPageRoute(
                                     builder:
                                         (context) => DailyCalendarScreen(
@@ -1354,7 +1355,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                 );
 
                                 if (!mounted) return;
-                                final navigator = Navigator.of(context);
 
                                 DateTime? selectedDate;
                                 CalendarFormat? format;
@@ -1372,7 +1372,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                 }
 
                                 if (selectedDate != null) {
-                                  final resolvedDate = selectedDate!;
+                                  final resolvedDate = selectedDate;
                                   setState(() {
                                     _selectedDay = resolvedDate;
                                     _focusedDay = resolvedDate;

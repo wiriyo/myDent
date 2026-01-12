@@ -246,6 +246,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   final WorkingHoursService _workingHoursService = WorkingHoursService();
   final Map<String, Patient> _patientCache = {};
   List<DayWorkingHours>? _workingHoursCache;
+  final Map<DateTime, DayWorkingHours> _dailyOverrides = {};
+  bool _isClinicClosed = false;
   late DateTime _focusedDay;
   DateTime? _selectedDay;
   bool _isLoading = true;
@@ -487,12 +489,11 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       minHour = 9;
       maxHour = 17;
     } else {
-      minHour = max(0, minHour - 1);
-      maxHour = min(24, maxHour + 1);
-    }
-
-    if (maxHour - minHour < 8) {
-      maxHour = min(24, minHour + 8);
+      minHour = max(0, minHour);
+      maxHour = min(24, maxHour);
+      if (maxHour <= minHour) {
+        maxHour = min(24, minHour + 1);
+      }
     }
 
     if (_dynamicStartHour != minHour || _dynamicEndHour != maxHour) {
@@ -501,6 +502,22 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         _dynamicEndHour = maxHour;
       });
     }
+  }
+
+  void _scrollToSelectedDay(DateTime selectedDay) {
+    if (!_bodyScrollController.hasClients) {
+      return;
+    }
+    final firstDayOfWeek = _focusedDay.subtract(
+      Duration(days: _focusedDay.weekday % 7),
+    );
+    final index = selectedDay.difference(firstDayOfWeek).inDays.clamp(0, 6);
+    final targetOffset = index * _dayColumnWidth;
+    _bodyScrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _fetchDataForWeek(DateTime focusedDay) async {
@@ -513,7 +530,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     });
 
     final firstDayOfWeek = focusedDay.subtract(
-      Duration(days: focusedDay.weekday - 1),
+      Duration(days: focusedDay.weekday % 7),
     );
     final endOfWeek = firstDayOfWeek.add(const Duration(days: 7));
 
@@ -591,10 +608,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         final dailyAppointments =
             List<AppointmentModel>.from(groupedAppointments[dayKey] ?? [])
               ..sort((a, b) => a.startTime.compareTo(b.startTime));
-        final patients = dailyAppointments
-            .map((appt) => _patientCache[appt.patientId])
-            .whereType<Patient>()
-            .toList();
 
         DayWorkingHours? dayWorkingHours;
         if (allWorkingHours != null) {
@@ -606,9 +619,24 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             dayWorkingHours = null;
           }
         }
+        final baseWorkingHours = dayWorkingHours;
+        final override = _dailyOverrides[dayKey];
+        if (override != null) {
+          dayWorkingHours = override;
+        }
+        final updatedAppointments = _applyClosedOverlay(
+          dailyAppointments,
+          currentDay,
+          baseWorkingHours,
+          override,
+        );
+        final patients = updatedAppointments
+            .map((appt) => _patientCache[appt.patientId])
+            .whereType<Patient>()
+            .toList();
 
         weeklyData[dayKey] = (
-          appointments: dailyAppointments,
+          appointments: updatedAppointments,
           patients: patients,
           workingHours: dayWorkingHours,
         );
@@ -619,6 +647,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         _weeklyData = weeklyData;
         _isLoading = false;
       });
+      _updateSelectedDayClosedState();
 
       _calculateAndSetWeekHourRange();
     } catch (e) {
@@ -642,6 +671,434 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       'อาทิตย์',
     ];
     return days[weekday - 1];
+  }
+
+
+  DateTime _dayKey(DateTime day) => DateTime(day.year, day.month, day.day);
+
+  DayWorkingHours _cloneDayWorkingHours(DayWorkingHours? source, String dayName) {
+    if (source == null) {
+      return DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
+    }
+    return DayWorkingHours(
+      dayName: dayName,
+      isClosed: source.isClosed,
+      timeSlots: source.timeSlots
+          .map((slot) => TimeSlot(openTime: slot.openTime, closeTime: slot.closeTime))
+          .toList(),
+    );
+  }
+
+  List<AppointmentModel> _applyClosedOverlay(
+    List<AppointmentModel> appointments,
+    DateTime day,
+    DayWorkingHours? baseWorkingHours,
+    DayWorkingHours? override,
+  ) {
+    if (override == null || !override.isClosed) {
+      return appointments;
+    }
+    if (baseWorkingHours == null || baseWorkingHours.timeSlots.isEmpty) {
+      return appointments;
+    }
+    final closedAppointments = <AppointmentModel>[];
+    for (int i = 0; i < baseWorkingHours.timeSlots.length; i++) {
+      final slot = baseWorkingHours.timeSlots[i];
+      final start = DateTime(day.year, day.month, day.day, slot.openTime.hour, slot.openTime.minute);
+      final end = DateTime(day.year, day.month, day.day, slot.closeTime.hour, slot.closeTime.minute);
+      if (!end.isAfter(start)) {
+        continue;
+      }
+      final id = '__clinic_closed_${_dayKey(day).toIso8601String()}_$i';
+      closedAppointments.add(
+        AppointmentModel(
+          appointmentId: id,
+          userId: '',
+          patientId: id,
+          patientName: 'ปิดทำการ',
+          treatment: 'ปิด',
+          duration: end.difference(start).inMinutes,
+          status: 'ปิดทำการ',
+          startTime: start,
+          endTime: end,
+        ),
+      );
+      _patientCache[id] = Patient(
+        patientId: id,
+        name: 'ปิดทำการ',
+        prefix: '',
+        rating: 0.0,
+        gender: '',
+      );
+    }
+    final combined = [...appointments, ...closedAppointments];
+    combined.sort((a, b) => a.startTime.compareTo(b.startTime));
+    return combined;
+  }
+
+  void _updateSelectedDayClosedState() {
+    final selectedDay = _selectedDay ?? _focusedDay;
+    final dayKey = _dayKey(selectedDay);
+    final workingHours = _weeklyData[dayKey]?.workingHours;
+    final hasOverride = _dailyOverrides.containsKey(dayKey);
+    setState(() {
+      _isClinicClosed =
+          workingHours == null ||
+          workingHours.isClosed ||
+          (!hasOverride && workingHours.timeSlots.isEmpty);
+    });
+  }
+
+  void _toggleClinicOpenClosed() {
+    final selectedDay = _selectedDay ?? _focusedDay;
+    final key = _dayKey(selectedDay);
+    final dayName = _getThaiDayName(selectedDay.weekday);
+    if (_isClinicClosed) {
+      DayWorkingHours? baseWorkingHours;
+      if (_workingHoursCache != null) {
+        try {
+          baseWorkingHours =
+              _workingHoursCache!.firstWhere((d) => d.dayName == dayName);
+        } catch (_) {
+          baseWorkingHours = null;
+        }
+      }
+      final bool baseClosed =
+          baseWorkingHours == null ||
+          baseWorkingHours.isClosed ||
+          baseWorkingHours.timeSlots.isEmpty;
+      if (baseClosed) {
+        final override = _cloneDayWorkingHours(baseWorkingHours, dayName);
+        override.isClosed = false;
+        _dailyOverrides[key] = override;
+        setState(() {
+          _isClinicClosed = false;
+        });
+        _fetchDataForWeek(_focusedDay);
+        _showDailyWorkingHoursDialog(override);
+      } else {
+        _dailyOverrides.remove(key);
+        setState(() {
+          _isClinicClosed = false;
+        });
+        _fetchDataForWeek(_focusedDay);
+        _showDailyWorkingHoursDialog(
+          _cloneDayWorkingHours(baseWorkingHours, dayName),
+        );
+      }
+    } else {
+      final override = _dailyOverrides[key] ??
+          DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
+      override.isClosed = true;
+      _dailyOverrides[key] = override;
+      setState(() {
+        _isClinicClosed = true;
+      });
+      _fetchDataForWeek(_focusedDay);
+    }
+  }
+
+  int _timeToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
+
+  bool _hasOverlap(List<TimeSlot> slots, TimeSlot newSlot, [int? excludeIndex]) {
+    final newOpenMinutes = _timeToMinutes(newSlot.openTime);
+    final newCloseMinutes = _timeToMinutes(newSlot.closeTime);
+    for (int i = 0; i < slots.length; i++) {
+      if (excludeIndex != null && i == excludeIndex) {
+        continue;
+      }
+      final existingSlot = slots[i];
+      final existingOpenMinutes = _timeToMinutes(existingSlot.openTime);
+      final existingCloseMinutes = _timeToMinutes(existingSlot.closeTime);
+      if (newOpenMinutes < existingCloseMinutes && newCloseMinutes > existingOpenMinutes) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _pickTime(
+    BuildContext context,
+    DayWorkingHours day,
+    TimeSlot slot,
+    bool isOpeningTime,
+    int slotIndex, {
+    VoidCallback? onChanged,
+  }) async {
+    final initialTime = isOpeningTime ? slot.openTime : slot.closeTime;
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: child!,
+        );
+      },
+    );
+
+    if (!context.mounted) return;
+    if (picked != null && mounted) {
+      final tempSlot = TimeSlot(
+        openTime: isOpeningTime ? picked : slot.openTime,
+        closeTime: isOpeningTime ? slot.closeTime : picked,
+      );
+      if (_timeToMinutes(tempSlot.openTime) >= _timeToMinutes(tempSlot.closeTime)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ช่วงเวลาไม่ถูกต้อง'),
+          ),
+        );
+        return;
+      }
+      if (_hasOverlap(day.timeSlots, tempSlot, slotIndex)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ช่วงเวลาทำการทับซ้อนกัน'),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        if (isOpeningTime) {
+          slot.openTime = picked;
+        } else {
+          slot.closeTime = picked;
+        }
+        day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
+        _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
+      });
+      onChanged?.call();
+    }
+  }
+
+  Widget _buildTimePickerButton(
+    BuildContext context,
+    String label,
+    TimeOfDay time,
+    VoidCallback onPressed,
+  ) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        elevation: 0,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+          Text(time.format(context), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const Icon(Icons.access_time, size: 18, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDailyWorkingHoursDialog(DayWorkingHours day) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            void refreshDialog() {
+              dialogSetState(() {});
+            }
+
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SingleChildScrollView(
+                child: _buildDailyWorkingHoursCard(
+                  day,
+                  onChanged: refreshDialog,
+                  onConfirm: () {
+                    Navigator.of(context).pop();
+                    _fetchDataForWeek(_focusedDay);
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDailyWorkingHoursCard(
+    DayWorkingHours day, {
+    VoidCallback? onConfirm,
+    VoidCallback? onChanged,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
+      elevation: 3,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  day.dayName,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      day.isClosed = !day.isClosed;
+                      _isClinicClosed = day.isClosed;
+                      _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
+                    });
+                    onChanged?.call();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        day.isClosed ? Colors.red.shade300 : const Color(0xFFE0BBFF),
+                    foregroundColor:
+                        day.isClosed ? Colors.white : Colors.purple.shade900,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: day.isClosed ? Colors.red.shade500 : Colors.purple.shade700,
+                        width: 1.5,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    elevation: 2,
+                  ),
+                  child: Text(
+                    day.isClosed ? 'หยุด' : 'เปิด',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            if (!day.isClosed) ...[
+              ...day.timeSlots.asMap().entries.map((entry) {
+                final int slotIndex = entry.key;
+                final TimeSlot slot = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildTimePickerButton(
+                          context,
+                          'เปิด',
+                          slot.openTime,
+                          () => _pickTime(
+                            context,
+                            day,
+                            slot,
+                            true,
+                            slotIndex,
+                            onChanged: onChanged,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildTimePickerButton(
+                          context,
+                          'ปิด',
+                          slot.closeTime,
+                          () => _pickTime(
+                            context,
+                            day,
+                            slot,
+                            false,
+                            slotIndex,
+                            onChanged: onChanged,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            day.timeSlots.removeAt(slotIndex);
+                            _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
+                          });
+                          onChanged?.call();
+                        },
+                        tooltip: 'ลบช่วงเวลา',
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final newSlot = TimeSlot(
+                        openTime: const TimeOfDay(hour: 9, minute: 0),
+                        closeTime: const TimeOfDay(hour: 17, minute: 0),
+                      );
+                      if (_hasOverlap(day.timeSlots, newSlot)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('ช่วงเวลาทำการทับซ้อนกัน'),
+                          ),
+                        );
+                        return;
+                      }
+                      setState(() {
+                        day.timeSlots.add(newSlot);
+                        day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
+                        _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
+                      });
+                      onChanged?.call();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('เพิ่มช่วงเวลาทำการ'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade100,
+                      foregroundColor: Colors.green.shade800,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+              if (onConfirm != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text(
+                      'ยืนยัน',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   List<_WeeklyAppointmentLayoutInfo> _calculateAppointmentLayouts(
@@ -779,39 +1236,72 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      child: ViewModeSelector(
-                        calendarFormat: CalendarFormat.week,
-                        onFormatChanged: (format) {
-                          if (format == CalendarFormat.month) {
-                            Navigator.pop(context);
-                          }
-                        },
-                        // 💖✨ START: NAVIGATION FIX v4.3 ✨💖
-                        // เราจะรอ "คำตอบ" จากหน้าน้อง Daily ค่ะ
-                        onDailyViewTapped: () async {
-                          final navigator = Navigator.of(context);
-                          final result = await navigator.push(
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => DailyCalendarScreen(
-                                    selectedDate: _selectedDay ?? DateTime.now(),
-                                    initialPatient: _chainedPatient,
-                                    receiptDraft: _receiptDraft,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ViewModeSelector(
+                              calendarFormat: CalendarFormat.week,
+                              onFormatChanged: (format) {
+                                if (format == CalendarFormat.month) {
+                                  Navigator.pop(context);
+                                }
+                              },
+                              onDailyViewTapped: () async {
+                                final navigator = Navigator.of(context);
+                                final result = await navigator.push(
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => DailyCalendarScreen(
+                                          selectedDate: _selectedDay ?? DateTime.now(),
+                                          initialPatient: _chainedPatient,
+                                          receiptDraft: _receiptDraft,
+                                        ),
                                   ),
-                            ),
-                          );
+                                );
 
-                          // ถ้าคำตอบคือ "อยากไปหน้ารายเดือน"
-                          if (result is CalendarFormat && result == CalendarFormat.month) {
-                            if (!mounted) return;
-                            // เราก็จะใช้ประตูย้อนกลับไปได้เลยค่ะ เพราะหน้ารายเดือนอยู่ข้างใต้เราพอดี
-                            navigator.pop();
-                          } else {
-                            // ถ้าไม่ใช่ ก็แค่รีเฟรชข้อมูลค่ะ
-                            _fetchDataForWeek(_focusedDay);
-                          }
-                        },
-                        // 💖✨ END: NAVIGATION FIX v4.3 ✨💖
+                                if (result is CalendarFormat &&
+                                    result == CalendarFormat.month) {
+                                  if (!mounted) return;
+                                  navigator.pop();
+                                } else {
+                                  _fetchDataForWeek(_focusedDay);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: _toggleClinicOpenClosed,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isClinicClosed
+                                  ? Colors.red.shade300
+                                  : const Color(0xFFE0BBFF),
+                              foregroundColor: _isClinicClosed
+                                  ? Colors.white
+                                  : Colors.purple.shade900,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: _isClinicClosed
+                                      ? Colors.red.shade500
+                                      : Colors.purple.shade700,
+                                  width: 1.5,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              elevation: 2,
+                            ),
+                            child: Text(
+                              _isClinicClosed
+                                  ? 'หยุด'
+                                  : 'เปิด',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     _buildCalendar(),
@@ -834,7 +1324,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: List.generate(7, (index) {
                                     final firstDayOfWeek = _focusedDay.subtract(
-                                      Duration(days: _focusedDay.weekday - 1),
+                                      Duration(days: _focusedDay.weekday % 7),
                                     );
                                     final day = firstDayOfWeek.add(
                                       Duration(days: index),
@@ -974,6 +1464,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                 _selectedDay = selectedDay;
                 _focusedDay = focusedDay;
               });
+              _updateSelectedDayClosedState();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _scrollToSelectedDay(selectedDay);
+              });
             }
           },
           onPageChanged: (focusedDay) {
@@ -982,6 +1476,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
               _selectedDay = focusedDay;
             });
             _fetchDataForWeek(focusedDay);
+            _updateSelectedDayClosedState();
           },
         ),
       ),
@@ -990,7 +1485,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
 
   Widget _buildWeekDayHeader() {
     final firstDayOfWeek = _focusedDay.subtract(
-      Duration(days: _focusedDay.weekday - 1),
+      Duration(days: _focusedDay.weekday % 7),
     );
     final dayFormatter = DateFormat('E', 'th_TH');
     final dateFormatter = DateFormat('d', 'th_TH');

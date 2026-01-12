@@ -54,6 +54,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   final WorkingHoursService _workingHoursService = WorkingHoursService();
   final Map<String, Patient> _patientCache = {};
   List<DayWorkingHours>? _workingHoursCache;
+  final Map<DateTime, DayWorkingHours> _dailyOverrides = {};
+  bool _isClinicClosed = false;
 
   late DateTime _currentDate;
   
@@ -279,9 +281,31 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       if (!mounted) return;
 
       setState(() {
-        _appointments = filteredAppointments;
-        _patients = patients;
+        final baseWorkingHours = dayWorkingHours;
+        final dayKey = _dayKey(selectedDay);
+        final override = _dailyOverrides[dayKey];
+        final hasOverride = override != null;
+        if (override != null) {
+          dayWorkingHours = override;
+        }
+        final updatedAppointments = _applyClosedOverlay(
+          filteredAppointments,
+          selectedDay,
+          baseWorkingHours,
+          override,
+        );
+        _appointments = updatedAppointments;
+        _patients = updatedAppointments
+            .map((appt) => _patientCache[appt.patientId])
+            .whereType<Patient>()
+            .toList();
         _selectedDayWorkingHours = dayWorkingHours;
+        final hasSlots = dayWorkingHours?.timeSlots.isNotEmpty ?? false;
+        final isClosed = dayWorkingHours?.isClosed ?? true;
+        _isClinicClosed =
+            dayWorkingHours == null ||
+            isClosed ||
+            (!hasOverride && !hasSlots);
         _isLoading = false;
       });
     } catch(e) {
@@ -293,6 +317,423 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   String _getThaiDayName(int weekday) {
     const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
     return days[weekday - 1];
+  }
+
+
+  DateTime _dayKey(DateTime day) => DateTime(day.year, day.month, day.day);
+
+  DayWorkingHours _cloneDayWorkingHours(DayWorkingHours? source, String dayName) {
+    if (source == null) {
+      return DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
+    }
+    return DayWorkingHours(
+      dayName: dayName,
+      isClosed: source.isClosed,
+      timeSlots: source.timeSlots
+          .map((slot) => TimeSlot(openTime: slot.openTime, closeTime: slot.closeTime))
+          .toList(),
+    );
+  }
+
+  List<AppointmentModel> _applyClosedOverlay(
+    List<AppointmentModel> appointments,
+    DateTime day,
+    DayWorkingHours? baseWorkingHours,
+    DayWorkingHours? override,
+  ) {
+    if (override == null || !override.isClosed) {
+      return appointments;
+    }
+    if (baseWorkingHours == null || baseWorkingHours.timeSlots.isEmpty) {
+      return appointments;
+    }
+    final closedAppointments = <AppointmentModel>[];
+    for (int i = 0; i < baseWorkingHours.timeSlots.length; i++) {
+      final slot = baseWorkingHours.timeSlots[i];
+      final start = DateTime(day.year, day.month, day.day, slot.openTime.hour, slot.openTime.minute);
+      final end = DateTime(day.year, day.month, day.day, slot.closeTime.hour, slot.closeTime.minute);
+      if (!end.isAfter(start)) {
+        continue;
+      }
+      final id = '__clinic_closed_${_dayKey(day).toIso8601String()}_$i';
+      closedAppointments.add(
+        AppointmentModel(
+          appointmentId: id,
+          userId: '',
+          patientId: id,
+          patientName: 'ปิดทำการ',
+          treatment: 'ปิด',
+          duration: end.difference(start).inMinutes,
+          status: 'ปิดทำการ',
+          startTime: start,
+          endTime: end,
+        ),
+      );
+      _patientCache[id] = Patient(
+        patientId: id,
+        name: 'ปิดทำการ',
+        prefix: '',
+        rating: 0.0,
+        gender: '',
+      );
+    }
+    final combined = [...appointments, ...closedAppointments];
+    combined.sort((a, b) => a.startTime.compareTo(b.startTime));
+    return combined;
+  }
+
+  void _toggleClinicOpenClosed() {
+    final key = _dayKey(_currentDate);
+    final dayName = _getThaiDayName(_currentDate.weekday);
+    if (_isClinicClosed) {
+      DayWorkingHours? baseWorkingHours;
+      if (_workingHoursCache != null) {
+        try {
+          baseWorkingHours =
+              _workingHoursCache!.firstWhere((d) => d.dayName == dayName);
+        } catch (_) {
+          baseWorkingHours = null;
+        }
+      }
+      final bool baseClosed =
+          baseWorkingHours == null ||
+          baseWorkingHours.isClosed ||
+          baseWorkingHours.timeSlots.isEmpty;
+      if (baseClosed) {
+        final override = _cloneDayWorkingHours(baseWorkingHours, dayName);
+        override.isClosed = false;
+        _dailyOverrides[key] = override;
+        setState(() {
+          _selectedDayWorkingHours = override;
+          _isClinicClosed = false;
+        });
+        _fetchDataForSelectedDay(_currentDate);
+        _showDailyWorkingHoursDialog(override);
+      } else {
+        _dailyOverrides.remove(key);
+        setState(() {
+          _selectedDayWorkingHours = baseWorkingHours;
+          _isClinicClosed = false;
+        });
+        _fetchDataForSelectedDay(_currentDate);
+        _showDailyWorkingHoursDialog(
+          _cloneDayWorkingHours(baseWorkingHours, dayName),
+        );
+      }
+    } else {
+      final override = _dailyOverrides[key] ??
+          DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
+      override.isClosed = true;
+      _dailyOverrides[key] = override;
+      setState(() {
+        _isClinicClosed = true;
+        _selectedDayWorkingHours = override;
+      });
+      _fetchDataForSelectedDay(_currentDate);
+    }
+  }
+
+  int _timeToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
+
+  bool _hasOverlap(List<TimeSlot> slots, TimeSlot newSlot, [int? excludeIndex]) {
+    final newOpenMinutes = _timeToMinutes(newSlot.openTime);
+    final newCloseMinutes = _timeToMinutes(newSlot.closeTime);
+    for (int i = 0; i < slots.length; i++) {
+      if (excludeIndex != null && i == excludeIndex) {
+        continue;
+      }
+      final existingSlot = slots[i];
+      final existingOpenMinutes = _timeToMinutes(existingSlot.openTime);
+      final existingCloseMinutes = _timeToMinutes(existingSlot.closeTime);
+      if (newOpenMinutes < existingCloseMinutes && newCloseMinutes > existingOpenMinutes) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _pickTime(
+    BuildContext context,
+    DayWorkingHours day,
+    TimeSlot slot,
+    bool isOpeningTime,
+    int slotIndex, {
+    VoidCallback? onChanged,
+  }) async {
+    final initialTime = isOpeningTime ? slot.openTime : slot.closeTime;
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: child!,
+        );
+      },
+    );
+
+    if (!context.mounted) return;
+    if (picked != null && mounted) {
+      final tempSlot = TimeSlot(
+        openTime: isOpeningTime ? picked : slot.openTime,
+        closeTime: isOpeningTime ? slot.closeTime : picked,
+      );
+      if (_timeToMinutes(tempSlot.openTime) >= _timeToMinutes(tempSlot.closeTime)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ช่วงเวลาไม่ถูกต้อง'),
+          ),
+        );
+        return;
+      }
+      if (_hasOverlap(day.timeSlots, tempSlot, slotIndex)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ช่วงเวลาทำการทับซ้อนกัน'),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        if (isOpeningTime) {
+          slot.openTime = picked;
+        } else {
+          slot.closeTime = picked;
+        }
+        day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
+        _dailyOverrides[_dayKey(_currentDate)] = day;
+      });
+      onChanged?.call();
+    }
+  }
+
+  Widget _buildTimePickerButton(
+    BuildContext context,
+    String label,
+    TimeOfDay time,
+    VoidCallback onPressed,
+  ) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        elevation: 0,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+          Text(time.format(context), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const Icon(Icons.access_time, size: 18, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDailyWorkingHoursDialog(DayWorkingHours day) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            void refreshDialog() {
+              dialogSetState(() {});
+            }
+
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SingleChildScrollView(
+                child: _buildDailyWorkingHoursCard(
+                  day,
+                  onChanged: refreshDialog,
+                  onConfirm: () {
+                    Navigator.of(context).pop();
+                    _fetchDataForSelectedDay(_currentDate);
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDailyWorkingHoursCard(
+    DayWorkingHours day, {
+    VoidCallback? onConfirm,
+    VoidCallback? onChanged,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
+      elevation: 3,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  day.dayName,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      day.isClosed = !day.isClosed;
+                      _isClinicClosed = day.isClosed;
+                      _dailyOverrides[_dayKey(_currentDate)] = day;
+                    });
+                    onChanged?.call();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        day.isClosed ? Colors.red.shade300 : const Color(0xFFE0BBFF),
+                    foregroundColor:
+                        day.isClosed ? Colors.white : Colors.purple.shade900,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: day.isClosed ? Colors.red.shade500 : Colors.purple.shade700,
+                        width: 1.5,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    elevation: 2,
+                  ),
+                  child: Text(
+                    day.isClosed ? 'หยุด' : 'เปิด',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            if (!day.isClosed) ...[
+              ...day.timeSlots.asMap().entries.map((entry) {
+                final int slotIndex = entry.key;
+                final TimeSlot slot = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildTimePickerButton(
+                          context,
+                          'เปิด',
+                          slot.openTime,
+                          () => _pickTime(
+                            context,
+                            day,
+                            slot,
+                            true,
+                            slotIndex,
+                            onChanged: onChanged,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildTimePickerButton(
+                          context,
+                          'ปิด',
+                          slot.closeTime,
+                          () => _pickTime(
+                            context,
+                            day,
+                            slot,
+                            false,
+                            slotIndex,
+                            onChanged: onChanged,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            day.timeSlots.removeAt(slotIndex);
+                            _dailyOverrides[_dayKey(_currentDate)] = day;
+                          });
+                          onChanged?.call();
+                        },
+                        tooltip: 'ลบช่วงเวลา',
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final newSlot = TimeSlot(
+                        openTime: const TimeOfDay(hour: 9, minute: 0),
+                        closeTime: const TimeOfDay(hour: 17, minute: 0),
+                      );
+                      if (_hasOverlap(day.timeSlots, newSlot)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('ช่วงเวลาทำการทับซ้อนกัน'),
+                          ),
+                        );
+                        return;
+                      }
+                      setState(() {
+                        day.timeSlots.add(newSlot);
+                        day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
+                        _dailyOverrides[_dayKey(_currentDate)] = day;
+                      });
+                      onChanged?.call();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('เพิ่มช่วงเวลาทำการ'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade100,
+                      foregroundColor: Colors.green.shade800,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+              if (onConfirm != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text(
+                      'ยืนยัน',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -310,13 +751,46 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: ViewModeSelector(
-              isDailyViewActive: true, 
-              calendarFormat: CalendarFormat.month,
-              onFormatChanged: (format) {
-                Navigator.pop(context, format);
-              },
-              onDailyViewTapped: _handleDataChange,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ViewModeSelector(
+                    isDailyViewActive: true, 
+                    calendarFormat: CalendarFormat.month,
+                    onFormatChanged: (format) {
+                      Navigator.pop(context, format);
+                    },
+                    onDailyViewTapped: _handleDataChange,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _toggleClinicOpenClosed,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isClinicClosed
+                        ? Colors.red.shade300
+                        : const Color(0xFFE0BBFF),
+                    foregroundColor: _isClinicClosed
+                        ? Colors.white
+                        : Colors.purple.shade900,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: _isClinicClosed
+                            ? Colors.red.shade500
+                            : Colors.purple.shade700,
+                        width: 1.5,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    elevation: 2,
+                  ),
+                  child: Text(
+                    _isClinicClosed ? '\u0e2b\u0e22\u0e38\u0e14' : '\u0e40\u0e1b\u0e34\u0e14',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
           ),
           Padding(

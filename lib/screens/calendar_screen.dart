@@ -761,16 +761,16 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   child: ViewModeSelector(
                     calendarFormat: _calendarFormat,
                     onFormatChanged: (format) {
-                      if (format == CalendarFormat.week) {
-                        final navigator = Navigator.of(context);
-                        navigator.push(
-                          MaterialPageRoute(
-                            builder: (context) => WeeklyViewScreen(
-                              focusedDate: _focusedDay,
-                              initialPatient: _chainedPatient,
-                              receiptDraft: _receiptDraft,
-                            ),
-                          ),
+                if (format == CalendarFormat.week) {
+                  final navigator = Navigator.of(context);
+                  navigator.push(
+                    MaterialPageRoute(
+                      builder: (context) => WeeklyViewScreen(
+                        focusedDate: _selectedDay,
+                        initialPatient: _chainedPatient,
+                        receiptDraft: _receiptDraft,
+                      ),
+                    ),
                         ).then((_) {
                           if (!mounted) return;
                           _handleDataChange();
@@ -795,15 +795,15 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
                       if (result is CalendarFormat && result == CalendarFormat.week) {
                         if (!mounted) return;
-                        await navigator.push(
-                          MaterialPageRoute(
-                            builder: (context) => WeeklyViewScreen(
-                              focusedDate: _focusedDay,
-                              initialPatient: _chainedPatient,
-                              receiptDraft: _receiptDraft,
-                            ),
-                          ),
-                        );
+                  await navigator.push(
+                    MaterialPageRoute(
+                      builder: (context) => WeeklyViewScreen(
+                        focusedDate: _selectedDay,
+                        initialPatient: _chainedPatient,
+                        receiptDraft: _receiptDraft,
+                      ),
+                    ),
+                  );
                       }
                       if (!mounted) return;
                       _handleDataChange();

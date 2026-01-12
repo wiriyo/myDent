@@ -277,12 +277,14 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
 
   int _dynamicStartHour = 9;
   int _dynamicEndHour = 17;
+  DateTime? _pendingScrollDay;
 
   @override
   void initState() {
     super.initState();
     _focusedDay = widget.focusedDate;
     _selectedDay = widget.focusedDate;
+    _pendingScrollDay = _selectedDay;
 
     _headerScrollController.addListener(() {
       if (_headerScrollController.hasClients &&
@@ -359,6 +361,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     if (!isSameDay(widget.focusedDate, oldWidget.focusedDate)) {
       _focusedDay = widget.focusedDate;
       _selectedDay = widget.focusedDate;
+      _queueScrollToDay(widget.focusedDate);
       _fetchDataForWeek(_focusedDay);
     }
   }
@@ -520,6 +523,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     );
   }
 
+  void _queueScrollToDay(DateTime day) {
+    _pendingScrollDay = day;
+  }
+
   Future<void> _fetchDataForWeek(DateTime focusedDay) async {
     if (_appointmentService == null) {
       setState(() { _isLoading = false; });
@@ -647,6 +654,13 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         _weeklyData = weeklyData;
         _isLoading = false;
       });
+      if (_pendingScrollDay != null) {
+        final day = _pendingScrollDay!;
+        _pendingScrollDay = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToSelectedDay(day);
+        });
+      }
       _updateSelectedDayClosedState();
 
       _calculateAndSetWeekHourRange();
@@ -1477,6 +1491,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
             });
             _fetchDataForWeek(focusedDay);
             _updateSelectedDayClosedState();
+            _queueScrollToDay(focusedDay);
           },
         ),
       ),

@@ -12,6 +12,7 @@ import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/working_hours_service.dart';
 import '../models/working_hours_model.dart';
+import '../services/daily_override_service.dart';
 import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
@@ -54,9 +55,12 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
   AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+  final DailyOverrideService _dailyOverrideService = DailyOverrideService();
   final Map<String, Patient> _patientCache = {};
   List<DayWorkingHours>? _workingHoursCache;
   final Map<DateTime, DayWorkingHours> _dailyOverrides = {};
+  bool _overridesLoaded = false;
+  String? _clinicId;
   bool _isClinicClosed = false;
 
   late DateTime _currentDate;
@@ -83,6 +87,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
     final clinicId = authProvider.verifiedClinicId;
     if (clinicId != null && clinicId.isNotEmpty) {
+      _clinicId = clinicId;
       _appointmentService = AppointmentService(clinicId: clinicId);
       _fetchDataForSelectedDay(_currentDate);
     } else {
@@ -132,8 +137,38 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
     debugPrint("📱 [DailyCalendarScreen] Data change detected! Refetching data...");
     _patientCache.clear();
     _workingHoursCache = null;
+    _overridesLoaded = false;
     _fetchDataForSelectedDay(_currentDate);
   }
+
+  Future<void> _ensureOverridesLoaded() async {
+    if (_overridesLoaded) return;
+    final overrides =
+        await _dailyOverrideService.loadOverrides(clinicId: _clinicId);
+    if (!mounted) return;
+    setState(() {
+      _dailyOverrides
+        ..clear()
+        ..addAll(overrides);
+      _overridesLoaded = true;
+    });
+  }
+
+  Future<void> _persistDailyOverride(
+    DateTime day,
+    DayWorkingHours override,
+  ) {
+    return _dailyOverrideService.saveOverride(
+      day,
+      override,
+      clinicId: _clinicId,
+    );
+  }
+
+  Future<void> _clearDailyOverride(DateTime day) {
+    return _dailyOverrideService.removeOverride(day, clinicId: _clinicId);
+  }
+
 
   // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
   // ฟังก์ชันนี้จะถูกเรียกโดยผู้ช่วยของเรา เมื่อ Flow การทำงานเสร็จสิ้น
@@ -214,6 +249,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       return;
     }
 
+
+    await _ensureOverridesLoaded();
     try {
       var appointments =
           await _appointmentService!.getAppointmentsByDate(selectedDay);
@@ -405,6 +442,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         final override = _cloneDayWorkingHours(baseWorkingHours, dayName);
         override.isClosed = false;
         _dailyOverrides[key] = override;
+        _persistDailyOverride(_currentDate, override);
         setState(() {
           _selectedDayWorkingHours = override;
           _isClinicClosed = false;
@@ -413,6 +451,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         _showDailyWorkingHoursDialog(override);
       } else {
         _dailyOverrides.remove(key);
+        _clearDailyOverride(_currentDate);
         setState(() {
           _selectedDayWorkingHours = baseWorkingHours;
           _isClinicClosed = false;
@@ -427,6 +466,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
           DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
       override.isClosed = true;
       _dailyOverrides[key] = override;
+      _persistDailyOverride(_currentDate, override);
       setState(() {
         _isClinicClosed = true;
         _selectedDayWorkingHours = override;
@@ -505,6 +545,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
         day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
         _dailyOverrides[_dayKey(_currentDate)] = day;
       });
+      _persistDailyOverride(_currentDate, day);
       onChanged?.call();
     }
   }
@@ -599,6 +640,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                       _isClinicClosed = day.isClosed;
                       _dailyOverrides[_dayKey(_currentDate)] = day;
                     });
+                    _persistDailyOverride(_currentDate, day);
                     onChanged?.call();
                   },
                   style: ElevatedButton.styleFrom(
@@ -669,6 +711,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                             day.timeSlots.removeAt(slotIndex);
                             _dailyOverrides[_dayKey(_currentDate)] = day;
                           });
+                          _persistDailyOverride(_currentDate, day);
                           onChanged?.call();
                         },
                         tooltip: 'ลบช่วงเวลา',
@@ -700,6 +743,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                         day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
                         _dailyOverrides[_dayKey(_currentDate)] = day;
                       });
+                      _persistDailyOverride(_currentDate, day);
                       onChanged?.call();
                     },
                     icon: const Icon(Icons.add),

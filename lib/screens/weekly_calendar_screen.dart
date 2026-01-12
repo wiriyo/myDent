@@ -13,6 +13,7 @@ import '../models/working_hours_model.dart';
 import '../services/appointment_service.dart';
 import '../services/patient_service.dart';
 import '../services/working_hours_service.dart';
+import '../services/daily_override_service.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../styles/app_theme.dart';
 import '../widgets/appointment_detail_dialog.dart';
@@ -244,9 +245,12 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
   AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+  final DailyOverrideService _dailyOverrideService = DailyOverrideService();
   final Map<String, Patient> _patientCache = {};
   List<DayWorkingHours>? _workingHoursCache;
   final Map<DateTime, DayWorkingHours> _dailyOverrides = {};
+  bool _overridesLoaded = false;
+  String? _clinicId;
   bool _isClinicClosed = false;
   late DateTime _focusedDay;
   DateTime? _selectedDay;
@@ -325,6 +329,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
     final clinicId = authProvider.verifiedClinicId;
     if (clinicId != null && clinicId.isNotEmpty) {
+      _clinicId = clinicId;
       _appointmentService = AppointmentService(clinicId: clinicId);
       _fetchDataForWeek(_focusedDay);
     } else {
@@ -381,8 +386,38 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     );
     _patientCache.clear();
     _workingHoursCache = null;
+    _overridesLoaded = false;
     _fetchDataForWeek(_focusedDay);
   }
+
+  Future<void> _ensureOverridesLoaded() async {
+    if (_overridesLoaded) return;
+    final overrides =
+        await _dailyOverrideService.loadOverrides(clinicId: _clinicId);
+    if (!mounted) return;
+    setState(() {
+      _dailyOverrides
+        ..clear()
+        ..addAll(overrides);
+      _overridesLoaded = true;
+    });
+  }
+
+  Future<void> _persistDailyOverride(
+    DateTime day,
+    DayWorkingHours override,
+  ) {
+    return _dailyOverrideService.saveOverride(
+      day,
+      override,
+      clinicId: _clinicId,
+    );
+  }
+
+  Future<void> _clearDailyOverride(DateTime day) {
+    return _dailyOverrideService.removeOverride(day, clinicId: _clinicId);
+  }
+
 
   void _onAppointmentFlowComplete({bool clearPatient = false}) {
     if (clearPatient && mounted) {
@@ -536,6 +571,8 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       _isLoading = true;
     });
 
+
+    await _ensureOverridesLoaded();
     final firstDayOfWeek = focusedDay.subtract(
       Duration(days: focusedDay.weekday % 7),
     );
@@ -785,6 +822,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         final override = _cloneDayWorkingHours(baseWorkingHours, dayName);
         override.isClosed = false;
         _dailyOverrides[key] = override;
+        _persistDailyOverride(selectedDay, override);
         setState(() {
           _isClinicClosed = false;
         });
@@ -792,6 +830,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         _showDailyWorkingHoursDialog(override);
       } else {
         _dailyOverrides.remove(key);
+        _clearDailyOverride(selectedDay);
         setState(() {
           _isClinicClosed = false;
         });
@@ -805,6 +844,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
       override.isClosed = true;
       _dailyOverrides[key] = override;
+      _persistDailyOverride(selectedDay, override);
       setState(() {
         _isClinicClosed = true;
       });
@@ -882,6 +922,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
         _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
       });
+      _persistDailyOverride(_selectedDay ?? _focusedDay, day);
       onChanged?.call();
     }
   }
@@ -976,6 +1017,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                       _isClinicClosed = day.isClosed;
                       _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
                     });
+                    _persistDailyOverride(_selectedDay ?? _focusedDay, day);
                     onChanged?.call();
                   },
                   style: ElevatedButton.styleFrom(
@@ -1046,6 +1088,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                             day.timeSlots.removeAt(slotIndex);
                             _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
                           });
+                          _persistDailyOverride(_selectedDay ?? _focusedDay, day);
                           onChanged?.call();
                         },
                         tooltip: 'ลบช่วงเวลา',
@@ -1077,6 +1120,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                         day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
                         _dailyOverrides[_dayKey(_selectedDay ?? _focusedDay)] = day;
                       });
+                      _persistDailyOverride(_selectedDay ?? _focusedDay, day);
                       onChanged?.call();
                     },
                     icon: const Icon(Icons.add),
@@ -1179,9 +1223,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
     appointments.sort((a, b) => a.startTime.compareTo(b.startTime));
 
     List<Map<String, dynamic>> finalCombinedList = [];
+    final includedAppointments = <String>{};
 
     for (final slot in workingHours.timeSlots) {
-      DateTime lastEventEnd = DateTime(
+      final slotOpenTime = DateTime(
         selectedDate.year,
         selectedDate.month,
         selectedDate.day,
@@ -1196,13 +1241,14 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         slot.closeTime.minute,
       );
 
+      DateTime lastEventEnd = slotOpenTime;
+
       final appointmentsInSlot =
           appointments.where((appt) {
-            return appt.startTime.isAfter(
-                  lastEventEnd.subtract(const Duration(minutes: 1)),
-                ) &&
+            return appt.endTime.isAfter(slotOpenTime) &&
                 appt.startTime.isBefore(slotCloseTime);
-          }).toList();
+          }).toList()
+            ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
       for (var appt in appointmentsInSlot) {
         if (appt.startTime.isAfter(lastEventEnd)) {
@@ -1213,6 +1259,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           });
         }
         finalCombinedList.add({'isGap': false, 'appointment': appt});
+        final appointmentKey = appt.appointmentId.isNotEmpty
+            ? appt.appointmentId
+            : appt.startTime.toIso8601String();
+        includedAppointments.add(appointmentKey);
         if (appt.endTime.isAfter(lastEventEnd)) {
           lastEventEnd = appt.endTime;
         }
@@ -1226,6 +1276,33 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         });
       }
     }
+    for (final appt in appointments) {
+      final appointmentKey = appt.appointmentId.isNotEmpty
+          ? appt.appointmentId
+          : appt.startTime.toIso8601String();
+      if (!includedAppointments.contains(appointmentKey)) {
+        finalCombinedList.add({'isGap': false, 'appointment': appt});
+      }
+    }
+
+    finalCombinedList.sort((a, b) {
+      final aIsGap = a['isGap'] == true;
+      final bIsGap = b['isGap'] == true;
+      final aStart = aIsGap
+          ? a['start'] as DateTime
+          : (a['appointment'] as AppointmentModel).startTime;
+      final bStart = bIsGap
+          ? b['start'] as DateTime
+          : (b['appointment'] as AppointmentModel).startTime;
+      final compare = aStart.compareTo(bStart);
+      if (compare != 0) {
+        return compare;
+      }
+      if (aIsGap == bIsGap) {
+        return 0;
+      }
+      return aIsGap ? -1 : 1;
+    });
     return finalCombinedList;
   }
 
@@ -1257,7 +1334,10 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                               calendarFormat: CalendarFormat.week,
                               onFormatChanged: (format) {
                                 if (format == CalendarFormat.month) {
-                                  Navigator.pop(context);
+                                  Navigator.pop(context, {
+                                    'selectedDate': _selectedDay ?? _focusedDay,
+                                    'format': CalendarFormat.month,
+                                  });
                                 }
                               },
                               onDailyViewTapped: () async {
@@ -1309,6 +1389,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                   return;
                                 }
 
+                                _overridesLoaded = false;
                                 _fetchDataForWeek(selectedDate ?? _focusedDay);
                               },
                             ),

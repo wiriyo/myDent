@@ -16,6 +16,7 @@ import '../services/appointment_service.dart';
 import '../services/working_hours_service.dart';
 import '../services/patient_service.dart';
 import '../models/working_hours_model.dart';
+import '../services/daily_override_service.dart';
 import '../widgets/timeline_view.dart';
 import '../widgets/view_mode_selector.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
@@ -51,6 +52,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   AppointmentService? _appointmentService;
   final PatientService _patientService = PatientService();
   final WorkingHoursService _workingHoursService = WorkingHoursService();
+  final DailyOverrideService _dailyOverrideService = DailyOverrideService();
 
   final Map<String, Patient> _patientCache = {};
   List<DayWorkingHours>? _workingHoursCache;
@@ -66,6 +68,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   bool _isInitialLoad = true;
   bool _isClinicClosed = false;
   final Map<DateTime, DayWorkingHours> _dailyOverrides = {};
+  bool _overridesLoaded = false;
+  String? _clinicId;
   
   Patient? _chainedPatient;
   receipt.ReceiptModel? _receiptDraft;
@@ -100,6 +104,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       final authProvider = Provider.of<AppAuthProvider>(context, listen: false);
       final clinicId = authProvider.verifiedClinicId;
       if (clinicId != null && clinicId.isNotEmpty) {
+        _clinicId = clinicId;
         _appointmentService = AppointmentService(clinicId: clinicId);
       }
 
@@ -119,14 +124,44 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   }
 
   Future<void> _loadInitialData() async {
+    await _ensureOverridesLoaded();
     await _loadEventMarkersForMonth(_focusedDay);
     await _loadAppointmentsForDay(_selectedDay);
   }
 
-  Future<void> _handleDataChange() {
+  Future<void> _handleDataChange() async {
     _patientCache.clear();
     _workingHoursCache = null;
-    return _loadInitialData();
+    _overridesLoaded = false;
+    await _loadInitialData();
+  }
+
+  Future<void> _ensureOverridesLoaded() async {
+    if (_overridesLoaded) return;
+    final overrides =
+        await _dailyOverrideService.loadOverrides(clinicId: _clinicId);
+    if (!mounted) return;
+    setState(() {
+      _dailyOverrides
+        ..clear()
+        ..addAll(overrides);
+      _overridesLoaded = true;
+    });
+  }
+
+  Future<void> _persistDailyOverride(
+    DateTime day,
+    DayWorkingHours override,
+  ) {
+    return _dailyOverrideService.saveOverride(
+      day,
+      override,
+      clinicId: _clinicId,
+    );
+  }
+
+  Future<void> _clearDailyOverride(DateTime day) {
+    return _dailyOverrideService.removeOverride(day, clinicId: _clinicId);
   }
 
   // 💖 UPDATED: Load event counts for the visible month
@@ -329,6 +364,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         final override = _cloneDayWorkingHours(baseWorkingHours, dayName);
         override.isClosed = false;
         _dailyOverrides[key] = override;
+        _persistDailyOverride(_selectedDay, override);
         setState(() {
           _selectedDayWorkingHours = override;
           _isClinicClosed = false;
@@ -337,6 +373,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         _showDailyWorkingHoursDialog(override);
       } else {
         _dailyOverrides.remove(key);
+        _clearDailyOverride(_selectedDay);
         setState(() {
           _selectedDayWorkingHours = baseWorkingHours;
           _isClinicClosed = false;
@@ -351,6 +388,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
           DayWorkingHours(dayName: dayName, isClosed: true, timeSlots: []);
       override.isClosed = true;
       _dailyOverrides[key] = override;
+      _persistDailyOverride(_selectedDay, override);
       setState(() {
         _isClinicClosed = true;
         _selectedDayWorkingHours = override;
@@ -430,6 +468,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
         _dailyOverrides[_dayKey(_selectedDay)] = day;
       });
+      _persistDailyOverride(_selectedDay, day);
       onChanged?.call();
     }
   }
@@ -524,6 +563,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                       _isClinicClosed = day.isClosed;
                       _dailyOverrides[_dayKey(_selectedDay)] = day;
                     });
+                    _persistDailyOverride(_selectedDay, day);
                     onChanged?.call();
                   },
                   style: ElevatedButton.styleFrom(
@@ -594,6 +634,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                             day.timeSlots.removeAt(slotIndex);
                             _dailyOverrides[_dayKey(_selectedDay)] = day;
                           });
+                          _persistDailyOverride(_selectedDay, day);
                           onChanged?.call();
                         },
                         tooltip: '\u0e25\u0e1a\u0e0a\u0e48\u0e27\u0e07\u0e40\u0e27\u0e25\u0e32',
@@ -625,6 +666,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                         day.timeSlots.sort((a, b) => _timeToMinutes(a.openTime) - _timeToMinutes(b.openTime));
                         _dailyOverrides[_dayKey(_selectedDay)] = day;
                       });
+                      _persistDailyOverride(_selectedDay, day);
                       onChanged?.call();
                     },
                     icon: const Icon(Icons.add),
@@ -781,9 +823,10 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                           }
                         }
                         if (selectedDate != null && mounted) {
+                          final resolvedDate = selectedDate!;
                           setState(() {
-                            _selectedDay = selectedDate!;
-                            _focusedDay = selectedDate;
+                            _selectedDay = resolvedDate;
+                            _focusedDay = resolvedDate;
                           });
                         }
 
@@ -826,9 +869,10 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                       }
 
                       if (selectedDate != null && mounted) {
+                        final resolvedDate = selectedDate!;
                         setState(() {
-                          _selectedDay = selectedDate!;
-                          _focusedDay = selectedDate;
+                          _selectedDay = resolvedDate;
+                          _focusedDay = resolvedDate;
                         });
                       }
 

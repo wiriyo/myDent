@@ -30,7 +30,23 @@ class _AppointmentLayoutInfo {
   }
 }
 
+class _TimelineSegment {
+  final DateTime start;
+  final DateTime end;
+  final int offsetMinutes;
+  final double offsetPixels;
+
+  const _TimelineSegment({
+    required this.start,
+    required this.end,
+    required this.offsetMinutes,
+    required this.offsetPixels,
+  });
+}
+
 class TimelineView extends StatelessWidget {
+  static const double _segmentDividerThickness = 3.0;
+  static const double _segmentDividerPaddingFactor = 5.0;
   final DateTime selectedDate;
   final List<AppointmentModel> appointments;
   final List<Patient> patients;
@@ -86,8 +102,9 @@ class TimelineView extends StatelessWidget {
         if (appt.startTime.isAfter(slotEnd) || appt.startTime.isAtSameMomentAs(slotEnd)) {
             break; 
         }
-        if (appt.startTime.isAfter(timelineCursor)) {
-          finalCombinedList.add({'isGap': true, 'start': timelineCursor, 'end': appt.startTime});
+        final gapCursor = timelineCursor.isBefore(slotStart) ? slotStart : timelineCursor;
+        if (appt.startTime.isAfter(gapCursor)) {
+          finalCombinedList.add({'isGap': true, 'start': gapCursor, 'end': appt.startTime});
         }
         finalCombinedList.add({'isGap': false, 'appointment': appt});
         if (appt.endTime.isAfter(timelineCursor)) {
@@ -96,8 +113,9 @@ class TimelineView extends StatelessWidget {
         appointmentIndex++;
       }
 
-      if (slotEnd.isAfter(timelineCursor)) {
-        finalCombinedList.add({'isGap': true, 'start': timelineCursor, 'end': slotEnd});
+      final gapCursor = timelineCursor.isBefore(slotStart) ? slotStart : timelineCursor;
+      if (slotEnd.isAfter(gapCursor)) {
+        finalCombinedList.add({'isGap': true, 'start': gapCursor, 'end': slotEnd});
       }
     }
 
@@ -136,6 +154,27 @@ class TimelineView extends StatelessWidget {
     return events;
   }
 
+  double _getDisplayPixels(DateTime time, List<_TimelineSegment> segments, double pixelsPerMinute) {
+    for (final segment in segments) {
+      if ((time.isAfter(segment.start) || time.isAtSameMomentAs(segment.start)) &&
+          (time.isBefore(segment.end) || time.isAtSameMomentAs(segment.end))) {
+        return segment.offsetPixels +
+            (segment.offsetMinutes + time.difference(segment.start).inMinutes.toDouble()) *
+                pixelsPerMinute;
+      }
+    }
+    if (segments.isEmpty) {
+      return 0;
+    }
+    if (time.isBefore(segments.first.start)) {
+      return 0;
+    }
+    final last = segments.last;
+    return last.offsetPixels +
+        (last.offsetMinutes + last.end.difference(last.start).inMinutes.toDouble()) *
+            pixelsPerMinute;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine effective time slots for rendering
@@ -162,11 +201,80 @@ class TimelineView extends StatelessWidget {
     }
 
     final combinedList = _getCombinedList();
-    
+
+    final List<_TimelineSegment> segments = [];
+    int totalDisplayMinutes = 0;
+    double totalDividerPixels = 0;
+    const double dividerThickness = _segmentDividerThickness;
+    const double dividerPaddingFactor = _segmentDividerPaddingFactor;
+    final double dividerPadding = dividerThickness * dividerPaddingFactor;
+    final double dividerGap = dividerThickness + (dividerPadding * 2);
+    void addSegment(DateTime start, DateTime end) {
+      if (!end.isAfter(start)) {
+        end = start.add(const Duration(minutes: 30));
+      }
+      if (segments.isNotEmpty && start.isAfter(segments.last.end)) {
+        totalDividerPixels += dividerGap;
+      }
+      segments.add(_TimelineSegment(
+        start: start,
+        end: end,
+        offsetMinutes: totalDisplayMinutes,
+        offsetPixels: totalDividerPixels,
+      ));
+      totalDisplayMinutes += end.difference(start).inMinutes;
+    }
+
+    List<List<DateTime>> buildRanges(List<AppointmentModel> appts) {
+      if (appts.isEmpty) {
+        return [];
+      }
+      appts.sort((a, b) => a.startTime.compareTo(b.startTime));
+      final ranges = <List<DateTime>>[];
+      DateTime currentStart = appts.first.startTime;
+      DateTime currentEnd = appts.first.endTime;
+      for (final appt in appts.skip(1)) {
+        if (appt.startTime.isAfter(currentEnd)) {
+          ranges.add([currentStart, currentEnd]);
+          currentStart = appt.startTime;
+          currentEnd = appt.endTime;
+        } else if (appt.endTime.isAfter(currentEnd)) {
+          currentEnd = appt.endTime;
+        }
+      }
+      ranges.add([currentStart, currentEnd]);
+      return ranges;
+    }
+
+    if (useFallbackSlots) {
+      for (final range in buildRanges(appointments)) {
+        addSegment(range[0], range[1]);
+      }
+    } else if (effectiveSlots.isNotEmpty) {
+      final workingStart =
+          _combineDateAndTime(selectedDate, effectiveSlots.first.openTime);
+      final workingEnd =
+          _combineDateAndTime(selectedDate, effectiveSlots.last.closeTime);
+
+      final beforeAppts =
+          appointments.where((a) => a.startTime.isBefore(workingStart)).toList();
+      for (final range in buildRanges(beforeAppts)) {
+        addSegment(range[0], range[1]);
+      }
+      addSegment(workingStart, workingEnd);
+      final afterAppts =
+          appointments
+              .where((a) =>
+                  a.startTime.isAfter(workingEnd) ||
+                  a.startTime.isAtSameMomentAs(workingEnd))
+              .toList();
+      for (final range in buildRanges(afterAppts)) {
+        addSegment(range[0], range[1]);
+      }
+    }
+
     final pixelsPerMinute = hourHeight / 60.0;
-    final dayStartTime = _combineDateAndTime(selectedDate, effectiveSlots.first.openTime);
-    final dayEndTime = _combineDateAndTime(selectedDate, effectiveSlots.last.closeTime);
-    final totalHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute);
+    final totalHeight = max(0.0, totalDisplayMinutes * pixelsPerMinute + totalDividerPixels);
     
     const double topPadding = 14.0; 
     const double bottomPadding = 14.0; 
@@ -174,34 +282,58 @@ class TimelineView extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTimeline(effectiveSlots, dayStartTime, containerHeight, pixelsPerMinute, topPadding),
-              _buildContentArea(context, combinedList, dayStartTime, containerHeight, pixelsPerMinute, topPadding, constraints),
-            ],
+        return SingleChildScrollView(
+          primary: false,
+          physics: const ClampingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: SizedBox(
+              height: containerHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTimeline(segments, containerHeight, pixelsPerMinute, topPadding),
+                  _buildContentArea(context, combinedList, segments, containerHeight, pixelsPerMinute, topPadding, constraints),
+                ],
+              ),
+            ),
           ),
         );
       },
     );
   }
   
-  Widget _buildTimeline(List<TimeSlot> slots, DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding) {
+  Widget _buildTimeline(List<_TimelineSegment> segments, double containerHeight, double pixelsPerMinute, double topPadding) {
     List<Widget> children = [];
-
-    for (final slot in slots) {
-      final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
-      final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
-      
-      int currentMinute = slotStart.hour * 60 + slotStart.minute;
-      final endMinute = slotEnd.hour * 60 + slotEnd.minute;
+    const double dividerThickness = _segmentDividerThickness;
+    const double dividerPaddingFactor = _segmentDividerPaddingFactor;
+    final double dividerPadding = dividerThickness * dividerPaddingFactor;
+    for (var i = 1; i < segments.length; i++) {
+      final prev = segments[i - 1];
+      final current = segments[i];
+      if (current.start.isAfter(prev.end)) {
+        final endPixels = prev.offsetPixels +
+            (prev.offsetMinutes + prev.end.difference(prev.start).inMinutes) *
+                pixelsPerMinute;
+        children.add(Positioned(
+          top: endPixels + dividerPadding + topPadding,
+          left: 0,
+          right: 0,
+          height: dividerThickness,
+          child: Container(color: Colors.white),
+        ));
+      }
+    }
+    for (final segment in segments) {
+      int currentMinute = segment.start.hour * 60 + segment.start.minute;
+      final endMinute = segment.end.hour * 60 + segment.end.minute;
 
       while (currentMinute <= endMinute) {
         if (currentMinute % 60 == 0) {
           final currentTime = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, currentMinute ~/ 60, 0);
-          final topPosition = currentTime.difference(dayStartTime).inMinutes * pixelsPerMinute;
+          final topPosition = segment.offsetPixels +
+              (segment.offsetMinutes + currentTime.difference(segment.start).inMinutes) *
+                  pixelsPerMinute;
           children.add(Positioned(
             top: topPosition + topPadding,
             left: 0,
@@ -213,16 +345,15 @@ class TimelineView extends StatelessWidget {
       }
     }
     
-    for (final slot in slots) {
-      final slotStart = _combineDateAndTime(selectedDate, slot.openTime);
-      final slotEnd = _combineDateAndTime(selectedDate, slot.closeTime);
-
-      int currentMinute = slotStart.hour * 60 + slotStart.minute;
-      final endMinute = slotEnd.hour * 60 + slotEnd.minute;
+    for (final segment in segments) {
+      int currentMinute = segment.start.hour * 60 + segment.start.minute;
+      final endMinute = segment.end.hour * 60 + segment.end.minute;
 
       while (currentMinute <= endMinute) {
         final currentTime = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, currentMinute ~/ 60, currentMinute % 60);
-        final topPosition = currentTime.difference(dayStartTime).inMinutes * pixelsPerMinute;
+        final topPosition = segment.offsetPixels +
+            (segment.offsetMinutes + currentTime.difference(segment.start).inMinutes) *
+                pixelsPerMinute;
 
         children.add(
           Positioned(
@@ -249,11 +380,30 @@ class TimelineView extends StatelessWidget {
     );
   }
 
-  Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, DateTime dayStartTime, double containerHeight, double pixelsPerMinute, double topPadding, BoxConstraints constraints) {
+  Widget _buildContentArea(BuildContext context, List<Map<String, dynamic>> combinedList, List<_TimelineSegment> segments, double containerHeight, double pixelsPerMinute, double topPadding, BoxConstraints constraints) {
     final appointmentLayouts = _calculateAppointmentLayouts(appointments);
     final double contentWidth = constraints.maxWidth - 60.0; 
     
     List<Widget> positionedItems = [];
+    const double dividerThickness = _segmentDividerThickness;
+    const double dividerPaddingFactor = _segmentDividerPaddingFactor;
+    final double dividerPadding = dividerThickness * dividerPaddingFactor;
+    for (var i = 1; i < segments.length; i++) {
+      final prev = segments[i - 1];
+      final current = segments[i];
+      if (current.start.isAfter(prev.end)) {
+        final endPixels = prev.offsetPixels +
+            (prev.offsetMinutes + prev.end.difference(prev.start).inMinutes) *
+                pixelsPerMinute;
+        positionedItems.add(Positioned(
+          top: endPixels + dividerPadding + topPadding,
+          left: 0,
+          right: 0,
+          height: dividerThickness,
+          child: Container(color: Colors.white),
+        ));
+      }
+    }
     final patientMap = {for (var p in patients) p.patientId: p};
 
     for (var item in combinedList) {
@@ -261,8 +411,10 @@ class TimelineView extends StatelessWidget {
       final DateTime itemStart = isGap ? item['start'] : (item['appointment'] as AppointmentModel).startTime;
       final DateTime itemEnd = isGap ? item['end'] : (item['appointment'] as AppointmentModel).endTime;
       
-      final top = max(0.0, itemStart.difference(dayStartTime).inMinutes * pixelsPerMinute) + topPadding;
-      final height = max(0.0, itemEnd.difference(itemStart).inMinutes * pixelsPerMinute);
+      final displayStart = _getDisplayPixels(itemStart, segments, pixelsPerMinute);
+      final displayEnd = _getDisplayPixels(itemEnd, segments, pixelsPerMinute);
+      final top = max(0.0, displayStart) + topPadding;
+      final height = max(0.0, displayEnd - displayStart);
       if (height <= 0.1) continue;
 
       if (isGap) {

@@ -293,35 +293,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    double timelineHeight = 200;
-    if (!_isLoading &&
-        _selectedDayWorkingHours != null &&
-        !_selectedDayWorkingHours!.isClosed &&
-        _selectedDayWorkingHours!.timeSlots.isNotEmpty) {
-      final dayStartTime = DateTime(
-        _selectedDay.year, _selectedDay.month, _selectedDay.day,
-        _selectedDayWorkingHours!.timeSlots.first.openTime.hour,
-        _selectedDayWorkingHours!.timeSlots.first.openTime.minute,
-      );
-      final dayEndTime = DateTime(
-        _selectedDay.year, _selectedDay.month, _selectedDay.day,
-        _selectedDayWorkingHours!.timeSlots.last.closeTime.hour,
-        _selectedDayWorkingHours!.timeSlots.last.closeTime.minute,
-      );
-      const double hourHeight = 120.0;
-      final double pixelsPerMinute = hourHeight / 60.0;
-      const double verticalPadding = 28.0;
-
-      timelineHeight = max(0.0, dayEndTime.difference(dayStartTime).inMinutes * pixelsPerMinute) + verticalPadding;
-    } else if (!_isLoading && _selectedAppointments.isNotEmpty) {
-      final earliest = _selectedAppointments.map((a) => a.startTime).reduce((a, b) => a.isBefore(b) ? a : b);
-      final latest = _selectedAppointments.map((a) => a.endTime).reduce((a, b) => a.isAfter(b) ? a : b);
-      const double hourHeight = 120.0;
-      final double pixelsPerMinute = hourHeight / 60.0;
-      const double verticalPadding = 28.0;
-      timelineHeight = max(0.0, latest.difference(earliest).inMinutes * pixelsPerMinute) + verticalPadding;
-    }
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -344,7 +315,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
             ),
         ],
       ),
-      body: ListView(
+      body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -524,8 +495,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: timelineHeight,
+          Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                 : TimelineView(

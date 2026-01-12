@@ -65,6 +65,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   CalendarFormat _calendarFormat = CalendarFormat.month;
   bool _isLoading = true;
   bool _isInitialLoad = true;
+  bool _isClinicClosed = false;
   
   Patient? _chainedPatient;
   receipt.ReceiptModel? _receiptDraft;
@@ -199,6 +200,10 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       setState(() {
         _selectedAppointments = filteredAppointments;
         _selectedDayWorkingHours = dayWorkingHours;
+        _isClinicClosed =
+            dayWorkingHours == null ||
+            dayWorkingHours.isClosed ||
+            dayWorkingHours.timeSlots.isEmpty;
         _isLoading = false;
       });
 
@@ -208,6 +213,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
       setState(() {
         _selectedAppointments = [];
         _selectedDayWorkingHours = null;
+        _isClinicClosed = true;
         _isLoading = false;
       });
     }
@@ -342,54 +348,91 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: ViewModeSelector(
-              calendarFormat: _calendarFormat,
-              onFormatChanged: (format) {
-                if (format == CalendarFormat.week) {
-                  final navigator = Navigator.of(context);
-                  navigator.push(
-                    MaterialPageRoute(
-                      builder: (context) => WeeklyViewScreen(
-                        focusedDate: _focusedDay,
-                        initialPatient: _chainedPatient,
-                        receiptDraft: _receiptDraft,
-                      ),
-                    ),
-                  ).then((_) {
-                    if (!mounted) return;
-                    _handleDataChange();
-                  });
-                } else {
-                  if (_calendarFormat != format) {
-                    setState(() { _calendarFormat = format; });
-                  }
-                }
-              },
-              onDailyViewTapped: () async {
-                final navigator = Navigator.of(context);
-                final result = await navigator.push(
-                  MaterialPageRoute(builder: (context) => DailyCalendarScreen(
-                    selectedDate: _selectedDay,
-                    initialPatient: _chainedPatient,
-                    receiptDraft: _receiptDraft,
-                  )),
-                );
+            child: Row(
+              children: [
+                Expanded(
+                  child: ViewModeSelector(
+                    calendarFormat: _calendarFormat,
+                    onFormatChanged: (format) {
+                      if (format == CalendarFormat.week) {
+                        final navigator = Navigator.of(context);
+                        navigator.push(
+                          MaterialPageRoute(
+                            builder: (context) => WeeklyViewScreen(
+                              focusedDate: _focusedDay,
+                              initialPatient: _chainedPatient,
+                              receiptDraft: _receiptDraft,
+                            ),
+                          ),
+                        ).then((_) {
+                          if (!mounted) return;
+                          _handleDataChange();
+                        });
+                      } else {
+                        if (_calendarFormat != format) {
+                          setState(() { _calendarFormat = format; });
+                        }
+                      }
+                    },
+                    onDailyViewTapped: () async {
+                      final navigator = Navigator.of(context);
+                      final result = await navigator.push(
+                        MaterialPageRoute(builder: (context) => DailyCalendarScreen(
+                          selectedDate: _selectedDay,
+                          initialPatient: _chainedPatient,
+                          receiptDraft: _receiptDraft,
+                        )),
+                      );
 
-                if (result is CalendarFormat && result == CalendarFormat.week) {
-                  if (!mounted) return;
-                  await navigator.push(
-                    MaterialPageRoute(
-                      builder: (context) => WeeklyViewScreen(
-                        focusedDate: _focusedDay,
-                        initialPatient: _chainedPatient,
-                        receiptDraft: _receiptDraft,
+                      if (result is CalendarFormat && result == CalendarFormat.week) {
+                        if (!mounted) return;
+                        await navigator.push(
+                          MaterialPageRoute(
+                            builder: (context) => WeeklyViewScreen(
+                              focusedDate: _focusedDay,
+                              initialPatient: _chainedPatient,
+                              receiptDraft: _receiptDraft,
+                            ),
+                          ),
+                        );
+                      }
+                      if (!mounted) return;
+                      _handleDataChange();
+                    },
+                  ),
+                ),
+                if (_calendarFormat == CalendarFormat.month) ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() { _isClinicClosed = !_isClinicClosed; });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isClinicClosed
+                          ? Colors.red.shade300
+                          : const Color(0xFFE0BBFF),
+                      foregroundColor: _isClinicClosed
+                          ? Colors.white
+                          : Colors.purple.shade900,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: _isClinicClosed
+                              ? Colors.red.shade500
+                              : Colors.purple.shade700,
+                          width: 1.5,
+                        ),
                       ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      elevation: 2,
                     ),
-                  );
-                }
-                if (!mounted) return;
-                _handleDataChange();
-              },
+                    child: Text(
+                      _isClinicClosed ? 'หยุด' : 'เปิด',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Padding(
@@ -428,7 +471,7 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                   markerBuilder: (context, day, events) {
                     if (events.isNotEmpty) {
                       final bool isWeb = kIsWeb;
-                      final double rightInset = 1.0; 
+                      final double rightInset = 1.0;
                       final double bottomInset = 1.0;
                       final double horizontalShift = isWeb ? -35.0 : 0.0; // responsive for web
                       return Positioned(

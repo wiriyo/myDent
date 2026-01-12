@@ -31,6 +31,7 @@ import '../auth/auth_provider.dart';
 
 class DailyCalendarScreen extends StatefulWidget {
   final DateTime selectedDate;
+  final CalendarFormat returnFormatOnPop;
   // 💖✨ START: FINAL MAGIC SPELL v3.0 ✨💖
   // เพิ่ม "กระเป๋าเวทมนตร์" ให้น้อง Daily ค่ะ
   final Patient? initialPatient;
@@ -40,6 +41,7 @@ class DailyCalendarScreen extends StatefulWidget {
   const DailyCalendarScreen({
     super.key, 
     required this.selectedDate,
+    this.returnFormatOnPop = CalendarFormat.month,
     this.initialPatient,
     this.receiptDraft,
   });
@@ -738,7 +740,15 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, {
+          'format': widget.returnFormatOnPop,
+          'selectedDate': _currentDate,
+        });
+        return false;
+      },
+      child: Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         automaticallyImplyLeading: false, 
@@ -758,7 +768,10 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                     isDailyViewActive: true, 
                     calendarFormat: CalendarFormat.month,
                     onFormatChanged: (format) {
-                      Navigator.pop(context, format);
+                      Navigator.pop(context, {
+                        'format': format,
+                        'selectedDate': _currentDate,
+                      });
                     },
                     onDailyViewTapped: _handleDataChange,
                   ),
@@ -859,7 +872,8 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
       ),
       // 💖✨ END: FINAL MAGIC SPELL v3.0 ✨💖
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
+        bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
+      ),
     );
   }
 }

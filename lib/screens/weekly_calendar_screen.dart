@@ -1261,25 +1261,55 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                 }
                               },
                               onDailyViewTapped: () async {
-                                final navigator = Navigator.of(context);
-                                final result = await navigator.push(
+                                final result = await Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder:
                                         (context) => DailyCalendarScreen(
                                           selectedDate: _selectedDay ?? DateTime.now(),
+                                          returnFormatOnPop: CalendarFormat.week,
                                           initialPatient: _chainedPatient,
                                           receiptDraft: _receiptDraft,
                                         ),
                                   ),
                                 );
 
-                                if (result is CalendarFormat &&
-                                    result == CalendarFormat.month) {
-                                  if (!mounted) return;
-                                  navigator.pop();
-                                } else {
-                                  _fetchDataForWeek(_focusedDay);
+                                if (!mounted) return;
+                                final navigator = Navigator.of(context);
+
+                                DateTime? selectedDate;
+                                CalendarFormat? format;
+                                if (result is Map) {
+                                  final rawFormat = result['format'];
+                                  final rawDate = result['selectedDate'];
+                                  if (rawFormat is CalendarFormat) {
+                                    format = rawFormat;
+                                  }
+                                  if (rawDate is DateTime) {
+                                    selectedDate = rawDate;
+                                  }
+                                } else if (result is CalendarFormat) {
+                                  format = result;
                                 }
+
+                                if (selectedDate != null) {
+                                  final resolvedDate = selectedDate!;
+                                  setState(() {
+                                    _selectedDay = resolvedDate;
+                                    _focusedDay = resolvedDate;
+                                  });
+                                  _updateSelectedDayClosedState();
+                                  _queueScrollToDay(resolvedDate);
+                                }
+
+                                if (format == CalendarFormat.month) {
+                                  navigator.pop({
+                                    'selectedDate': selectedDate ?? _selectedDay,
+                                    'format': CalendarFormat.month,
+                                  });
+                                  return;
+                                }
+
+                                _fetchDataForWeek(selectedDate ?? _focusedDay);
                               },
                             ),
                           ),

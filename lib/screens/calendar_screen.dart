@@ -760,50 +760,88 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
                 Expanded(
                   child: ViewModeSelector(
                     calendarFormat: _calendarFormat,
-                    onFormatChanged: (format) {
-                if (format == CalendarFormat.week) {
-                  final navigator = Navigator.of(context);
-                  navigator.push(
-                    MaterialPageRoute(
-                      builder: (context) => WeeklyViewScreen(
-                        focusedDate: _selectedDay,
-                        initialPatient: _chainedPatient,
-                        receiptDraft: _receiptDraft,
-                      ),
-                    ),
-                        ).then((_) {
-                          if (!mounted) return;
-                          _handleDataChange();
-                        });
+                    onFormatChanged: (format) async {
+                      if (format == CalendarFormat.week) {
+                        final navigator = Navigator.of(context);
+                        final result = await navigator.push(
+                          MaterialPageRoute(
+                            builder: (context) => WeeklyViewScreen(
+                              focusedDate: _selectedDay,
+                              initialPatient: _chainedPatient,
+                              receiptDraft: _receiptDraft,
+                            ),
+                          ),
+                        );
+
+                        DateTime? selectedDate;
+                        if (result is Map) {
+                          final rawDate = result['selectedDate'];
+                          if (rawDate is DateTime) {
+                            selectedDate = rawDate;
+                          }
+                        }
+                        if (selectedDate != null && mounted) {
+                          setState(() {
+                            _selectedDay = selectedDate!;
+                            _focusedDay = selectedDate;
+                          });
+                        }
+
+                        if (!mounted) return;
+                        _handleDataChange();
                       } else {
-                      if (_calendarFormat != format) {
+                        if (_calendarFormat != format) {
                           setState(() {
                             _calendarFormat = format;
                           });
-                      }
+                        }
                       }
                     },
                     onDailyViewTapped: () async {
-                      final navigator = Navigator.of(context);
-                      final result = await navigator.push(
+                      final result = await Navigator.of(context).push(
                         MaterialPageRoute(builder: (context) => DailyCalendarScreen(
                           selectedDate: _selectedDay,
+                          returnFormatOnPop: CalendarFormat.month,
                           initialPatient: _chainedPatient,
                           receiptDraft: _receiptDraft,
                         )),
                       );
 
-                      if (result is CalendarFormat && result == CalendarFormat.week) {
-                        if (!mounted) return;
-                  await navigator.push(
-                    MaterialPageRoute(
-                      builder: (context) => WeeklyViewScreen(
-                        focusedDate: _selectedDay,
-                        initialPatient: _chainedPatient,
-                        receiptDraft: _receiptDraft,
-                      ),
-                    ),
-                  );
+                      if (!mounted) return;
+                      final navigator = Navigator.of(context);
+
+                      DateTime? selectedDate;
+                      CalendarFormat? format;
+                      if (result is Map) {
+                        final rawFormat = result['format'];
+                        final rawDate = result['selectedDate'];
+                        if (rawFormat is CalendarFormat) {
+                          format = rawFormat;
+                        }
+                        if (rawDate is DateTime) {
+                          selectedDate = rawDate;
+                        }
+                      } else if (result is CalendarFormat) {
+                        format = result;
+                      }
+
+                      if (selectedDate != null && mounted) {
+                        setState(() {
+                          _selectedDay = selectedDate!;
+                          _focusedDay = selectedDate;
+                        });
+                      }
+
+                      if (format == CalendarFormat.week) {
+                        await navigator.push(
+                          MaterialPageRoute(
+                            builder: (context) => WeeklyViewScreen(
+                              focusedDate: selectedDate ?? _selectedDay,
+                              initialPatient: _chainedPatient,
+                              receiptDraft: _receiptDraft,
+                            ),
+                          ),
+                        );
                       }
                       if (!mounted) return;
                       _handleDataChange();

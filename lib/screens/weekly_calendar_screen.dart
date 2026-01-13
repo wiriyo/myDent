@@ -304,16 +304,6 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
         _headerScrollController.jumpTo(_bodyScrollController.offset);
       }
     });
-    _timeAxisScrollController.addListener(() {
-      if (_timeAxisScrollController.hasClients &&
-          _contentVerticalScrollController.hasClients &&
-          _timeAxisScrollController.offset !=
-              _contentVerticalScrollController.offset) {
-        _contentVerticalScrollController.jumpTo(
-          _timeAxisScrollController.offset,
-        );
-      }
-    });
     _contentVerticalScrollController.addListener(() {
       if (_contentVerticalScrollController.hasClients &&
           _timeAxisScrollController.hasClients &&
@@ -1320,130 +1310,130 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
           ? const Center(
             child: CircularProgressIndicator(color: AppTheme.primary),
           )
-          : Stack(
+          : Column(
             children: [
-              SingleChildScrollView(
-                child: Column(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ViewModeSelector(
-                              calendarFormat: CalendarFormat.week,
-                              onFormatChanged: (format) {
-                                if (format == CalendarFormat.month) {
-                                  Navigator.pop(context, {
-                                    'selectedDate': _selectedDay ?? _focusedDay,
-                                    'format': CalendarFormat.month,
-                                  });
-                                }
-                              },
-                              onDailyViewTapped: () async {
-                                final navigator = Navigator.of(context);
-                                final result = await navigator.push(
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) => DailyCalendarScreen(
-                                          selectedDate: _selectedDay ?? DateTime.now(),
-                                          returnFormatOnPop: CalendarFormat.week,
-                                          initialPatient: _chainedPatient,
-                                          receiptDraft: _receiptDraft,
-                                        ),
+                    Expanded(
+                      child: ViewModeSelector(
+                        calendarFormat: CalendarFormat.week,
+                        onFormatChanged: (format) {
+                          if (format == CalendarFormat.month) {
+                            Navigator.pop(context, {
+                              'selectedDate': _selectedDay ?? _focusedDay,
+                              'format': CalendarFormat.month,
+                            });
+                          }
+                        },
+                        onDailyViewTapped: () async {
+                          final navigator = Navigator.of(context);
+                          final result = await navigator.push(
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => DailyCalendarScreen(
+                                    selectedDate: _selectedDay ?? DateTime.now(),
+                                    returnFormatOnPop: CalendarFormat.week,
+                                    initialPatient: _chainedPatient,
+                                    receiptDraft: _receiptDraft,
                                   ),
-                                );
-
-                                if (!mounted) return;
-
-                                DateTime? selectedDate;
-                                CalendarFormat? format;
-                                if (result is Map) {
-                                  final rawFormat = result['format'];
-                                  final rawDate = result['selectedDate'];
-                                  if (rawFormat is CalendarFormat) {
-                                    format = rawFormat;
-                                  }
-                                  if (rawDate is DateTime) {
-                                    selectedDate = rawDate;
-                                  }
-                                } else if (result is CalendarFormat) {
-                                  format = result;
-                                }
-
-                                if (selectedDate != null) {
-                                  final resolvedDate = selectedDate;
-                                  setState(() {
-                                    _selectedDay = resolvedDate;
-                                    _focusedDay = resolvedDate;
-                                  });
-                                  _updateSelectedDayClosedState();
-                                  _queueScrollToDay(resolvedDate);
-                                }
-
-                                if (format == CalendarFormat.month) {
-                                  navigator.pop({
-                                    'selectedDate': selectedDate ?? _selectedDay,
-                                    'format': CalendarFormat.month,
-                                  });
-                                  return;
-                                }
-
-                                _overridesLoaded = false;
-                                _fetchDataForWeek(selectedDate ?? _focusedDay);
-                              },
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          ElevatedButton(
-                            onPressed: _toggleClinicOpenClosed,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _isClinicClosed
-                                  ? Colors.red.shade300
-                                  : const Color(0xFFE0BBFF),
-                              foregroundColor: _isClinicClosed
-                                  ? Colors.white
-                                  : Colors.purple.shade900,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(
-                                  color: _isClinicClosed
-                                      ? Colors.red.shade500
-                                      : Colors.purple.shade700,
-                                  width: 1.5,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              minimumSize: const Size(0, 36),
-                              visualDensity: VisualDensity.compact,
-                              elevation: 2,
-                            ),
-                            child: Text(
-                              _isClinicClosed
-                                  ? 'หยุด'
-                                  : 'เปิด',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                          );
+
+                          if (!mounted) return;
+
+                          DateTime? selectedDate;
+                          CalendarFormat? format;
+                          if (result is Map) {
+                            final rawFormat = result['format'];
+                            final rawDate = result['selectedDate'];
+                            if (rawFormat is CalendarFormat) {
+                              format = rawFormat;
+                            }
+                            if (rawDate is DateTime) {
+                              selectedDate = rawDate;
+                            }
+                          } else if (result is CalendarFormat) {
+                            format = result;
+                          }
+
+                          if (selectedDate != null) {
+                            final resolvedDate = selectedDate;
+                            setState(() {
+                              _selectedDay = resolvedDate;
+                              _focusedDay = resolvedDate;
+                            });
+                            _updateSelectedDayClosedState();
+                            _queueScrollToDay(resolvedDate);
+                          }
+
+                          if (format == CalendarFormat.month) {
+                            navigator.pop({
+                              'selectedDate': selectedDate ?? _selectedDay,
+                              'format': CalendarFormat.month,
+                            });
+                            return;
+                          }
+
+                          _overridesLoaded = false;
+                          _fetchDataForWeek(selectedDate ?? _focusedDay);
+                        },
                       ),
                     ),
-                    _buildCalendar(),
-                    const SizedBox(height: 12),
-                    _buildWeekDayHeader(),
-                    SizedBox(
-                      height:
-                          _hourHeight * (_dynamicEndHour - _dynamicStartHour),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildTimeAxis(),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              controller: _contentVerticalScrollController,
+                    const SizedBox(width: 6),
+                    ElevatedButton(
+                      onPressed: _toggleClinicOpenClosed,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isClinicClosed
+                            ? Colors.red.shade300
+                            : const Color(0xFFE0BBFF),
+                        foregroundColor: _isClinicClosed
+                            ? Colors.white
+                            : Colors.purple.shade900,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(
+                            color: _isClinicClosed
+                                ? Colors.red.shade500
+                                : Colors.purple.shade700,
+                            width: 1.5,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        minimumSize: const Size(0, 36),
+                        visualDensity: VisualDensity.compact,
+                        elevation: 2,
+                      ),
+                      child: Text(
+                        _isClinicClosed
+                            ? '\u0e2b\u0e22\u0e38\u0e14'
+                            : '\u0e40\u0e1b\u0e34\u0e14',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildCalendar(),
+              const SizedBox(height: 12),
+              _buildWeekDayHeader(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    SingleChildScrollView(
+                      controller: _contentVerticalScrollController,
+                      child: SizedBox(
+                        height:
+                            _hourHeight * (_dynamicEndHour - _dynamicStartHour),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildTimeAxis(),
+                            Expanded(
                               child: SingleChildScrollView(
                                 controller: _bodyScrollController,
                                 scrollDirection: Axis.horizontal,
@@ -1467,26 +1457,25 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    //SizedBox(height: _scrollbarBottomOffset(context)),
-                    SizedBox(height: 10),
+                    Positioned(
+                      left: 16 + _timeAxisWidth,
+                      right: 16,
+                      bottom: _scrollbarBottomOffset(context),
+                      child: _FloatingHorizontalScrollbar(
+                        controller: _bodyScrollController,
+                        margin: EdgeInsets.zero,
+                        thickness: 6,
+                        minThumbLength: _resolveMinThumbLength(context),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Positioned(
-                left: 16 + _timeAxisWidth,
-                right: 16,
-                bottom: _scrollbarBottomOffset(context),
-                child: _FloatingHorizontalScrollbar(
-                  controller: _bodyScrollController,
-                  margin: EdgeInsets.zero,
-                  thickness: 6,
-                  minThumbLength: _resolveMinThumbLength(context),
-                ),
-              ),
+              const SizedBox(height: 10),
             ],
           ),
       floatingActionButton: FloatingActionButton(
@@ -1711,6 +1700,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
       width: _timeAxisWidth,
       child: ListView.builder(
         controller: _timeAxisScrollController,
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: _dynamicEndHour - _dynamicStartHour,
         itemBuilder: (context, index) {
           final hour = _dynamicStartHour + index;

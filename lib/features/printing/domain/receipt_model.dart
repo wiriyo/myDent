@@ -18,8 +18,22 @@ class BillInfo {
 @immutable
 class PatientInfo {
   final String name;
-  final String hn; // ถ้าไม่ใช้ HN ใส่ '' ได้
-  const PatientInfo({required this.name, this.hn = ''});
+  final String hn;
+  final String prefix;
+  const PatientInfo({required this.name, this.hn = '', this.prefix = ''});
+
+  String get displayName {
+    final String trimmedPrefix = prefix.trim();
+    final String trimmedName = name.trim();
+    if (trimmedPrefix.isEmpty) {
+      return trimmedName;
+    }
+    if (trimmedName.isEmpty) {
+      return trimmedPrefix;
+    }
+    final String spacer = trimmedPrefix.endsWith(' ') ? '' : ' ';
+    return '$trimmedPrefix$spacer$trimmedName';
+  }
 }
 
 @immutable

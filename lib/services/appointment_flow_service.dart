@@ -103,6 +103,7 @@ class AppointmentFlowService {
           ),
           patient: receipt.PatientInfo(
             name: newPatient.name,
+            prefix: newPatient.prefix,
             hn: newPatient.hnNumber ?? '',
           ),
           appointment: AppointmentInfo(

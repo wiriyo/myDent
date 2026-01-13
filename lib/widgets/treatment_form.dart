@@ -29,6 +29,13 @@ class _SaveDecision {
   const _SaveDecision({required this.confirmed, required this.shouldSchedule});
 }
 
+class _PatientIdentity {
+  final String name;
+  final String prefix;
+
+  const _PatientIdentity({required this.name, required this.prefix});
+}
+
 class TreatmentForm extends StatefulWidget {
   final String patientId;
   final Treatment? treatment;
@@ -187,15 +194,23 @@ class _TreatmentFormState extends State<TreatmentForm> {
     }
   }
 
-  Future<String> _resolvePatientName() async {
+  Future<_PatientIdentity> _resolvePatientIdentity() async {
     final fromWidget = (widget.patientName ?? '').trim();
-    if (fromWidget.isNotEmpty) return fromWidget;
     try {
       final svc = PatientService();
-      final name = await svc.getPatientNameById(widget.patientId);
-      if (name != null && name.trim().isNotEmpty) return name.trim();
+      final patient = await svc.getPatientById(widget.patientId);
+      if (patient != null) {
+        final name = patient.name.trim();
+        final prefix = patient.prefix.trim();
+        if (name.isNotEmpty) {
+          return _PatientIdentity(name: name, prefix: prefix);
+        }
+      }
     } catch (_) {}
-    return '';
+    if (fromWidget.isNotEmpty) {
+      return _PatientIdentity(name: fromWidget, prefix: '');
+    }
+    return const _PatientIdentity(name: '', prefix: '');
   }
 
   Future<Patient?> _getPatientForScheduling() async {
@@ -209,7 +224,9 @@ class _TreatmentFormState extends State<TreatmentForm> {
 
   Future<receipt.ReceiptModel> _buildReceiptFromForm() async {
     await _ensureReceiptInfo();
-    final patientName = await _resolvePatientName();
+    final patientIdentity = await _resolvePatientIdentity();
+    final patientName = patientIdentity.name;
+    final patientPrefix = patientIdentity.prefix;
     final proc = _procedureController.text.trim();
     final tooth = _toothNumberController.text.trim();
     final price =
@@ -227,6 +244,7 @@ class _TreatmentFormState extends State<TreatmentForm> {
       billNo: billNo,
       issuedAt: issuedAt,
       patientName: patientName,
+      patientPrefix: patientPrefix,
       items: [ReceiptLineInput(name: lineName, qty: 1, price: price)],
       subTotal: price,
       discount: 0,

@@ -1166,7 +1166,7 @@ class _ReceiptWidget extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: Text(data.patient.name, textAlign: TextAlign.right),
+                    child: Text(data.patient.displayName, textAlign: TextAlign.right),
                   ),
                 ),
                 _kv(

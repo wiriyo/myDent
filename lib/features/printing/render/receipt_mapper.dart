@@ -25,6 +25,7 @@ ReceiptModel buildReceiptModel({
   required DateTime issuedAt,
   // Patient
   required String patientName,
+  String patientPrefix = '',
   String hn = '',
   // Items
   required List<ReceiptLineInput> items,
@@ -43,7 +44,7 @@ ReceiptModel buildReceiptModel({
   return ReceiptModel(
     clinic: ClinicInfo(name: clinicName, address: clinicAddress, phone: clinicPhone),
     bill: BillInfo(billNo: billNo, issuedAt: issuedAt),
-    patient: PatientInfo(name: patientName, hn: hn),
+    patient: PatientInfo(name: patientName, hn: hn, prefix: patientPrefix),
     lines: lines,
     totals: TotalSummary(subTotal: sub, discount: discount, vat: vat, grandTotal: grand),
   );
@@ -55,13 +56,14 @@ AppointmentSlipModel buildAppointmentSlip({
   required String clinicAddress,
   required String clinicPhone,
   required String patientName,
+  String patientPrefix = '',
   String hn = '',
   required DateTime startAt,
   String? note,
 }) {
   return AppointmentSlipModel(
     clinic: ClinicInfo(name: clinicName, address: clinicAddress, phone: clinicPhone),
-    patient: PatientInfo(name: patientName, hn: hn),
+    patient: PatientInfo(name: patientName, hn: hn, prefix: patientPrefix),
     appointment: AppointmentInfo(startAt: startAt, note: note),
   );
 }

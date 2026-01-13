@@ -82,7 +82,7 @@ class AppointmentSlipRenderer {
     // --- Body ---
     y += _text(c, 'ใบนัดหมาย', y, size: 24, bold: true, center: true);
     y += 8;
-    y += _text(c, 'ผู้ป่วย: ${s.patient.name}${s.patient.hn.isNotEmpty ? "  (HN: ${s.patient.hn})" : ""}', y, size: 22);
+    y += _text(c, 'ผู้ป่วย: ${s.patient.displayName}${s.patient.hn.isNotEmpty ? "  (HN: ${s.patient.hn})" : ""}', y, size: 22);
     // 💖 FIX: แก้ไขการเรียกใช้ฟังก์ชันวันที่ให้ถูกต้องค่า
     y += _text(c, 'วันเวลา: ${ThFormat.dateThai(s.appointment.startAt, shortYear: false)} เวลา ${ThFormat.timeThai(s.appointment.startAt)}', y, size: 22);
     if (s.appointment.note?.isNotEmpty == true) {

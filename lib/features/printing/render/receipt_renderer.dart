@@ -87,7 +87,7 @@ class ReceiptRenderer {
         leftStyle: const TextStyle(fontSize: 16),
         rightStyle: const TextStyle(fontSize: 16));
 
-    final patientName = receipt.patient.name.trim();
+    final patientName = receipt.patient.displayName.trim();
     y = _drawTwoColumns(canvas, y,
         left: 'ชื่อ',
         right: '',

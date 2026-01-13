@@ -36,7 +36,7 @@ class BrowserPrintPayloadBuilder {
         'issuedTime': ThFormat.timeThai(receipt.bill.issuedAt),
       },
       'patient': <String, dynamic>{
-        'name': receipt.patient.name,
+        'name': receipt.patient.displayName,
         'hn': receipt.patient.hn,
       },
       'items': receipt.lines
@@ -83,7 +83,7 @@ class BrowserPrintPayloadBuilder {
         lineId: clinicLineId,
       ),
       'patient': <String, dynamic>{
-        'name': slip.patient.name,
+        'name': slip.patient.displayName,
         'hn': slip.patient.hn,
       },
       'appointment': <String, dynamic>{
@@ -138,7 +138,7 @@ class BrowserPrintPayloadBuilder {
         'issuedTime': ThFormat.timeThai(receipt.bill.issuedAt),
       },
       'patient': <String, dynamic>{
-        'name': receipt.patient.name,
+        'name': receipt.patient.displayName,
         'hn': receipt.patient.hn,
       },
       'items': receipt.lines
@@ -166,7 +166,7 @@ class BrowserPrintPayloadBuilder {
   }) {
     return <String, dynamic>{
       'patient': <String, dynamic>{
-        'name': slip.patient.name,
+        'name': slip.patient.displayName,
         'hn': slip.patient.hn,
       },
       'appointment': <String, dynamic>{

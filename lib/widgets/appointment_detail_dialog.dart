@@ -146,6 +146,7 @@ class _AppointmentDetailDialogState extends State<AppointmentDetailDialog> {
       clinicAddress: '304 ม.1 ต.หนองพอก\nอ.หนองพอก จ.ร้อยเอ็ด',
       clinicPhone: '094-5639334',
       patientName: patientName,
+      patientPrefix: widget.patient.prefix,
       hn: hn,
       startAt: startAt,
       note: note,

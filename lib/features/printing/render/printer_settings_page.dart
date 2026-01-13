@@ -1529,7 +1529,7 @@ class _CombinedSlipWidget extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      receipt.patient.name,
+                      receipt.patient.displayName,
                       textAlign: TextAlign.right,
                     ),
                   ),

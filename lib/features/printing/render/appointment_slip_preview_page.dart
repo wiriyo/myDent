@@ -1142,7 +1142,7 @@ class _SlipWidget extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      slip.patient.name.isEmpty ? '-' : slip.patient.name,
+                      slip.patient.displayName.isEmpty ? '-' : slip.patient.displayName,
                       textAlign: TextAlign.right,
                     ),
                   ),

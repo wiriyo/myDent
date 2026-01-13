@@ -21,31 +21,49 @@ class ViewModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildViewModeButton(
-          label: 'เดือน',
-          icon: Icons.calendar_month,
-          // ✨ [FIX] จะไฮไลท์ก็ต่อเมื่อไม่ได้อยู่ในหน้ารายวัน และ format เป็น month
-          isActive: !isDailyViewActive && calendarFormat == CalendarFormat.month,
-          onPressed: () => onFormatChanged(CalendarFormat.month),
-        ),
-        _buildViewModeButton(
-          label: 'สัปดาห์',
-          icon: Icons.view_week,
-          // ✨ [FIX] จะไฮไลท์ก็ต่อเมื่อไม่ได้อยู่ในหน้ารายวัน และ format เป็น week
-          isActive: !isDailyViewActive && calendarFormat == CalendarFormat.week,
-          onPressed: () => onFormatChanged(CalendarFormat.week),
-        ),
-        _buildViewModeButton(
-          label: 'วัน',
-          icon: Icons.calendar_view_day_outlined,
-          // ✨ [FIX] จะไฮไลท์ก็ต่อเมื่อเราอยู่ในหน้ารายวัน!
-          isActive: isDailyViewActive,
-          onPressed: onDailyViewTapped,
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 320;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: _buildViewModeButton(
+                label: '\u0e40\u0e14\u0e37\u0e2d\u0e19',
+                icon: Icons.calendar_month,
+                // ?????????? active ????????? format
+                isActive: !isDailyViewActive &&
+                    calendarFormat == CalendarFormat.month,
+                onPressed: () => onFormatChanged(CalendarFormat.month),
+                isCompact: isCompact,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _buildViewModeButton(
+                label: '\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c',
+                icon: Icons.view_week,
+                // ?????????? active ????????? format
+                isActive: !isDailyViewActive &&
+                    calendarFormat == CalendarFormat.week,
+                onPressed: () => onFormatChanged(CalendarFormat.week),
+                isCompact: isCompact,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _buildViewModeButton(
+                label: '\u0e27\u0e31\u0e19',
+                icon: Icons.calendar_view_day_outlined,
+                // ?????????? active ????????? daily view
+                isActive: isDailyViewActive,
+                onPressed: onDailyViewTapped,
+                isCompact: isCompact,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -54,29 +72,38 @@ class ViewModeSelector extends StatelessWidget {
     required IconData icon,
     required bool isActive,
     required VoidCallback onPressed,
+    required bool isCompact,
   }) {
     final activeColor = Colors.purple.shade100;
     final activeTextColor = Colors.purple.shade800;
     final inactiveColor = Colors.grey.shade200;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      child: TextButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, color: isActive ? activeTextColor : Colors.grey.shade600, size: 18),
-        label: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? activeTextColor : Colors.grey.shade700,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          ),
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(
+        icon,
+        color: isActive ? activeTextColor : Colors.grey.shade600,
+        size: isCompact ? 16 : 18,
+      ),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: isCompact ? 12 : 13,
+          color: isActive ? activeTextColor : Colors.grey.shade700,
+          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
         ),
-        style: TextButton.styleFrom(
-          backgroundColor: isActive ? activeColor : Colors.white,
-          side: BorderSide(color: isActive ? Colors.transparent : inactiveColor),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: isActive ? activeColor : Colors.white,
+        side: BorderSide(color: isActive ? Colors.transparent : inactiveColor),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 8 : 12,
+          vertical: isCompact ? 6 : 8,
         ),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }

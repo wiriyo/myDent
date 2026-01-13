@@ -821,7 +821,7 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                     onDailyViewTapped: _handleDataChange,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 ElevatedButton(
                   onPressed: _toggleClinicOpenClosed,
                   style: ElevatedButton.styleFrom(
@@ -840,12 +840,14 @@ class _DailyCalendarScreenState extends State<DailyCalendarScreen> {
                         width: 1.5,
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: const Size(0, 36),
+                    visualDensity: VisualDensity.compact,
                     elevation: 2,
                   ),
                   child: Text(
                     _isClinicClosed ? '\u0e2b\u0e22\u0e38\u0e14' : '\u0e40\u0e1b\u0e34\u0e14',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],

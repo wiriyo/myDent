@@ -1394,7 +1394,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                               },
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           ElevatedButton(
                             onPressed: _toggleClinicOpenClosed,
                             style: ElevatedButton.styleFrom(
@@ -1413,7 +1413,9 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                   width: 1.5,
                                 ),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              minimumSize: const Size(0, 36),
+                              visualDensity: VisualDensity.compact,
                               elevation: 2,
                             ),
                             child: Text(
@@ -1421,7 +1423,7 @@ class _WeeklyViewScreenState extends State<WeeklyViewScreen> {
                                   ? 'หยุด'
                                   : 'เปิด',
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

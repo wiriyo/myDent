@@ -136,29 +136,32 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
                     const SizedBox(height: 16),
                     _buildTextField('รหัสผ่าน (Password)', _passwordController, obscure: true),
                     const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _loginStaff,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF47FA1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(32),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _loginStaff,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF47FA1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(32),
+                          ),
+                          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('เข้าสู่ระบบ'),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text('เข้าสู่ระบบ'),
                     ),
-                     if (errorMessage.isNotEmpty)
+                    if (errorMessage.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Text(errorMessage, style: const TextStyle(color: Colors.red)),

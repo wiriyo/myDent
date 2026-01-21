@@ -64,6 +64,9 @@ class ReceiptRenderer {
     y += 6;
     y = _drawCenter(canvas, y, _repeatChar('*', count: 21),
         style: const TextStyle(letterSpacing: 1.0));
+    y = _drawCenter(canvas, y, 'ใบเสร็จรับเงิน',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700));
+    y += 4;
 
     // 3) ข้อมูลเลขที่ / วันที่ / เวลา / ชื่อ / หัตถการ / ค่าบริการ (สองคอลัมน์)
     y += 8;

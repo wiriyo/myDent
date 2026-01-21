@@ -83,6 +83,14 @@
       font-size: 15px;
       margin: 12px 0 8px;
     }
+    .receipt-title {
+      margin-top: 6px;
+    }
+    .star-divider {
+      text-align: center;
+      letter-spacing: 1px;
+      margin: 8px 0 4px;
+    }
     .bill-info,
     .patient-info,
     .appointment-info {
@@ -286,8 +294,14 @@
       }
 
       function renderReceipt(root, data) {
+        const stars = document.createElement('div');
+        stars.className = 'star-divider';
+        stars.textContent = '*********************';
+        root.appendChild(stars);
+
         const title = document.createElement('div');
         title.className = 'section-title';
+        title.classList.add('receipt-title');
         title.textContent = 'ใบเสร็จรับเงิน';
         root.appendChild(title);
 

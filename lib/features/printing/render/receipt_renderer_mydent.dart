@@ -1150,6 +1150,11 @@ class _ReceiptWidget extends StatelessWidget {
 
             const SizedBox(height: 6),
             const Text('*********************'),
+            const SizedBox(height: 4),
+            const Text(
+              'ใบเสร็จรับเงิน',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
 
             Column(

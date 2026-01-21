@@ -773,8 +773,8 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final isCompactHeight = media.size.height < 720;
-    final calendarRowHeight = isCompactHeight ? 36.0 : 52.0;
-    final calendarDaysOfWeekHeight = isCompactHeight ? 18.0 : 22.0;
+    final calendarRowHeight = isCompactHeight ? 30.0 : 52.0;
+    final calendarDaysOfWeekHeight = isCompactHeight ? 16.0 : 22.0;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -798,230 +798,237 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
               children: [
-                Expanded(
-                  child: ViewModeSelector(
-                    calendarFormat: _calendarFormat,
-                    onFormatChanged: (format) async {
-                      if (format == CalendarFormat.week) {
-                        final navigator = Navigator.of(context);
-                        final result = await navigator.push(
-                          MaterialPageRoute(
-                            builder: (context) => WeeklyViewScreen(
-                              focusedDate: _selectedDay,
-                              initialPatient: _chainedPatient,
-                              receiptDraft: _receiptDraft,
-                            ),
-                          ),
-                        );
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, isCompactHeight ? 8 : 12, 16, isCompactHeight ? 4 : 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ViewModeSelector(
+                          calendarFormat: _calendarFormat,
+                          onFormatChanged: (format) async {
+                            if (format == CalendarFormat.week) {
+                              final navigator = Navigator.of(context);
+                              final result = await navigator.push(
+                                MaterialPageRoute(
+                                  builder: (context) => WeeklyViewScreen(
+                                    focusedDate: _selectedDay,
+                                    initialPatient: _chainedPatient,
+                                    receiptDraft: _receiptDraft,
+                                  ),
+                                ),
+                              );
 
-                        DateTime? selectedDate;
-                        if (result is Map) {
-                          final rawDate = result['selectedDate'];
-                          if (rawDate is DateTime) {
-                            selectedDate = rawDate;
-                          }
-                        }
-                        if (selectedDate != null && mounted) {
-                          final resolvedDate = selectedDate;
-                          setState(() {
-                            _selectedDay = resolvedDate;
-                            _focusedDay = resolvedDate;
-                          });
-                        }
+                              DateTime? selectedDate;
+                              if (result is Map) {
+                                final rawDate = result['selectedDate'];
+                                if (rawDate is DateTime) {
+                                  selectedDate = rawDate;
+                                }
+                              }
+                              if (selectedDate != null && mounted) {
+                                final resolvedDate = selectedDate;
+                                setState(() {
+                                  _selectedDay = resolvedDate;
+                                  _focusedDay = resolvedDate;
+                                });
+                              }
 
-                        if (!mounted) return;
-                        _handleDataChange();
-                      } else {
-                        if (_calendarFormat != format) {
-                          setState(() {
-                            _calendarFormat = format;
-                          });
-                        }
-                      }
-                    },
-                    onDailyViewTapped: () async {
-                      final navigator = Navigator.of(context);
-                      final result = await navigator.push(
-                        MaterialPageRoute(builder: (context) => DailyCalendarScreen(
-                          selectedDate: _selectedDay,
-                          returnFormatOnPop: CalendarFormat.month,
-                          initialPatient: _chainedPatient,
-                          receiptDraft: _receiptDraft,
-                        )),
-                      );
+                              if (!mounted) return;
+                              _handleDataChange();
+                            } else {
+                              if (_calendarFormat != format) {
+                                setState(() {
+                                  _calendarFormat = format;
+                                });
+                              }
+                            }
+                          },
+                          onDailyViewTapped: () async {
+                            final navigator = Navigator.of(context);
+                            final result = await navigator.push(
+                              MaterialPageRoute(builder: (context) => DailyCalendarScreen(
+                                selectedDate: _selectedDay,
+                                returnFormatOnPop: CalendarFormat.month,
+                                initialPatient: _chainedPatient,
+                                receiptDraft: _receiptDraft,
+                              )),
+                            );
 
-                      if (!mounted) return;
+                            if (!mounted) return;
 
-                      DateTime? selectedDate;
-                      CalendarFormat? format;
-                      if (result is Map) {
-                        final rawFormat = result['format'];
-                        final rawDate = result['selectedDate'];
-                        if (rawFormat is CalendarFormat) {
-                          format = rawFormat;
-                        }
-                        if (rawDate is DateTime) {
-                          selectedDate = rawDate;
-                        }
-                      } else if (result is CalendarFormat) {
-                        format = result;
-                      }
+                            DateTime? selectedDate;
+                            CalendarFormat? format;
+                            if (result is Map) {
+                              final rawFormat = result['format'];
+                              final rawDate = result['selectedDate'];
+                              if (rawFormat is CalendarFormat) {
+                                format = rawFormat;
+                              }
+                              if (rawDate is DateTime) {
+                                selectedDate = rawDate;
+                              }
+                            } else if (result is CalendarFormat) {
+                              format = result;
+                            }
 
-                      if (selectedDate != null && mounted) {
-                        final resolvedDate = selectedDate;
-                        setState(() {
-                          _selectedDay = resolvedDate;
-                          _focusedDay = resolvedDate;
-                        });
-                      }
+                            if (selectedDate != null && mounted) {
+                              final resolvedDate = selectedDate;
+                              setState(() {
+                                _selectedDay = resolvedDate;
+                                _focusedDay = resolvedDate;
+                              });
+                            }
 
-                      if (format == CalendarFormat.week) {
-                        await navigator.push(
-                          MaterialPageRoute(
-                            builder: (context) => WeeklyViewScreen(
-                              focusedDate: selectedDate ?? _selectedDay,
-                              initialPatient: _chainedPatient,
-                              receiptDraft: _receiptDraft,
-                            ),
-                          ),
-                        );
-                      }
-                      if (!mounted) return;
-                      _handleDataChange();
-                    },
-                  ),
-                ),
-                if (_calendarFormat == CalendarFormat.month) ...[
-                  const SizedBox(width: 6),
-                  ElevatedButton(
-                    onPressed: _toggleClinicOpenClosed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isClinicClosed
-                          ? Colors.red.shade300
-                          : const Color(0xFFE0BBFF),
-                      foregroundColor: _isClinicClosed
-                          ? Colors.white
-                          : Colors.purple.shade900,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: _isClinicClosed
-                              ? Colors.red.shade500
-                              : Colors.purple.shade700,
-                          width: 1.5,
+                            if (format == CalendarFormat.week) {
+                              await navigator.push(
+                                MaterialPageRoute(
+                                  builder: (context) => WeeklyViewScreen(
+                                    focusedDate: selectedDate ?? _selectedDay,
+                                    initialPatient: _chainedPatient,
+                                    receiptDraft: _receiptDraft,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (!mounted) return;
+                            _handleDataChange();
+                          },
                         ),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      minimumSize: const Size(0, 36),
-                      visualDensity: VisualDensity.compact,
-                      elevation: 2,
+                      if (_calendarFormat == CalendarFormat.month) ...[
+                        const SizedBox(width: 6),
+                        ElevatedButton(
+                          onPressed: _toggleClinicOpenClosed,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isClinicClosed
+                                ? Colors.red.shade300
+                                : const Color(0xFFE0BBFF),
+                            foregroundColor: _isClinicClosed
+                                ? Colors.white
+                                : Colors.purple.shade900,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: _isClinicClosed
+                                    ? Colors.red.shade500
+                                    : Colors.purple.shade700,
+                                width: 1.5,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: const Size(0, 36),
+                            visualDensity: VisualDensity.compact,
+                            elevation: 2,
+                          ),
+                          child: Text(
+                            _isClinicClosed ? '\u0e2b\u0e22\u0e38\u0e14' : '\u0e40\u0e1b\u0e34\u0e14',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Container(
+                    padding: EdgeInsets.all(isCompactHeight ? 4.0 : 8.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
                     ),
-                    child: Text(
-                      _isClinicClosed ? '\u0e2b\u0e22\u0e38\u0e14' : '\u0e40\u0e1b\u0e34\u0e14',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    child: TableCalendar(
+                      locale: 'th_TH',
+                      firstDay: DateTime.utc(2020, 1, 1),
+                      lastDay: DateTime.utc(2030, 12, 31),
+                      focusedDay: _focusedDay,
+                      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                      calendarFormat: _calendarFormat,
+                      daysOfWeekHeight: calendarDaysOfWeekHeight,
+                      rowHeight: calendarRowHeight,
+                      eventLoader: (day) {
+                        final dayKey = DateTime.utc(day.year, day.month, day.day);
+                        return _events[dayKey] ?? [];
+                      },
+                      headerStyle: const HeaderStyle(
+                        formatButtonVisible: false,
+                        titleCentered: true,
+                        titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
+                      ),
+                      calendarBuilders: CalendarBuilders(
+                        headerTitleBuilder: (context, date) {
+                          final year = date.year + 543;
+                          final month = DateFormat.MMMM('th_TH').format(date);
+                          return Center(child: Text('$month $year', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)));
+                        },
+                        // dY'- UPDATED: Marker builder now shows the count!
+                        markerBuilder: (context, day, events) {
+                          if (events.isNotEmpty) {
+                            final bool isWeb = kIsWeb;
+                            final double rightInset = 1.0;
+                            final double bottomInset = 1.0;
+                            final double horizontalShift = isWeb ? -35.0 : 0.0; // responsive for web
+                            return Positioned(
+                              right: rightInset,
+                              bottom: bottomInset,
+                              child: Transform.translate(
+                                offset: Offset(horizontalShift, 0),
+                                child: Container(
+                                  padding: const EdgeInsets.all(1.0),
+                                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
+                                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                  child: Center(
+                                    child: Text(
+                                      '${events.first}',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return null;
+                        },
+                      ),
+                      calendarStyle: CalendarStyle(
+                        todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withValues(alpha: 0.5), shape: BoxShape.circle),
+                        selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
+                      ),
+                      onDaySelected: (selectedDay, focusedDay) {
+                        if (!isSameDay(_selectedDay, selectedDay)) {
+                          setState(() {
+                            _selectedDay = selectedDay;
+                            _focusedDay = focusedDay; // Keep focused day in sync
+                          });
+                          _loadAppointmentsForDay(selectedDay);
+                        }
+                      },
+                      onPageChanged: (focusedDay) {
+                        _focusedDay = focusedDay;
+                        if (!isSameDay(_selectedDay, focusedDay)) {
+                           setState(() {
+                             _selectedDay = focusedDay;
+                           });
+                        }
+                        _loadEventMarkersForMonth(focusedDay);
+                        _loadAppointmentsForDay(focusedDay); // Load data for the first visible day
+                      },
                     ),
                   ),
-                ],
+                ),
+                SizedBox(height: isCompactHeight ? 8 : 12),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Container(
-              padding: const EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-              ),
-              child: TableCalendar(
-                locale: 'th_TH',
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedDay,
-                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                calendarFormat: _calendarFormat,
-                daysOfWeekHeight: calendarDaysOfWeekHeight,
-                rowHeight: calendarRowHeight,
-                eventLoader: (day) {
-                  final dayKey = DateTime.utc(day.year, day.month, day.day);
-                  return _events[dayKey] ?? [];
-                },
-                headerStyle: const HeaderStyle(
-                  formatButtonVisible: false,
-                  titleCentered: true,
-                  titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
-                ),
-                calendarBuilders: CalendarBuilders(
-                  headerTitleBuilder: (context, date) {
-                    final year = date.year + 543;
-                    final month = DateFormat.MMMM('th_TH').format(date);
-                    return Center(child: Text('$month $year', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily, color: AppTheme.textPrimary)));
-                  },
-                  // 💖 UPDATED: Marker builder now shows the count!
-                  markerBuilder: (context, day, events) {
-                    if (events.isNotEmpty) {
-                      final bool isWeb = kIsWeb;
-                      final double rightInset = 1.0;
-                      final double bottomInset = 1.0;
-                      final double horizontalShift = isWeb ? -35.0 : 0.0; // responsive for web
-                      return Positioned(
-                        right: rightInset,
-                        bottom: bottomInset,
-                        child: Transform.translate(
-                          offset: Offset(horizontalShift, 0),
-                          child: Container(
-                            padding: const EdgeInsets.all(1.0),
-                            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF06292)),
-                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                            child: Center(
-                              child: Text(
-                                '${events.first}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: AppTheme.fontFamily),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return null;
-                  },
-                ),
-                calendarStyle: CalendarStyle(
-                  todayDecoration: BoxDecoration(color: AppTheme.primaryLight.withValues(alpha: 0.5), shape: BoxShape.circle),
-                  selectedDecoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle),
-                ),
-                onDaySelected: (selectedDay, focusedDay) {
-                  if (!isSameDay(_selectedDay, selectedDay)) {
-                    setState(() {
-                      _selectedDay = selectedDay;
-                      _focusedDay = focusedDay; // Keep focused day in sync
-                    });
-                    _loadAppointmentsForDay(selectedDay);
-                  }
-                },
-                onPageChanged: (focusedDay) {
-                  _focusedDay = focusedDay;
-                  if (!isSameDay(_selectedDay, focusedDay)) {
-                     setState(() {
-                       _selectedDay = focusedDay;
-                     });
-                  }
-                  _loadEventMarkersForMonth(focusedDay);
-                  _loadAppointmentsForDay(focusedDay); // Load data for the first visible day
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
+          SliverFillRemaining(
+            hasScrollBody: true,
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                 : TimelineView(

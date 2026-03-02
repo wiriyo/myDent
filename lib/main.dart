@@ -6,6 +6,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,6 +84,19 @@ Future<void> _initializeFirebase({required bool ignoreDuplicateApp}) async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    if (kDebugMode) {
+      try {
+        debugPrint('️‍🔥 Laila Debug: Using LOCAL Firebase Emulators');
+        FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+        FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+        FirebaseFunctions.instanceFor(region: 'us-central1')
+            .useFunctionsEmulator('localhost', 5001);
+        FirebaseStorage.instance.useStorageEmulator('localhost', 9199);
+      } catch (e) {
+        // ignore: avoid_print
+        print('Error using local emulators: $e');
+      }
+    }
   } on FirebaseException catch (e) {
     if (ignoreDuplicateApp && e.code == 'duplicate-app') {
       return;
